@@ -96,7 +96,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
       try {
-        const p = await store.getProfile();
+        let p = await store.getProfile();
+        // New accounts start on UTC. If this device knows better, adopt its timezone once,
+        // so reminders and "today" (weekly splits) follow the user's real day.
+        const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (p.timezone === "UTC" && deviceTz && deviceTz !== "UTC") {
+          p = await store.updateProfile({ timezone: deviceTz }).catch(() => p);
+        }
         if (!cancelled) setProfile(p);
         if (!prefsLoaded.current) {
           prefsLoaded.current = true;
