@@ -79,6 +79,7 @@ export interface Store {
   subscribe(cb: () => void): () => void;
 
   exportAll(): Promise<unknown>;
-  importAll(data: unknown): Promise<void>;
+  /** Returns counts when the backend reports them (Supabase). */
+  importAll(data: unknown): Promise<void | { sessions: number; sets: number; skipped: number }>;
   resetAll(): Promise<void>;
 }

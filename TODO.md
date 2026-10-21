@@ -43,7 +43,7 @@ Slash commands through `/api/discord` in the web app (no separate bot server).
 
 ## Known gaps
 
-- [ ] Dashboard widget layout and theme are saved per browser, not per account
+- [x] Dashboard widget layout and theme are saved to the account (Supabase)
 - [ ] `saveSplit` on Supabase runs several requests instead of one transaction
 - [ ] No service worker yet (installable, but no offline support)
-- [ ] Import of local-mode JSON exports into Supabase
+- [x] Import of local-mode JSON exports into Supabase

@@ -2,7 +2,9 @@ import { createBrowserClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AppConfig } from "@/config/app.config";
 import { e1rm } from "@/lib/domain/e1rm";
+import { replayPRs } from "@/lib/domain/prs";
 import type { Today } from "@/lib/domain/split";
+import { planImport, type ExportData } from "@/lib/importPlan";
 import type { AccountPrefs, Exercise, FriendRequest, FriendStatus, PREvent, Reminder, Profile, Session, SetEntry, Split, SplitDay } from "@/lib/domain/types";
 import type { NewSet, Store } from "./types";
 
@@ -349,8 +351,33 @@ export class SupabaseStore implements Store {
     return { profile, exercises: exercises.filter((e) => e.ownerId), splits, splitState, sessions, sets };
   }
 
-  async importAll() {
-    throw new Error("Import is only supported on the local backend.");
+  /** Import an export (e.g. from local mode). Safe to repeat: sessions already present are skipped. */
+  async importAll(raw: unknown) {
+    const data = raw as ExportData;
+    if (!data || !Array.isArray(data.sessions) || !Array.isArray(data.sets)) throw new Error("That file doesn't look like a Fitness Tracker export.");
+    const owner_id = await this.userId();
+    const [exercises, sessions, splits] = await Promise.all([this.listExercises(), this.listSessions(), this.listSplits()]);
+    const plan = planImport(
+      data,
+      { exercises, sessionStarts: new Set(sessions.map((x) => new Date(x.startedAt).toISOString())), hasActiveSplit: splits.some((x) => x.isActive) },
+      () => crypto.randomUUID(),
+    );
+    if (plan.newExercises.length) {
+      check(await this.sb.from("exercises").insert(plan.newExercises.map((e) => ({ id: e.id, name: e.name, category: e.category, equipment: e.equipment, increment_kg: e.incrementKg, owner_id }))), "import/exercises");
+    }
+    for (const sp of plan.splits) await this.saveSplit(sp);
+    if (plan.sessions.length) {
+      check(await this.sb.from("sessions").insert(plan.sessions.map((x) => ({ id: x.id, split_day_id: x.splitDayId, started_at: x.startedAt, finished_at: x.finishedAt, source: x.source }))), "import/sessions");
+    }
+    for (let i = 0; i < plan.sets.length; i += 500) {
+      check(await this.sb.from("sets").insert(plan.sets.slice(i, i + 500).map((x) => this.setRow(x))), "import/sets");
+    }
+    // Rebuild PRs for every lift that got new sets.
+    const allSessions = await this.listSessions();
+    for (const exerciseId of new Set(plan.sets.map((x) => x.exerciseId))) {
+      await this.savePersonalRecords(exerciseId, replayPRs(await this.listSets({ exerciseId }), allSessions, this.cfg));
+    }
+    return { sessions: plan.sessions.length, sets: plan.sets.length, skipped: plan.skippedSessions };
   }
 
   async resetAll() {

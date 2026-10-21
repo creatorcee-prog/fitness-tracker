@@ -182,12 +182,26 @@ export default function SettingsPage() {
         <div className="row">
           <button className="btn" onClick={download}>Export JSON</button>
           <button className="btn" onClick={downloadCsv}>Export CSV</button>
-          {store.kind === "local" && (
-            <label className="btn">
-              Import JSON
-              <input type="file" accept="application/json" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; await store.importAll(JSON.parse(await f.text())); toast.show({ text: "Imported" }); refresh(); }} />
-            </label>
-          )}
+          <label className="btn">
+            Import JSON
+            <input
+              type="file"
+              accept="application/json"
+              hidden
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (!f) return;
+                try {
+                  const r = await store.importAll(JSON.parse(await f.text()));
+                  toast.show({ text: r ? `Imported ${r.sessions} sessions, ${r.sets} sets${r.skipped ? ` (${r.skipped} already here)` : ""}` : "Imported" });
+                  refresh();
+                } catch (err) {
+                  toast.show({ text: `Import failed: ${err instanceof Error ? err.message : String(err)}` });
+                }
+              }}
+            />
+          </label>
           <button className="btn" onClick={async () => { try { const n = await generateDemoHistory(store, cfg, now()); toast.show({ text: `Generated ${n} demo sessions` }); refresh(); } catch (e) { toast.show({ text: String(e) }); } }}>Generate demo history</button>
           <button className="btn danger" onClick={async () => { const backup = await store.exportAll(); await store.resetAll(); toast.show({ text: "All data reset", undo: store.kind === "local" ? async () => { await store.importAll(backup); refresh(); } : undefined }); refresh(); }}>Reset all data</button>
           {store instanceof SupabaseStore && <button className="btn" onClick={async () => { await store.sb.auth.signOut(); location.reload(); }}>Sign out</button>}
