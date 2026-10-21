@@ -64,7 +64,7 @@ Debug tools:
 
 ## Tested
 
-- 34 unit tests (`npm test`) covering e1RM, shorthand, PR replay, split rotation and weekly timezone handling, progression, % gain, plates, streaks, exercise matching and config merging.
+- 33 unit tests (`npm test`) covering e1RM, shorthand, PR replay, split rotation and weekly timezone handling, progression, % gain, plates, streaks, exercise matching and config merging.
 - Both migrations run on Postgres 16 with a stubbed Supabase `auth` schema. Checked: rotation advance and idempotent finish, skip, weekly-mode timezone, row-level security isolation between two users, the friend request → accept → status flow, hidden status, and locked columns.
 - A headless browser run on a phone-sized viewport covered logging, PR badges, rest timer, shorthand and undo, finish advancing the split, demo history, charts, friends with QR, theme switching and widgets, with no console errors.
 - **Not tested against a live Supabase project**, so the Discord OAuth round trip and Realtime have not been run.
