@@ -290,6 +290,8 @@ export const defaultConfig = {
     /** Toggle whole features on/off for debugging. */
     restTimer: true,
     shorthandBox: true,
+    /** Mic button in the logging bar (browser speech recognition). Fills the quick box; you confirm. */
+    voiceLog: true,
     plateCalculator: true,
     progressionHints: true,
     undoToast: true,

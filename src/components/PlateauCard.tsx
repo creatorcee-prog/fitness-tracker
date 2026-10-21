@@ -16,9 +16,9 @@ export function PlateauCard() {
   if (!stalls?.length) return null;
   return (
     <div className="card stack" id="plateaus">
-      <div className="row" style={{ gap: 10 }}>
+      <div className="row" style={{ gap: 10, flexWrap: "nowrap", alignItems: "center" }}>
         <JamesSilhouette mood="neutral" size={40} />
-        <div>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <h2 style={{ margin: 0 }}>Stalled lifts</h2>
           <span className="muted small">No new best for 3+ weeks. Here&apos;s how to get moving again.</span>
         </div>

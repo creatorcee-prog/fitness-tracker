@@ -18,6 +18,8 @@ import { platesPerSide } from "@/lib/domain/plates";
 import { prefillFor, type Prefill } from "@/lib/domain/progression";
 import { prsForSet, replayPRs } from "@/lib/domain/prs";
 import { parseShorthand } from "@/lib/domain/shorthand";
+import { spokenToShorthand } from "@/lib/domain/spoken";
+import { VoiceLogButton } from "@/components/VoiceLogButton";
 import { weighInDue, type BodyweightEntry } from "@/lib/domain/bodyweight";
 import { localDate, nextPosition, type Today } from "@/lib/domain/split";
 import type { Exercise, PREvent, PRType, Session, SetEntry, Split, SplitDay } from "@/lib/domain/types";
@@ -64,6 +66,7 @@ export default function TodayPage() {
   const [showPlates, setShowPlates] = useState(false);
   const [shorthand, setShorthand] = useState("");
   const [shorthandErr, setShorthandErr] = useState<string | null>(null);
+  const [voiceHint, setVoiceHint] = useState<string | null>(null);
   const [timer, setTimer] = useState<TimerState | null>(null);
   const [busy, setBusy] = useState(false);
   /** The logging bar shows only while you're logging: a workout is open, or you picked an exercise / tapped Start. */
@@ -330,6 +333,7 @@ export default function TodayPage() {
       if (prs.length) void store.announcePRs(set.id);
     }
     setShorthand("");
+    setVoiceHint(null);
     if (allPrs.size) {
       const best = created[created.length - 1];
       mascot.say("pr", { lift: exercises.get(exId)?.name ?? "Lift", weight: `${Number(fromKg(best.weightKg, unit).toFixed(1))} ${unit}`, reps: best.reps });
@@ -539,11 +543,25 @@ export default function TodayPage() {
                 <input style={{ flex: 1 }} placeholder='Quick: 185x5x3 · 185 5,5,4 · bench 185x5' value={shorthand} onChange={(e) => setShorthand(e.target.value)} aria-label="Shorthand sets" />
                 <button className="btn" type="submit">Log</button>
                 {shorthandErr && <div className="small" style={{ color: "var(--bad)", width: "100%" }}>{shorthandErr}</div>}
+                {!shorthandErr && voiceHint && <div className="muted small" style={{ width: "100%" }}>{voiceHint}</div>}
               </form>
             )}
             <div className="row" style={{ flexWrap: "nowrap" }}>
               <button className="btn" onClick={() => setShowMore(!showMore)} aria-expanded={showMore}>{showMore ? "Less" : "More"}</button>
               {cfg.features.plateCalculator && <button className={`btn ${showPlates ? "active" : ""}`} onClick={() => setShowPlates(!showPlates)}>Plates</button>}
+              {cfg.features.voiceLog && cfg.features.shorthandBox && (
+                <VoiceLogButton
+                  onError={(msg) => { setShowMore(true); setVoiceHint(null); setShorthandErr(msg); }}
+                  onHeard={(heard) => {
+                    // Never logs straight away: the guess goes in the quick box for you to check and tap Log.
+                    const guess = spokenToShorthand(heard);
+                    setShowMore(true);
+                    setShorthand(guess ?? heard);
+                    setShorthandErr(guess ? null : `Heard "${heard}" but couldn't read a set from it. Try "185 for 5".`);
+                    setVoiceHint(guess ? `Heard "${heard}". Check it, then tap Log.` : null);
+                  }}
+                />
+              )}
               <button className="btn primary big" style={{ flex: 1 }} disabled={busy} onClick={saveDraft}>Save set</button>
             </div>
           </div>

@@ -76,7 +76,12 @@ Slash commands through `/api/discord` in the web app (no separate bot server).
 ## Later: bot ideas
 
 - [x] `/bodyweight 182` + bodyweight card on Progress (7-day average, weekly rate, strength ÷ bodyweight)
-- [ ] `/leaderboard`: compare friends. Needs an **explicit opt-in** per user, and per-lift choices of what to share (e.g. e1RM only, or % gain only, which is fairer across sizes).
+- [x] `/leaderboard`: friends ranked by % strength gain, opt-in, only percentages shared
+- [x] Plateau detection with progressive-overload advice (Progress, James on Today, AI context)
+- [x] Weigh-in reminder in the daily check-in (only for people who log weight)
+- [x] Voice log (mic in the logging bar → quick box, you confirm)
+- [ ] Weather nudges for runs/walks (Open-Meteo; needs web push, so Home Screen install on iPhone)
+- [ ] Learned synonyms: promote renames/merges to library synonyms once 3+ people agree; typo tolerance
 - [x] `/help`
 
 ## Done: look and feel
@@ -87,7 +92,7 @@ Slash commands through `/api/discord` in the web app (no separate bot server).
 ## Roadmap (from the build plan)
 
 - v1: ~~goals~~, ~~talking mascot~~, ~~offline logging~~, ~~streak milestones for the mascot~~, bodyweight log
-- v2: behavior modes (game / professional), walk planner, stall detection
+- v2: behavior modes (game / professional), walk planner, ~~stall detection~~
 - Later: Strava import
 
 ## Known gaps
