@@ -61,7 +61,7 @@ h2 { font-size: 1.15rem; margin: 0 0 8px; font-weight: 650; letter-spacing: -0.0
 
 /* Large-title header with avatar (iOS style) */
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding-top: 4px; }
-.avatar-btn { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; flex: none; font-weight: 700; color: var(--accent-text); background: linear-gradient(135deg, var(--ring-a), var(--ring-b)); box-shadow: var(--shadow); }
+.avatar-btn { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; flex: none; font-weight: 700; color: var(--accent-text); background: linear-gradient(135deg, var(--ring-a), var(--ring-b)); box-shadow: var(--shadow); }
 
 /* ---------------------------------------------------------------- surfaces */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
@@ -84,7 +84,7 @@ h2 { font-size: 1.15rem; margin: 0 0 8px; font-weight: 650; letter-spacing: -0.0
 /* ---------------------------------------------------------------- controls */
 .btn {
   font: inherit; font-weight: 600; border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
-  border-radius: 999px; padding: 8px 16px; cursor: pointer; min-height: 42px;
+  border-radius: 999px; padding: 8px 16px; cursor: pointer; min-height: 44px;
   transition: transform 0.12s var(--ease), background 0.2s, opacity 0.2s;
 }
 .btn:disabled { opacity: 0.45; cursor: default; }
@@ -92,11 +92,11 @@ h2 { font-size: 1.15rem; margin: 0 0 8px; font-weight: 650; letter-spacing: -0.0
 .btn.danger { color: var(--bad); }
 .btn.ghost { background: transparent; border-color: transparent; }
 .btn.big { min-height: 56px; font-size: 1.08rem; padding: 12px 22px; }
-.btn.sm { min-height: 32px; padding: 4px 12px; font-size: 0.85rem; }
+.btn.sm { min-height: 44px; min-width: 44px; padding: 4px 12px; font-size: 0.85rem; }
 .btn.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-.chip { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; font-size: 0.88rem; font-weight: 600; cursor: pointer; }
+.chip { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; font-size: 0.88rem; font-weight: 600; cursor: pointer; }
 
-input, select, textarea { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 9px 12px; min-height: 42px; }
+input, select, textarea { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 9px 12px; min-height: 44px; }
 input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 select {
   appearance: none; -webkit-appearance: none; padding-right: 34px; font-weight: 600; font-size: 0.92rem;
@@ -111,7 +111,7 @@ label.row { flex-wrap: nowrap; }
 
 /* iOS segmented control: thumb on a track */
 .segmented { display: inline-flex; background: var(--surface-2); border-radius: 999px; padding: 3px; gap: 2px; }
-.segmented button { font: inherit; font-size: 0.9rem; font-weight: 600; border: 0; background: transparent; color: var(--muted); padding: 7px 16px; border-radius: 999px; cursor: pointer; transition: background 0.2s var(--ease), color 0.2s; }
+.segmented button { font: inherit; font-size: 0.9rem; font-weight: 600; border: 0; background: transparent; color: var(--muted); padding: 10px 16px; border-radius: 999px; cursor: pointer; transition: background 0.2s var(--ease), color 0.2s; }
 .segmented button.on { background: var(--seg-thumb); color: var(--seg-thumb-text); box-shadow: 0 1px 3px rgb(0 0 0 / 0.18); }
 
 .badge { display: inline-block; font-size: 0.7rem; font-weight: 750; padding: 3px 7px; border-radius: 999px; background: var(--pr); color: #1b1300; letter-spacing: 0.01em; }
@@ -157,8 +157,8 @@ label.row { flex-wrap: nowrap; }
 }
 .dock-inner { max-width: 720px; margin: 0 auto; display: grid; gap: 10px; }
 .steppers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.stepper { display: grid; grid-template-columns: 48px 1fr 48px; align-items: center; background: var(--surface-2); border-radius: var(--radius-sm); padding: 4px; }
-.stepper button { width: 40px; height: 40px; margin: auto; border-radius: 50%; font-size: 1.5rem; line-height: 1; border: 0; background: var(--surface); color: var(--text); cursor: pointer; box-shadow: 0 1px 2px rgb(0 0 0 / 0.15); }
+.stepper { display: grid; grid-template-columns: 56px 1fr 56px; align-items: center; background: var(--surface-2); border-radius: var(--radius-sm); padding: 4px; }
+.stepper button { width: 48px; height: 48px; margin: auto; border-radius: 50%; font-size: 1.5rem; line-height: 1; border: 0; background: var(--surface); color: var(--text); cursor: pointer; box-shadow: 0 1px 2px rgb(0 0 0 / 0.15); }
 .stepper .val { text-align: center; font-size: 1.6rem; font-weight: 750; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; user-select: none; -webkit-user-select: none; padding: 4px 0; }
 .stepper .val small { display: block; font-size: 0.68rem; font-weight: 600; color: var(--muted); letter-spacing: 0.02em; }
 .stepper input { width: 100%; text-align: center; font-size: 1.2rem; min-height: 44px; }
@@ -351,3 +351,12 @@ label.row { flex-wrap: nowrap; }
 [data-glass="on"][data-mode="light"] .tile.hero, [data-glass="on"][data-mode="light"] .card.hero { background: color-mix(in srgb, var(--highlight) 92%, transparent); }
 [data-glass="on"][data-mode="light"] .dock, [data-glass="on"][data-mode="light"] .nav, [data-glass="on"][data-mode="light"] .sync-banner { background: color-mix(in srgb, var(--surface) 96%, transparent); }
 [data-glass="on"][data-mode="light"] .stepper button, [data-glass="on"][data-mode="light"] .nav a:not(.on) { background: color-mix(in srgb, var(--text) 7%, transparent); }
+
+/* Touch targets: 44px minimum for anything tapped mid-workout (Apple HIG; WCAG 2.5.5).
+   Checkbox rows are tappable across the whole label. */
+label.row:has(> input[type="checkbox"]) { min-height: 44px; cursor: pointer; }
+.header-actions { display: flex; align-items: center; gap: 8px; }
+.icon-btn { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; flex: none; }
+.today-section-title { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); margin: 4px 2px -4px; }
+/* Small text actions inside tiles ("+ Add a goal"): a 44px tap area without changing how they look. */
+.tap-pad { display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px; margin: -12px -10px; }

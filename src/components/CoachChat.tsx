@@ -13,6 +13,9 @@ import { parseFreeText } from "@/lib/domain/freetext";
 import { useApp } from "./AppProvider";
 import { JamesSilhouette } from "./JamesSilhouette";
 
+/** Other screens open the chat with window.dispatchEvent(new Event(OPEN_CHAT_EVENT)). */
+export const OPEN_CHAT_EVENT = "ft:open-chat";
+
 interface Proposal {
   action: AccountAction;
   state: "new" | "busy" | "applied" | "dismissed" | "undone";
@@ -74,6 +77,11 @@ export function CoachChat() {
   const bot = cfg.brand.botName;
 
   useEffect(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), [msgs, busy]);
+  useEffect(() => {
+    const open = () => setOpen(true);
+    window.addEventListener(OPEN_CHAT_EVENT, open);
+    return () => window.removeEventListener(OPEN_CHAT_EVENT, open);
+  }, []);
   // The message box grows with its text (up to ~6 lines, then scrolls).
   useEffect(() => {
     const el = inputRef.current;
@@ -177,7 +185,8 @@ export function CoachChat() {
 
   return (
     <>
-      {!open && (
+      {/* No floating button on Today: it has a chat button in its header instead (less over the workout). */}
+      {!open && path !== "/" && (
         <button className={`coach-fab ${path === "/" ? "compact" : ""}`} onClick={() => setOpen(true)} aria-label={`Ask ${bot}`}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.8A8 8 0 1 1 21 12z" />

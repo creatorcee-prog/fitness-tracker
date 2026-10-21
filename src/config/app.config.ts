@@ -187,7 +187,12 @@ export const defaultConfig = {
    */
   dashboard: {
     enabled: true,
-    /** The Mon–Sun strip at the top of Today, with a dot on days you trained. */
+    /**
+     * Where your workout sits on Today. "training-days": first on a training day or while a workout
+     * is open, after the widgets on rest days. "always" / "never" force it.
+     */
+    workoutFirst: "training-days" as "training-days" | "always" | "never",
+    /** The week strip at the top of Today, with a dot on days you trained. */
     weekStrip: true,
     widgets: [
       { id: "today", enabled: true, size: 2, color: "hero" },

@@ -19,7 +19,7 @@ export function GoalsWidget() {
     <div style={{ display: "grid", gap: 10 }}>
       <div className="spread">
         <span className="label">Goals</span>
-        <Link href="/progress#goals" className="small" style={{ fontWeight: 600 }}>{data.goals.length ? "All goals ›" : "+ Add a goal"}</Link>
+        <Link href="/progress#goals" className="small tap-pad" style={{ fontWeight: 600 }}>{data.goals.length ? "All goals ›" : "+ Add a goal"}</Link>
       </div>
       {!data.goals.length && <span className="foot">Set a target like “Bench 225” or “3 sessions a week”.</span>}
       {top.map((g) => (

@@ -38,7 +38,7 @@ function tileStyle(w: WidgetConfig): { className: string; style?: React.CSSPrope
   return { className: "tile", style: { ...span, background: w.color, borderColor: "transparent" } };
 }
 
-export function Dashboard({ today, onFocusWorkout }: { today: Today | null; onFocusWorkout?: () => void }) {
+export function Dashboard({ today, onFocusWorkout, hide = [] }: { today: Today | null; onFocusWorkout?: () => void; hide?: WidgetConfig["id"][] }) {
   const { cfg, store, profile, version, now } = useApp();
   const [data, setData] = useState<Data | null>(null);
 
@@ -63,7 +63,7 @@ export function Dashboard({ today, onFocusWorkout }: { today: Today | null; onFo
   }, [store, cfg, version, now]);
 
   if (!cfg.dashboard.enabled) return null;
-  const widgets = withNewWidgets(cfg.dashboard.widgets).filter((w) => w.enabled);
+  const widgets = withNewWidgets(cfg.dashboard.widgets).filter((w) => w.enabled && !hide.includes(w.id));
   const t = now();
   const ws = weekStart(t, cfg.split.weekStartsOn);
   const target = cfg.dashboard.weeklyTarget;

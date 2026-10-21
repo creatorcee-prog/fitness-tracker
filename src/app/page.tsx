@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useApp } from "@/components/AppProvider";
 import { MascotBubble, useMascot } from "@/components/Mascot";
+import { OPEN_CHAT_EVENT } from "@/components/CoachChat";
 import { useMyMedia } from "@/components/ProfileMediaCard";
 import { WeekStrip } from "@/components/WeekStrip";
 import { Dashboard } from "@/components/Dashboard";
@@ -359,25 +360,9 @@ export default function TodayPage() {
   const hour = now().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
-  return (
-    <div className="page stack">
-      <header className="page-head">
-        <div>
-          <div className="hello">{greeting}, {profile.displayName}</div>
-          <h1>{day ? `Ready for ${day.name}?` : restDay ? "Rest day. Recover well." : today?.kind === "no-split" ? "Let's set up your split" : "Ready to train?"}</h1>
-        </div>
-        <Link href="/settings" className={`avatar-btn ${media.avatar ? "has-photo" : ""}`} aria-label="Profile and settings">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          {media.avatar ? <img src={media.avatar} alt="" /> : profile.displayName.slice(0, 1).toUpperCase()}
-        </Link>
-      </header>
-
-      <MascotBubble />
-
-      {cfg.dashboard.weekStrip && <WeekStrip sessions={allSessions} now={now()} weekStartsOn={cfg.split.weekStartsOn} />}
-
-      <Dashboard today={today} onFocusWorkout={() => workoutRef.current?.scrollIntoView({ behavior: "smooth" })} />
-
+  // On a training day (or mid-workout) the workout comes first; the widgets are for rest days and glances.
+  const workoutFirst = cfg.dashboard.workoutFirst === "always" || (cfg.dashboard.workoutFirst === "training-days" && (!!session || !!day));
+  const workoutBlock = (
       <div ref={workoutRef} className="stack">
         {split && split.days.length > 0 && (
           <div className="row">
@@ -444,6 +429,37 @@ export default function TodayPage() {
           <button className="btn primary big" onClick={finish}>Finish workout</button>
         )}
       </div>
+  );
+  const dashboard = (
+    <Dashboard today={today} onFocusWorkout={() => workoutRef.current?.scrollIntoView({ behavior: "smooth" })} hide={workoutFirst ? ["today"] : []} />
+  );
+
+  return (
+    <div className="page stack">
+      <header className="page-head">
+        <div>
+          <div className="hello">{greeting}, {profile.displayName}</div>
+          <h1>{day ? `Ready for ${day.name}?` : restDay ? "Rest day. Recover well." : today?.kind === "no-split" ? "Let's set up your split" : "Ready to train?"}</h1>
+        </div>
+        <div className="header-actions">
+          {cfg.ai.chatButton && (
+            // On Today the chat lives up here, so nothing floats over the workout and logging bar.
+            <button className="icon-btn" aria-label={`Ask ${cfg.brand.botName}`} onClick={() => window.dispatchEvent(new Event(OPEN_CHAT_EVENT))}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.8A8 8 0 1 1 21 12z" /></svg>
+            </button>
+          )}
+          <Link href="/settings" className={`avatar-btn ${media.avatar ? "has-photo" : ""}`} aria-label="Profile and settings">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {media.avatar ? <img src={media.avatar} alt="" /> : profile.displayName.slice(0, 1).toUpperCase()}
+          </Link>
+        </div>
+      </header>
+
+      <MascotBubble />
+
+      {cfg.dashboard.weekStrip && <WeekStrip sessions={allSessions} now={now()} weekStartsOn={cfg.split.weekStartsOn} />}
+
+      {workoutFirst ? <>{workoutBlock}{dashboard}</> : <>{dashboard}{workoutBlock}</>}
 
       {focusId && draft && (
         <div className="dock" ref={dockRef}>
