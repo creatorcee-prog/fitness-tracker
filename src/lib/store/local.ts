@@ -380,6 +380,10 @@ export class LocalStore implements Store {
     this.mutate("deleteReminder", (db) => (db.reminders = db.reminders.filter((r) => r.id !== id)));
   }
 
+  async sendTestReminder() {
+    return { ok: false, message: "Local mode can't send Discord messages. Use the Supabase backend." };
+  }
+
   async getAnnounceSettings() {
     return this.read("getAnnounceSettings", (db) => ({ enabled: db.announcePRs, channelSet: false }));
   }

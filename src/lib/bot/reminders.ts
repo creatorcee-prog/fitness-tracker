@@ -18,19 +18,22 @@ export interface ReminderOutcome {
   reason?: string;
 }
 
-/** Message for one due reminder, or why it should be skipped. */
-export async function buildCheckIn(deps: ReminderDeps, r: DueReminder): Promise<{ reply: BotReply } | { skip: string }> {
+/**
+ * Message for one due reminder, or why it should be skipped.
+ * `force` (Settings → Send test reminder) ignores the skip rules so you can see the DM any time.
+ */
+export async function buildCheckIn(deps: ReminderDeps, r: DueReminder, force = false): Promise<{ reply: BotReply } | { skip: string }> {
   const { data, cfg, now } = deps;
   const user = await data.getUserById(r.userId);
   if (!user) return { skip: "user gone" };
 
-  if (cfg.reminders.skipIfTrainedToday) {
+  if (cfg.reminders.skipIfTrainedToday && !force) {
     const sessions = await data.listSessions(user.id);
     if (sessions.some((s) => localDate(new Date(s.startedAt), user.timezone) === r.localDate)) return { skip: "already trained today" };
   }
 
   const today = await data.getToday(user.id, now);
-  if (today.kind === "rest" && !cfg.reminders.onRestDays) return { skip: "rest day" };
+  if (today.kind === "rest" && !cfg.reminders.onRestDays && !force) return { skip: "rest day" };
 
   const split = await data.getActiveSplit(user.id);
   const rotation = split?.mode === "rotation";
@@ -83,4 +86,25 @@ export async function runReminders(deps: ReminderDeps): Promise<ReminderOutcome[
     }
   }
   return out;
+}
+
+/**
+ * Settings → "Send test reminder": DM the user their check-in right now,
+ * ignoring the skip rules and without touching the reminder's daily state.
+ */
+export async function sendTestReminder(deps: ReminderDeps, userId: string, reminderId = "test"): Promise<{ ok: boolean; message: string }> {
+  const user = await deps.data.getUserById(userId);
+  if (!user) return { ok: false, message: "Account not found." };
+  if (!user.discordId) return { ok: false, message: "Your account isn't linked to Discord. Sign in with Discord to get reminders." };
+  const msg = await buildCheckIn(deps, { reminderId, userId, discordId: user.discordId, localDate: localDate(deps.now, user.timezone), snoozed: false }, true);
+  if ("skip" in msg) return { ok: false, message: `Couldn't build the reminder (${msg.skip}).` };
+  try {
+    await deps.sendDM(user.discordId, { ...msg.reply, content: `🧪 **Test reminder**\n${msg.reply.content}` });
+    return { ok: true, message: `Sent! Check your Discord DMs from ${deps.cfg.brand.botName}.` };
+  } catch (e) {
+    if (e instanceof DiscordError && (e.code === 50007 || e.status === 403)) {
+      return { ok: false, message: "Discord won't let the bot DM you. Make sure you're in a server with the bot and allow DMs from server members (Discord → Privacy Settings)." };
+    }
+    return { ok: false, message: `Discord error: ${e instanceof Error ? e.message.slice(0, 200) : String(e)}` };
+  }
 }

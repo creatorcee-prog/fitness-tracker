@@ -77,6 +77,8 @@ export interface Store {
   listReminders(): Promise<Reminder[]>;
   saveReminder(r: Reminder): Promise<Reminder>;
   deleteReminder(id: string): Promise<void>;
+  /** DM a check-in right now, ignoring skip rules (Settings → Send test reminder). */
+  sendTestReminder(reminderId?: string): Promise<{ ok: boolean; message: string }>;
 
   /** Opt-in PR announcements in the Discord channel chosen with /announce on. */
   getAnnounceSettings(): Promise<AnnounceSettings>;
