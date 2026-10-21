@@ -107,6 +107,11 @@ export function BodyweightCard() {
 
   const signed = (kg: number) => `${kg >= 0 ? "+" : "−"}${Math.abs(Number(fromKg(kg, unit).toFixed(1)))} ${unit}`;
 
+  // Arriving from a Today widget (/progress#bodyweight): scroll here once the content has loaded.
+  useEffect(() => {
+    if (entries && typeof location !== "undefined" && location.hash === "#bodyweight") document.getElementById("bodyweight")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [entries]);
+
   return (
     <div className="card stack" id="bodyweight">
       <h2 style={{ margin: 0 }}>Bodyweight</h2>

@@ -411,3 +411,20 @@ label.row:has(> input[type="checkbox"]) { min-height: 44px; cursor: pointer; }
   background: var(--accent); color: var(--accent-text); border: 2px solid var(--bg);
 }
 .coach-fab-james { position: fixed; right: 16px; bottom: calc(var(--nav-offset) + 14px + var(--dock-h)); z-index: 22; box-shadow: 0 10px 30px rgb(0 0 0 / 0.35); }
+
+/* James's line hangs from his button in the header: tail at the top right, pointing up at him.
+   --james-tail: distance from the bubble's right edge to the middle of James's button
+   (profile avatar 44px + 8px gap + half of James's 52px button). */
+.mascot.attached { --james-tail: 78px; position: relative; margin-top: -2px; display: block; }
+.mascot.attached .mascot-bubble { border-radius: 18px; border-top-right-radius: 18px; border-bottom-left-radius: 18px; padding-right: 44px; }
+.mascot.attached .mascot-bubble::before {
+  content: ""; position: absolute; top: -9px; right: calc(var(--james-tail) - 9px); width: 16px; height: 16px;
+  background: inherit; border-left: 1px solid var(--border); border-top: 1px solid var(--border); transform: rotate(45deg); border-radius: 3px 0 0 0;
+}
+.mascot.attached .mascot-close { position: absolute; top: 50%; right: 4px; transform: translateY(-50%); }
+.split-ex-top { display: flex; gap: 8px; align-items: center; }
+.split-ex-top .split-ex-name { flex: 1; width: auto; }
+.split-ex-weight { display: flex; align-items: center; gap: 4px; flex: none; font-size: 0.85rem; font-weight: 600; color: var(--muted); }
+.split-ex-weight input { width: 72px; text-align: center; }
+.widget[role="link"] { cursor: pointer; }
+.widget[role="link"]:active { transform: scale(0.98); }

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { WidgetConfig, WidgetId } from "@/config/app.config";
 import { LAYOUT_PRESETS, WIDGET_INFO } from "@/config/layouts";
@@ -35,6 +36,11 @@ interface Data {
 }
 
 const LONG_PRESS_MS = 550;
+/** Tapping a widget opens the page it summarises. */
+const TILE_LINK: Partial<Record<string, string>> = {
+  week: "/progress", streak: "/progress", lastPr: "/progress", topLift: "/progress", volume: "/progress",
+  bodyweight: "/progress#bodyweight", goals: "/progress#goals",
+};
 const labelOf = (w: WidgetConfig) => w.custom?.title ?? WIDGET_INFO[w.id]?.label ?? w.id;
 
 const PR_LABEL: Record<string, string> = { weight: "Heaviest", reps_at_weight: "Rep PR", e1rm: "e1RM PR", session_volume: "Volume PR" };
@@ -56,6 +62,7 @@ export function Dashboard({ today, onFocusWorkout, hide = [] }: { today: Today |
   const { cfg, store, profile, version, now, overrides, setOverrides } = useApp();
   const [data, setData] = useState<Data | null>(null);
   const toast = useToast(cfg.logging.undoToastMs);
+  const router = useRouter();
 
   useEffect(() => {
     (async () => {
@@ -323,6 +330,15 @@ export function Dashboard({ today, onFocusWorkout, hide = [] }: { today: Today |
               onPointerUp={holdEnd}
               onPointerLeave={holdEnd}
               onClickCapture={swallowClick}
+              role={!editing && TILE_LINK[w.id] ? "link" : undefined}
+              tabIndex={!editing && TILE_LINK[w.id] ? 0 : undefined}
+              aria-label={!editing && TILE_LINK[w.id] ? `${labelOf(w)}: open details` : undefined}
+              onClick={(e) => {
+                // Buttons and inputs on the tile (+ Add, + Log) do their own thing.
+                if (editing || !TILE_LINK[w.id] || (e.target as HTMLElement).closest("button, a, input, select, textarea, form")) return;
+                router.push(TILE_LINK[w.id]!);
+              }}
+              onKeyDown={(e) => !editing && TILE_LINK[w.id] && e.key === "Enter" && router.push(TILE_LINK[w.id]!)}
               onContextMenu={(e) => e.preventDefault()}
             >
               <div className="widget-body" inert={editing || undefined}>{render(w)}</div>

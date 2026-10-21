@@ -5,7 +5,7 @@ import type { Category } from "@/config/app.config";
 import { useApp } from "@/components/AppProvider";
 import { useToast } from "@/components/UndoToast";
 import type { Exercise, Split, SplitState } from "@/lib/domain/types";
-import { formatWeight, toKg } from "@/lib/domain/units";
+import { fromKg, toKg } from "@/lib/domain/units";
 import { uid } from "@/lib/store/local";
 import { starterSplitFor } from "@/lib/store/seed";
 
@@ -125,9 +125,25 @@ export default function SplitPage() {
                   return (
                     <li key={k} className="split-ex">
                       {/* Line 1: the lift, full width so long names stay readable on a phone. */}
-                      <select className="split-ex-name" value={x.exerciseId} onChange={(v) => set({ exerciseId: v.target.value })} aria-label="Exercise">
-                        {exercises.map((ex) => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
-                      </select>
+                      <div className="split-ex-top">
+                        <select className="split-ex-name" value={x.exerciseId} onChange={(v) => set({ exerciseId: v.target.value })} aria-label="Exercise">
+                          {exercises.map((ex) => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
+                        </select>
+                        {/* Starting weight: what the logging bar suggests before there's any history for this lift. */}
+                        <label className="split-ex-weight" title="Starting weight (used until you've logged this lift)">
+                          <input
+                            inputMode="decimal"
+                            placeholder="—"
+                            value={x.startWeightKg != null ? String(Number(fromKg(x.startWeightKg, profile.unit).toFixed(1))) : ""}
+                            onChange={(v) => {
+                              const n = Number(v.target.value.replace(/[^\d.]/g, ""));
+                              set({ startWeightKg: v.target.value.trim() && n > 0 ? toKg(n, profile.unit) : null });
+                            }}
+                            aria-label={`Starting weight in ${profile.unit}`}
+                          />
+                          <span>{profile.unit}</span>
+                        </label>
+                      </div>
                       {/* Line 2: labelled targets and row controls. */}
                       <div className="split-ex-row">
                         <label className="split-ex-field">Sets<input type="number" min={1} value={x.targetSets} onChange={(v) => set({ targetSets: Number(v.target.value) || 1 })} /></label>
@@ -136,11 +152,7 @@ export default function SplitPage() {
                         <button className="btn sm ghost" title="Move up" aria-label="Move exercise up" onClick={() => updDay(i, { exercises: move(d.exercises, k, -1) })}>↑</button>
                         <button className="btn sm ghost" title="Remove" aria-label="Remove exercise" onClick={() => updDay(i, { exercises: d.exercises.filter((_, m) => m !== k) })}>✕</button>
                       </div>
-                      {(x.note || x.startWeightKg) && (
-                        <span className="muted small">
-                          {[x.startWeightKg ? `Start ${formatWeight(x.startWeightKg, profile.unit, cfg.units.displayDecimals)}` : null, x.note].filter(Boolean).join(" · ")}
-                        </span>
-                      )}
+                      {x.note && <span className="muted small">{x.note}</span>}
                     </li>
                   );
                 })}

@@ -264,6 +264,8 @@ export const defaultConfig = {
   ai: {
     /** Floating "Ask James" chat button in the app (needs the Supabase backend + GROQ_API_KEY). */
     chatButton: true,
+    /** James's chat replies type out letter by letter (ms per character; 0 = instant). Tap to show it all. */
+    typeMs: 9,
     /** Longest message the chat box takes (match AI_MAX_QUESTION_CHARS on the server). ~4 characters per token. */
     maxQuestionChars: 1500,
   },
