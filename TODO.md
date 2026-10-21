@@ -26,7 +26,7 @@ Slash commands through `/api/discord` in the web app (no separate bot server).
 
 ## Queued (requested)
 
-- [ ] App Store polish pass: iOS typography and spacing, week strip on Today, stat cards with progress bars, iOS segmented controls and grouped Settings, new presets (Neon, Ice, Tactical) and a **Glass** option
+- [x] App Store polish pass: iOS typography and spacing, week strip on Today, stat cards with progress bars, iOS segmented controls, press feedback, theme swatches, new presets (Neon, Tactical, Aurora Glass, Ice) and a **Glass** option
 - [ ] Friend profiles: tap a friend to see their split, streak and recent PRs (respecting their sharing setting)
 - [ ] Custom nicknames for friends
 - [ ] Calorie intake: daily log, target, dashboard widget

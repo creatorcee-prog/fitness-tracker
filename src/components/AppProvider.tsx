@@ -60,6 +60,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const vars = { ...preset.vars, ...cfg.theme.vars };
     const root = document.documentElement;
     root.dataset.style = cfg.theme.style === "auto" ? preset.style : cfg.theme.style;
+    root.dataset.glass = (cfg.theme.glass === "auto" ? preset.glass : cfg.theme.glass === "on") ? "on" : "off";
     for (const name of Array.from(root.style)) if (name.startsWith("--")) root.style.removeProperty(name);
     for (const [k, v] of Object.entries(vars)) root.style.setProperty(`--${k}`, v);
   }, [cfg]);

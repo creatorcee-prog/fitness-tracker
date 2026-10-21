@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useApp } from "@/components/AppProvider";
+import { WeekStrip } from "@/components/WeekStrip";
 import { Dashboard } from "@/components/Dashboard";
 import { RestTimer, type TimerState } from "@/components/RestTimer";
 import { Stepper } from "@/components/Stepper";
@@ -298,17 +300,22 @@ export default function TodayPage() {
 
   return (
     <div className="page stack">
-      <header>
-        <div className="hello">{greeting}, {profile.displayName}</div>
-        <h1>{day ? `Ready for ${day.name}?` : restDay ? "Rest day. Recover well." : today?.kind === "no-split" ? "Let's set up your split" : "Ready to train?"}</h1>
+      <header className="page-head">
+        <div>
+          <div className="hello">{greeting}, {profile.displayName}</div>
+          <h1>{day ? `Ready for ${day.name}?` : restDay ? "Rest day. Recover well." : today?.kind === "no-split" ? "Let's set up your split" : "Ready to train?"}</h1>
+        </div>
+        <Link href="/settings" className="avatar-btn" aria-label="Profile and settings">{profile.displayName.slice(0, 1).toUpperCase()}</Link>
       </header>
+
+      {cfg.dashboard.weekStrip && <WeekStrip sessions={allSessions} now={now()} weekStartsOn={cfg.split.weekStartsOn} />}
 
       <Dashboard today={today} onFocusWorkout={() => workoutRef.current?.scrollIntoView({ behavior: "smooth" })} />
 
       <div ref={workoutRef} className="stack">
         {split && split.days.length > 0 && (
           <div className="row">
-            {!session && split.mode === "rotation" && day && <button className="btn sm" onClick={skip}>Skip {day.name}</button>}
+            {!session && split.mode === "rotation" && day && <button className="chip" onClick={skip}>Skip {day.name}</button>}
             {!session && (
               <select aria-label="Swap day" value="" onChange={(e) => swapTo(e.target.value)}>
                 <option value="">{restDay ? "Train anyway…" : "Swap day…"}</option>

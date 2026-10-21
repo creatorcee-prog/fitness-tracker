@@ -152,6 +152,8 @@ export const defaultConfig = {
     vars: {} as Record<string, string>,
     /** Layout style: "auto" follows the preset; "playful" or "pro" forces one. */
     style: "auto" as "auto" | "playful" | "pro",
+    /** Frosted-glass surfaces: "auto" follows the preset (Aurora Glass has it). */
+    glass: "auto" as "auto" | "on" | "off",
   },
 
   /**
@@ -160,6 +162,8 @@ export const defaultConfig = {
    */
   dashboard: {
     enabled: true,
+    /** The Mon–Sun strip at the top of Today, with a dot on days you trained. */
+    weekStrip: true,
     widgets: [
       { id: "today", enabled: true, size: 2, color: "hero" },
       { id: "week", enabled: true, size: 1, color: "lime" },

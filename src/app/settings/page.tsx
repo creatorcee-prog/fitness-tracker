@@ -97,20 +97,39 @@ export default function SettingsPage() {
 
       <div className="card stack">
         <h2>Theme</h2>
-        <div className="row">
+        <div className="swatches">
           {Object.entries(THEME_PRESETS).map(([id, t]) => (
-            <button key={id} className={`btn sm ${cfg.theme.preset === id ? "active" : ""}`} onClick={() => patch({ theme: { preset: id, vars: {}, style: "auto" } }, `Theme: ${t.label}`)}>
-              <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 6, background: t.vars.accent, marginRight: 6, verticalAlign: "middle", boxShadow: `6px 0 0 ${t.vars.highlight}` }} />
-              {"  "}{t.label}
+            <button
+              key={id}
+              className={`swatch ${cfg.theme.preset === id ? "on" : ""}`}
+              onClick={() => patch({ theme: { preset: id, vars: {}, style: "auto", glass: "auto" } }, `Theme: ${t.label}`)}
+              aria-pressed={cfg.theme.preset === id}
+            >
+              <span className="preview" style={{ background: t.vars["bg-glow"] && t.vars["bg-glow"] !== "none" ? `${t.vars["bg-glow"]}, ${t.vars.bg}` : t.vars.bg }}>
+                <i style={{ left: 8, top: 8, width: "calc(100% - 16px)", height: 14, background: t.vars.highlight, opacity: t.glass ? 0.7 : 1 }} />
+                <i style={{ left: 8, top: 28, width: "44%", height: 18, background: t.vars.accent }} />
+                <i style={{ right: 8, top: 28, width: "40%", height: 18, background: t.vars.surface, opacity: t.glass ? 0.5 : 1 }} />
+              </span>
+              {t.label}
             </button>
           ))}
         </div>
         <div className="row">
-          <span className="muted small">Layout style</span>
+          <span className="muted small" style={{ minWidth: 96 }}>Layout style</span>
           <div className="segmented">
             {(["auto", "playful", "pro"] as const).map((st) => (
               <button key={st} className={cfg.theme.style === st ? "on" : ""} onClick={() => patch({ theme: { style: st } }, `Style: ${st}`)}>
-                {st === "auto" ? "Auto" : st === "playful" ? "Playful" : "Professional"}
+                {st === "auto" ? "Auto" : st === "playful" ? "Playful" : "Pro"}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="row">
+          <span className="muted small" style={{ minWidth: 96 }}>Glass</span>
+          <div className="segmented">
+            {(["auto", "on", "off"] as const).map((g) => (
+              <button key={g} className={cfg.theme.glass === g ? "on" : ""} onClick={() => patch({ theme: { glass: g } }, `Glass: ${g}`)}>
+                {g === "auto" ? "Auto" : g === "on" ? "On" : "Off"}
               </button>
             ))}
           </div>
