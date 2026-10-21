@@ -18,6 +18,8 @@ export interface Exercise {
   incrementKg: number | null;
   /** null = shared library exercise. */
   ownerId: ID | null;
+  /** Other names people use for it ("RDL", "stiff leg deadlift"); matched like the name. */
+  aliases?: string[];
 }
 
 export interface SplitDayExercise {

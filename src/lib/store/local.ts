@@ -5,7 +5,7 @@ import { advance, getToday, type Today } from "@/lib/domain/split";
 import type { AccountPrefs, Exercise, FriendProfile, FriendRequest, FriendStatus, NutritionEntry, NutritionTargets, PREvent, Reminder, Profile, ProfileMedia, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
 import { replayPRs } from "@/lib/domain/prs";
 import { planImport, type ExportData } from "@/lib/importPlan";
-import { SEED_EXERCISES, seedSplit } from "./seed";
+import { libraryExercises, seedSplit } from "./seed";
 import type { NewSet, Store } from "./types";
 
 interface DB {
@@ -44,7 +44,7 @@ function freshDb(cfg: AppConfig): DB {
       unit: cfg.units.default,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     },
-    exercises: SEED_EXERCISES.map((e) => ({ ...e, ownerId: null })),
+    exercises: libraryExercises().map((e) => ({ ...e, ownerId: null })),
     splits: [{ ...seedSplit(), mode: cfg.split.defaultMode }],
     splitState: null,
     sessions: [],
@@ -78,7 +78,17 @@ export class LocalStore implements Store {
   private load(): DB {
     try {
       const raw = this.storage.getItem(this.cfg.data.localStorageKey);
-      if (raw) return { ...freshDb(this.cfg), ...JSON.parse(raw) };
+      if (raw) {
+        const db: DB = { ...freshDb(this.cfg), ...JSON.parse(raw) };
+        // Older saves have the small starter library: add new library exercises (and synonyms) by name.
+        const have = new Map(db.exercises.map((e) => [e.name.toLowerCase(), e]));
+        for (const lib of libraryExercises()) {
+          const cur = have.get(lib.name.toLowerCase());
+          if (!cur) db.exercises.push({ ...lib, ownerId: null });
+          else if (cur.ownerId === null && !cur.aliases) cur.aliases = lib.aliases;
+        }
+        return db;
+      }
     } catch {
       /* fall through to a fresh db */
     }
