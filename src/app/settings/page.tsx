@@ -15,7 +15,7 @@ import { supabaseOf } from "@/lib/store";
 
 const WIDGET_LABEL: Record<WidgetConfig["id"], string> = {
   today: "Today's split day", week: "Sessions this week", streak: "Weekly streak", lastPr: "Latest PR",
-  friends: "Friends lifting today", topLift: "Top e1RM", volume: "Weekly volume", calories: "Calories today",
+  friends: "Friends lifting today", topLift: "Top e1RM", volume: "Weekly volume", calories: "Calories today", goals: "Goals",
 };
 const NAMED_COLORS = ["surface", "hero", "lime"];
 const CONTRAST_PAIRS: [string, string][] = [["text", "bg"], ["text", "surface"], ["accent-text", "accent"], ["highlight-text", "highlight"]];
@@ -169,6 +169,7 @@ export default function SettingsPage() {
       <div className="card stack">
         <h2>Dashboard widgets</h2>
         <label className="row small"><input type="checkbox" checked={cfg.dashboard.enabled} onChange={(e) => patch({ dashboard: { enabled: e.target.checked } })} /> Show dashboard on Today</label>
+        <label className="row small"><input type="checkbox" checked={cfg.mascot.enabled} onChange={(e) => patch({ mascot: { enabled: e.target.checked } })} /> Show {cfg.brand.botName} (mascot) on Today</label>
         <ul className="setlist">
           {widgets.map((w, i) => (
             <li key={w.id} style={{ flexWrap: "wrap" }}>

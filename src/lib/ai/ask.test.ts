@@ -183,10 +183,10 @@ describe("training context", () => {
   });
 
   it("includes goals and bodyweight trend when logged", async () => {
-    data.goals = [{ type: "lift_e1rm", exerciseId: "ex-bench", targetValue: toKg(250, "lb"), deadline: "2026-12-31" }];
+    data.goals = [{ id: "g1", type: "lift_e1rm", exerciseId: "ex-bench", targetValue: toKg(250, "lb"), targetWeightKg: null, deadline: "2026-12-31", achievedAt: null, createdAt: NOW.toISOString() }];
     data.bodyweight = [{ date: "2026-09-01", weightKg: toKg(185, "lb") }, { date: "2026-10-20", weightKg: toKg(181, "lb") }];
     const ctx = await buildTrainingContext(data, (await data.findUser("d1"))!, defaultConfig, NOW);
-    expect(ctx).toContain("lift e1rm Bench Press: 250 lb by 2026-12-31");
+    expect(ctx).toContain("- Bench Press est. 1RM 250 lb: now 0 / 250 lb (0%), deadline 2026-12-31");
     expect(ctx).toContain("Bodyweight: 181 lb on 2026-10-20, -4 lb vs 4 weeks earlier");
   });
 });

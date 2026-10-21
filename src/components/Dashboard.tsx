@@ -12,6 +12,7 @@ import { formatWeight } from "@/lib/domain/units";
 import { defaultConfig } from "@/config/app.config";
 import { useApp } from "./AppProvider";
 import { CaloriesCard } from "./CaloriesCard";
+import { GoalsWidget } from "./GoalsWidget";
 import { Ring } from "./Ring";
 
 interface Data {
@@ -154,6 +155,8 @@ export function Dashboard({ today, onFocusWorkout }: { today: Today | null; onFo
       }
       case "calories":
         return <CaloriesCard />;
+      case "goals":
+        return <GoalsWidget />;
       case "volume": {
         const thisWeek = data ? volumeKg(data.sets.filter((s) => Date.parse(s.createdAt) >= ws.getTime())) : 0;
         const lastStart = ws.getTime() - 7 * 86_400_000;

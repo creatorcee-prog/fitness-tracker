@@ -1,4 +1,5 @@
 import type { AppConfig } from "@/config/app.config";
+import type { Goal } from "@/lib/domain/goals";
 import type { Today } from "@/lib/domain/split";
 import type { AccountPrefs, Exercise, NutritionEntry, NutritionTargets, PREvent, Profile, Reminder, SetEntry, Split } from "@/lib/domain/types";
 import { LocalStore, uid } from "./local";
@@ -396,6 +397,15 @@ export class SyncStore implements Store {
   }
   setNutritionTargets(t: NutritionTargets) {
     return this.online_(() => this.remote.setNutritionTargets(t));
+  }
+  listGoals() {
+    return this.online_(() => this.remote.listGoals());
+  }
+  saveGoal(g: Goal) {
+    return this.online_(() => this.remote.saveGoal(g));
+  }
+  deleteGoal(id: string) {
+    return this.online_(() => this.remote.deleteGoal(id));
   }
   listReminders(): Promise<Reminder[]> {
     return this.online_(() => this.remote.listReminders());

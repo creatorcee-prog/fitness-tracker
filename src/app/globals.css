@@ -299,3 +299,13 @@ label.row { flex-wrap: nowrap; }
 .coach-input input { flex: 1; border-radius: 999px; }
 .coach-input .btn { width: 44px; padding: 0; font-size: 1.2rem; }
 [data-glass="on"] .coach-panel { background: color-mix(in srgb, var(--surface) 80%, transparent); backdrop-filter: blur(30px) saturate(180%); -webkit-backdrop-filter: blur(30px) saturate(180%); }
+
+/* ------------------------------------------------------------------ James (mascot) */
+.mascot { display: flex; align-items: center; gap: 10px; cursor: pointer; animation: toast-in 0.3s var(--ease); }
+.mascot-bubble {
+  position: relative; flex: 1; padding: 10px 14px; border-radius: 18px; border-bottom-left-radius: 6px;
+  background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow); font-weight: 550; font-size: 0.93rem; line-height: 1.35; min-height: 42px;
+}
+.mascot-caret { display: inline-block; width: 7px; height: 1em; margin-left: 2px; vertical-align: -2px; background: var(--muted); animation: caret 0.8s steps(1) infinite; }
+@keyframes caret { 50% { opacity: 0; } }
+[data-glass="on"] .mascot-bubble { background: color-mix(in srgb, var(--surface) 45%, transparent); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }

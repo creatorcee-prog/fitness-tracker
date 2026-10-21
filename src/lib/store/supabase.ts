@@ -2,6 +2,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AppConfig } from "@/config/app.config";
 import { e1rm } from "@/lib/domain/e1rm";
+import type { Goal } from "@/lib/domain/goals";
 import { replayPRs } from "@/lib/domain/prs";
 import type { Today } from "@/lib/domain/split";
 import { planImport, type ExportData } from "@/lib/importPlan";
@@ -37,6 +38,12 @@ export const toSet = (r: Row): SetEntry => ({
 export const toReminder = (r: Row): Reminder => ({
   id: r.id, channel: r.channel, localTime: String(r.local_time).slice(0, 5), days: r.days ?? [], enabled: r.enabled,
   lastSentOn: r.last_sent_on ?? null, lastError: r.last_error ?? null,
+});
+
+export const toGoal = (r: Row): Goal => ({
+  id: r.id, type: r.type, exerciseId: r.exercise_id, targetValue: Number(r.target_value),
+  targetWeightKg: r.target_weight == null ? null : Number(r.target_weight), deadline: r.deadline,
+  achievedAt: r.achieved_at ?? null, createdAt: r.created_at ?? new Date(0).toISOString(),
 });
 
 export const toSplit = (s: Row): Split => ({
@@ -335,6 +342,19 @@ export class SupabaseStore implements Store {
   async getShareStatus() {
     const id = await this.userId();
     return check(await this.sb.from("users").select("share_status").eq("id", id).single(), "getShareStatus").share_status as boolean;
+  }
+
+  async listGoals() {
+    return check(await this.sb.from("goals").select("*").order("created_at"), "listGoals").map(toGoal);
+  }
+
+  async saveGoal(g: Goal) {
+    const row = { id: g.id, type: g.type, exercise_id: g.exerciseId, target_value: g.targetValue, target_weight: g.targetWeightKg, deadline: g.deadline, achieved_at: g.achievedAt };
+    return toGoal(check(await this.sb.from("goals").upsert(row).select().single(), "saveGoal"));
+  }
+
+  async deleteGoal(id: string) {
+    check(await this.sb.from("goals").delete().eq("id", id), "deleteGoal");
   }
 
   async listReminders() {

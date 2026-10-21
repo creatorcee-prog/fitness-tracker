@@ -1,3 +1,4 @@
+import type { Goal } from "@/lib/domain/goals";
 import type { Today } from "@/lib/domain/split";
 import type { AccountPrefs, AnnounceSettings, Exercise, FriendProfile, FriendRequest, FriendStatus, NutritionEntry, NutritionTargets, PREvent, Reminder, Profile, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
 
@@ -72,6 +73,11 @@ export interface Store {
   getNutritionTargets(): Promise<NutritionTargets>;
   setNutritionTargets(t: NutritionTargets): Promise<void>;
   getShareStatus(): Promise<boolean>;
+
+  /** Goals (progress is computed from sets, never stored). */
+  listGoals(): Promise<Goal[]>;
+  saveGoal(g: Goal): Promise<Goal>;
+  deleteGoal(id: string): Promise<void>;
 
   /** Discord reminders / daily check-in (sent only on the Supabase backend). */
   listReminders(): Promise<Reminder[]>;

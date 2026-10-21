@@ -1,6 +1,8 @@
 import type { AppConfig, Unit } from "@/config/app.config";
 import { percentageGains } from "@/lib/domain/gain";
 import { FREETEXT_HELP, parseFreeText } from "@/lib/domain/freetext";
+import { goalProgress } from "@/lib/domain/goals";
+import { describeGoal, outlookText, progressText } from "@/lib/domain/goalText";
 import { matchExercise } from "@/lib/domain/match";
 import { platesPerSide } from "@/lib/domain/plates";
 import { prefillFor } from "@/lib/domain/progression";
@@ -416,6 +418,25 @@ async function friends(ctx: BotContext): Promise<BotReply> {
   return { content: `👥 **Friends today**: ${loggedCount}/${lifting.length} lift days logged\n${lines.join("\n")}` };
 }
 
+/** "▰▰▰▰▱▱▱▱▱▱" */
+function textBar(pct: number, width = 10): string {
+  const n = Math.round(Math.max(0, Math.min(1, pct)) * width);
+  return "▰".repeat(n) + "▱".repeat(width - n);
+}
+
+async function goals(ctx: BotContext): Promise<BotReply> {
+  const u = await requireUser(ctx);
+  const [list, sets, sessions, exercises] = await Promise.all([ctx.data.listGoals(u.id), ctx.data.listSets(u.id), ctx.data.listSessions(u.id), ctx.data.listExercises(u.id)]);
+  if (!list.length) return { content: `🎯 No goals yet. Set one on the Progress page: ${ctx.appUrl}/progress` };
+  const name = new Map(exercises.map((e) => [e.id, e.name]));
+  const lines = list.map((g) => {
+    const p = goalProgress(g, sets, sessions, ctx.now, ctx.cfg);
+    const outlook = outlookText(g, p);
+    return `**${describeGoal(g, g.exerciseId ? name.get(g.exerciseId) ?? null : null, u.unit)}**\n${textBar(p.pct)} ${progressText(g, p, u.unit)}${outlook ? ` · ${outlook}` : ""}`;
+  });
+  return { content: `🎯 **Your goals**\n${lines.join("\n")}\n-# Projections use your last 8 weeks and are estimates.` };
+}
+
 async function plates(ctx: BotContext, weight: number, unitOpt?: string): Promise<BotReply> {
   const u = unitOpt ? null : await ctx.data.findUser(ctx.discordUserId).catch(() => null);
   const unit: Unit = unitOpt === "kg" || unitOpt === "lb" ? unitOpt : u?.unit ?? ctx.cfg.units.default;
@@ -509,6 +530,7 @@ export function handleCommand(ctx: BotContext, name: string, opts: Options): Pro
       case "plates": return plates(ctx, Number(opts.weight), opts.unit as string | undefined);
       case "rest": return rest(ctx, opts.time as string | undefined);
       case "announce": return announce(ctx, String(opts.mode ?? "on"));
+      case "goal": return goals(ctx);
       default: return { content: `Unknown command /${name}` };
     }
   });

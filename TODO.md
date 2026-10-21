@@ -39,9 +39,14 @@ Slash commands through `/api/discord` in the web app (no separate bot server).
 - [x] Privacy page
 - [ ] Live test with a real `GROQ_API_KEY`; record real tokens per `/ask` (logged as `[ask] outcome=… in=… out=…` in Vercel logs)
 
+## Done: goals + James
+
+- [x] Goals (e1RM, reps at weight, sessions/week) with progress bars and projected dates; Today widget; `/goal`
+- [x] James mascot with scripted lines, moods and a placeholder silhouette
+- [ ] Real James art (keep `JamesSilhouette` props)
+
 ## Next
 
-- [ ] `/goal` (after goals exist in the app)
 - [ ] Web push reminders (needs Home Screen install on iPhone)
 
 ## Later: bot ideas
@@ -57,7 +62,7 @@ Slash commands through `/api/discord` in the web app (no separate bot server).
 
 ## Roadmap (from the build plan)
 
-- v1: goals, talking mascot, offline logging (IndexedDB queue), bodyweight log, streak milestones for the mascot
+- v1: ~~goals~~, ~~talking mascot~~, ~~offline logging~~, ~~streak milestones for the mascot~~, bodyweight log
 - v2: behavior modes (game / professional), walk planner, stall detection
 - Later: Strava import
 

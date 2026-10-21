@@ -1,5 +1,7 @@
 import type { AppConfig } from "@/config/app.config";
 import { e1rm } from "@/lib/domain/e1rm";
+import { goalProgress } from "@/lib/domain/goals";
+import { describeGoal, progressText } from "@/lib/domain/goalText";
 import { replayPRs } from "@/lib/domain/prs";
 import { localDate } from "@/lib/domain/split";
 import { finishedBetween, weekStart, weeklyStreak } from "@/lib/domain/stats";
@@ -87,9 +89,8 @@ export async function buildTrainingContext(data: BotData, user: BotUser, cfg: Ap
 
   // Goals and bodyweight
   const goalLines = goals.map((g) => {
-    const lift = g.exerciseId ? name.get(g.exerciseId) ?? "a lift" : "";
-    const v = g.type.startsWith("lift") || g.type === "bodyweight" ? `${w(g.targetValue)} ${unit}` : `${g.targetValue}`;
-    return `- ${g.type.replace("_", " ")}${lift ? ` ${lift}` : ""}: ${v}${g.deadline ? ` by ${g.deadline}` : ""}`;
+    const p = goalProgress(g, sets, sessions, now, cfg);
+    return `- ${describeGoal(g, g.exerciseId ? name.get(g.exerciseId) ?? null : null, unit)}: now ${progressText(g, p, unit)}${g.deadline ? `, deadline ${g.deadline}` : ""}${p.projectedDate ? `, projected ${p.projectedDate} at the current pace` : ""}`;
   });
   let bwLine = "Bodyweight: not logged.";
   if (bodyweight.length) {

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useApp } from "@/components/AppProvider";
+import { MascotBubble, useMascot } from "@/components/Mascot";
 import { WeekStrip } from "@/components/WeekStrip";
 import { Dashboard } from "@/components/Dashboard";
 import { RestTimer, type TimerState } from "@/components/RestTimer";
@@ -16,7 +17,14 @@ import { parseShorthand } from "@/lib/domain/shorthand";
 import { nextPosition, type Today } from "@/lib/domain/split";
 import type { Exercise, PREvent, PRType, Session, SetEntry, Split, SplitDay } from "@/lib/domain/types";
 import { formatWeight, fromKg, roundTo, toKg } from "@/lib/domain/units";
+import { finishedBetween, weekStart, weeklyStreak } from "@/lib/domain/stats";
 import { lastSessionSets, logSet, rebuildPRs, stepKg } from "@/lib/service";
+
+/** Whole days since the last finished workout (null if none yet). */
+function daysSinceLastWorkout(sessions: Session[], now: Date): number | null {
+  const last = sessions.filter((s) => s.finishedAt).map((s) => Date.parse(s.finishedAt!)).sort((a, b) => b - a)[0];
+  return last == null ? null : Math.floor((now.getTime() - last) / 86_400_000);
+}
 
 const PR_LABEL: Record<PRType, string> = { weight: "Heaviest", reps_at_weight: "Rep PR", e1rm: "e1RM PR", session_volume: "Volume PR" };
 
@@ -32,6 +40,8 @@ export default function TodayPage() {
   const { cfg, store, profile, version, refresh, now } = useApp();
   const unit = profile.unit;
   const toast = useToast(cfg.logging.undoToastMs);
+  const mascot = useMascot();
+  const greeted = useRef(false);
 
   const [today, setToday] = useState<Today | null>(null);
   const [split, setSplit] = useState<Split | null>(null);
@@ -71,6 +81,37 @@ export default function TodayPage() {
   useEffect(() => {
     void load();
   }, [load, version]);
+
+  // James's greeting: once per visit to Today, after the data is in.
+  useEffect(() => {
+    if (greeted.current || today === null) return;
+    greeted.current = true;
+    const t = now();
+    const gap = daysSinceLastWorkout(allSessions, t);
+    const target = cfg.dashboard.weeklyTarget;
+    const streak = weeklyStreak(allSessions, t, cfg.split.weekStartsOn, target);
+    const thisWeek = finishedBetween(allSessions, weekStart(t, cfg.split.weekStartsOn), new Date(t.getTime() + 1)).length;
+    const milestoneKey = `ft:mascot-streak:${streak}`;
+    let seenMilestone = true;
+    try {
+      seenMilestone = localStorage.getItem(milestoneKey) === "1";
+    } catch {
+      /* ignore */
+    }
+    const dayName = today.kind === "day" ? today.day.name : undefined;
+    if (!allSessions.length) mascot.say("first_visit");
+    else if (cfg.mascot.streakMilestones.includes(streak) && thisWeek >= target && !seenMilestone) {
+      try {
+        localStorage.setItem(milestoneKey, "1");
+      } catch {
+        /* ignore */
+      }
+      mascot.say("streak_milestone", { streak });
+    } else if (gap != null && gap >= cfg.mascot.missedDays) mascot.say("missed_days", { days: gap, day: dayName });
+    else if (today.kind === "rest") mascot.say("rest_day");
+    else mascot.say(t.getHours() < 12 ? "morning" : t.getHours() < 18 ? "afternoon" : "evening", { day: dayName });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [today, allSessions]);
 
   // Which day are we showing? An open session wins (e.g. started from Discord), then a manual swap, then "today".
   const day: SplitDay | null = useMemo(() => {
@@ -157,6 +198,8 @@ export default function TodayPage() {
     if (session) return session;
     const s = await store.startSession(day?.id ?? null, now());
     setSession(s);
+    const gap = daysSinceLastWorkout(allSessions, now());
+    mascot.say(gap != null && gap >= cfg.mascot.missedDays ? "comeback" : "session_start", { day: day?.name });
     return s;
   };
 
@@ -185,7 +228,10 @@ export default function TodayPage() {
         rpe: Number.isFinite(rpe) ? rpe : null, isWarmup: draft.isWarmup, note: draft.note.trim() || null, createdAt: now().toISOString(),
       });
       const prText = prs.length ? ` · 🏆 ${prs.map((p) => PR_LABEL[p]).join(", ")}` : "";
-      if (prs.length) void store.announcePRs(set.id);
+      if (prs.length) {
+        void store.announcePRs(set.id);
+        mascot.say("pr", { lift: focusEx?.name ?? "Lift", weight: `${Number(draft.weight.toFixed(2))} ${unit}`, reps: draft.reps });
+      }
       if (cfg.features.undoToast) {
         toast.show({
           text: `${draft.isWarmup ? "Warm-up" : "Set"} saved · ${Number(draft.weight.toFixed(2))} × ${draft.reps}${prText}`,
@@ -246,6 +292,10 @@ export default function TodayPage() {
       if (prs.length) void store.announcePRs(set.id);
     }
     setShorthand("");
+    if (allPrs.size) {
+      const best = created[created.length - 1];
+      mascot.say("pr", { lift: exercises.get(exId)?.name ?? "Lift", weight: `${Number(fromKg(best.weightKg, unit).toFixed(1))} ${unit}`, reps: best.reps });
+    }
     toast.show({
       text: `Logged ${created.length} set${created.length > 1 ? "s" : ""}${allPrs.size ? ` · 🏆 ${[...allPrs].map((p) => PR_LABEL[p]).join(", ")}` : ""}`,
       undo: async () => {
@@ -268,6 +318,8 @@ export default function TodayPage() {
     setExtraExercises([]);
     const sid = session.id;
     toast.show({ text: "Workout finished. Split advanced.", undo: async () => { await store.reopenSession(sid, prevPos); refresh(); } });
+    const next = await store.getToday(now()).catch(() => null);
+    mascot.say("workout_done", { next: next?.kind === "day" ? next.day.name : "rest" });
     await load();
   };
 
@@ -307,6 +359,8 @@ export default function TodayPage() {
         </div>
         <Link href="/settings" className="avatar-btn" aria-label="Profile and settings">{profile.displayName.slice(0, 1).toUpperCase()}</Link>
       </header>
+
+      <MascotBubble />
 
       {cfg.dashboard.weekStrip && <WeekStrip sessions={allSessions} now={now()} weekStartsOn={cfg.split.weekStartsOn} />}
 
