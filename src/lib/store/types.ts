@@ -1,4 +1,5 @@
 import type { BodyweightEntry } from "@/lib/domain/bodyweight";
+import type { LeaderboardRow } from "@/lib/domain/leaderboard";
 import type { Goal } from "@/lib/domain/goals";
 import type { Today } from "@/lib/domain/split";
 import type { AccountPrefs, AnnounceSettings, Exercise, FriendProfile, FriendRequest, FriendStatus, NutritionEntry, NutritionTargets, PREvent, Reminder, Profile, ProfileMedia, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
@@ -71,6 +72,10 @@ export interface Store {
   getFriendProfile(friendId: string, now: Date): Promise<FriendProfile | null>;
   /** Your private label for a friend; null/empty clears it. */
   setNickname(friendId: string, nickname: string | null): Promise<void>;
+
+  /** Friends leaderboard (% strength gain), opt-in: you and opted-in friends. */
+  getLeaderboard(now: Date): Promise<{ optedIn: boolean; rows: LeaderboardRow[] }>;
+  setLeaderboardOptIn(on: boolean): Promise<void>;
 
   /** Calorie intake, by local date (YYYY-MM-DD), inclusive range. */
   listNutrition(from: string, to: string): Promise<NutritionEntry[]>;

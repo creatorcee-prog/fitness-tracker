@@ -22,6 +22,7 @@ import { nextPosition, type Today } from "@/lib/domain/split";
 import type { Exercise, PREvent, PRType, Session, SetEntry, Split, SplitDay } from "@/lib/domain/types";
 import { formatWeight, fromKg, roundTo, toKg } from "@/lib/domain/units";
 import { finishedBetween, weekStart, freezeRules, weeklyStreak } from "@/lib/domain/stats";
+import { detectPlateaus } from "@/lib/domain/plateau";
 import { lastSessionSets, logSet, rebuildPRs, stepKg } from "@/lib/service";
 
 /** Whole days since the last finished workout (null if none yet). */
@@ -108,6 +109,18 @@ export default function TodayPage() {
       /* ignore */
     }
     const dayName = today.kind === "day" ? today.day.name : undefined;
+    const planIds = new Set(today.kind === "day" ? today.day.exercises.map((x) => x.exerciseId) : []);
+    const stalledToday = detectPlateaus([...history.values()].flat(), [...exercises.values()], t, cfg).find((p) => planIds.has(p.exerciseId));
+    /** True if already shown; marks it shown otherwise. */
+    const seen = (key: string) => {
+      try {
+        if (localStorage.getItem(key)) return true;
+        localStorage.setItem(key, "1");
+      } catch {
+        /* ignore */
+      }
+      return false;
+    };
     if (!allSessions.length) mascot.say("first_visit");
     else if (cfg.mascot.streakMilestones.includes(streak) && thisWeek >= target && !seenMilestone) {
       try {
@@ -117,7 +130,10 @@ export default function TodayPage() {
       }
       mascot.say("streak_milestone", { streak });
     } else if (gap != null && gap >= cfg.mascot.missedDays) mascot.say("missed_days", { days: gap, day: dayName });
-    else if (today.kind === "rest") mascot.say("rest_day");
+    else if (stalledToday && !seen(`ft:mascot-plateau:${stalledToday.exerciseId}:${weekStart(t, cfg.split.weekStartsOn).toISOString().slice(0, 10)}`)) {
+      // Once a week per lift: a stalled lift on today's plan gets James's next step.
+      mascot.say("plateau", { lift: stalledToday.name, weeks: stalledToday.weeks, advice: stalledToday.advice });
+    } else if (today.kind === "rest") mascot.say("rest_day");
     else mascot.say(t.getHours() < 12 ? "morning" : t.getHours() < 18 ? "afternoon" : "evening", { day: dayName });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [today, allSessions]);
@@ -485,6 +501,11 @@ export default function TodayPage() {
             <div className="spread">
               <strong>{focusEx?.name} · {draft.isWarmup ? "warm-up" : `set ${focusWorkingCount + 1}`}</strong>
               {!session && <button className="btn sm ghost" onClick={() => setLogging(false)} aria-label="Hide the logging bar">Hide</button>}
+              {!cfg.logging.guided && cfg.logging.overloadHint && (() => {
+                const last = lastSessionSets(history.get(focusId) ?? [], session?.id ?? null).filter((x) => !x.isWarmup);
+                const ref = last[Math.min(focusWorkingCount, last.length - 1)];
+                return ref ? <span className="muted small">Last time {Number(fromKg(ref.weightKg, unit).toFixed(1))}×{ref.reps} · beat it!</span> : null;
+              })()}
               {cfg.logging.guided && cfg.features.progressionHints && prefill && (
                 <span className="muted small">
                   {prefill.reason === "progression" ? `↑ +${cfg.progression.jump[unit][focusEx?.category ?? "other"]} ${unit}, all reps hit` : prefill.reason === "hold-missed" ? "Hold weight: missed reps last time" : prefill.reason === "last-time" ? "Same as last time" : "No history yet"}

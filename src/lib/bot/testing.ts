@@ -1,6 +1,7 @@
 // Test helper (not used by the app): an in-memory BotData.
 import { advance, getToday } from "@/lib/domain/split";
 import type { Exercise, FriendStatus, PREvent, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
+import { leaderboardRow } from "@/lib/domain/leaderboard";
 import { seedSplit, SEED_EXERCISES } from "@/lib/store/seed";
 import type { NewSet } from "@/lib/store/types";
 import type { BotData, BotUser, DueReminder, GoalRow } from "./data";
@@ -105,6 +106,17 @@ export class FakeData implements BotData {
   }
   async listBodyweight() {
     return [...this.bodyweight].sort((a, b) => a.date.localeCompare(b.date));
+  }
+  leaderboardOptIn = new Set<string>();
+  async leaderboard(uid: string, now: Date) {
+    if (!this.leaderboardOptIn.has(uid)) return null;
+    const u = this.users.find((x) => x.id === uid)!;
+    const name = (id: string) => this.exercises.find((e) => e.id === id)?.name ?? "?";
+    return [leaderboardRow({ id: uid, name: u.displayName, isYou: true }, this.sets, name, now)];
+  }
+  async setLeaderboard(uid: string, on: boolean) {
+    if (on) this.leaderboardOptIn.add(uid);
+    else this.leaderboardOptIn.delete(uid);
   }
   async logBodyweight(_uid: string, date: string, weightKg: number) {
     this.bodyweight = [...this.bodyweight.filter((b) => b.date !== date), { date, weightKg }];

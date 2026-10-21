@@ -16,7 +16,8 @@ export type MascotEvent =
   | "missed_days"
   | "comeback"
   | "workout_done"
-  | "welcome";
+  | "welcome"
+  | "plateau";
 
 export type Mood = "neutral" | "happy" | "proud" | "concerned";
 
@@ -39,12 +40,13 @@ export const MOOD: Record<MascotEvent, Mood> = {
   comeback: "happy",
   workout_done: "happy",
   welcome: "proud",
+  plateau: "neutral",
 };
 
 /** Higher wins when two events want the bubble at once (one line per screen). */
 export const PRIORITY: Record<MascotEvent, number> = {
   first_visit: 1, morning: 1, afternoon: 1, evening: 1, rest_day: 1,
-  missed_days: 2, comeback: 3, session_start: 3, workout_done: 3, streak_milestone: 4, pr: 5, goal_hit: 6, welcome: 4,
+  missed_days: 2, comeback: 3, session_start: 3, workout_done: 3, streak_milestone: 4, pr: 5, goal_hit: 6, welcome: 4, plateau: 2,
 };
 
 export const LINES: Record<MascotEvent, Line[]> = {
@@ -121,6 +123,11 @@ export const LINES: Record<MascotEvent, Line[]> = {
     { text: "Welcome back! Start a little lighter and build it up again." },
     { text: "There you are! Back under the bar where you belong." },
     { text: "The comeback starts with this set. Glad you're here." },
+  ],
+  plateau: [
+    { text: "{lift} has been stuck for {weeks} weeks. {advice}" },
+    { text: "Plateau alert on {lift}! {advice}" },
+    { text: "{lift} needs a nudge, {name}. {advice}" },
   ],
   welcome: [
     { text: "Welcome aboard, {name}! {day} is first up. Let's make it count!" },

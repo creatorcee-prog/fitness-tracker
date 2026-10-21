@@ -377,6 +377,12 @@ export class SyncStore implements Store {
   getShareStatus() {
     return this.online_(() => this.remote.getShareStatus());
   }
+  getLeaderboard(now: Date) {
+    return this.online_(() => this.remote.getLeaderboard(now));
+  }
+  setLeaderboardOptIn(on: boolean) {
+    return this.online_(() => this.remote.setLeaderboardOptIn(on));
+  }
   importMemory(keys: string[]) {
     return this.remote.importMemory(keys).catch(() => ({ mine: {}, popular: {} }));
   }

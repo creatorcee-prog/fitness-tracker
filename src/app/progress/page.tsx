@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { BodyweightCard } from "@/components/BodyweightCard";
+import { PlateauCard } from "@/components/PlateauCard";
 import { GoalsCard } from "@/components/GoalsCard";
 import { e1rm } from "@/lib/domain/e1rm";
 import { percentageGains } from "@/lib/domain/gain";
@@ -181,6 +182,8 @@ export default function ProgressPage() {
       </div>
 
       <div className="card"><div ref={chartEl} className="chart" /></div>
+
+      <PlateauCard />
 
       <GoalsCard />
 

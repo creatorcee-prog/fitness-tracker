@@ -1,6 +1,7 @@
 import type { AppConfig } from "@/config/app.config";
 import { bmi, describeAbout } from "@/lib/domain/about";
 import { e1rm } from "@/lib/domain/e1rm";
+import { detectPlateaus } from "@/lib/domain/plateau";
 import { goalProgress } from "@/lib/domain/goals";
 import { describeGoal, progressText } from "@/lib/domain/goalText";
 import { replayPRs } from "@/lib/domain/prs";
@@ -102,6 +103,9 @@ export async function buildTrainingContext(data: BotData, user: BotUser, cfg: Ap
     const p = goalProgress(g, sets, sessions, now, cfg);
     return `- ${describeGoal(g, g.exerciseId ? name.get(g.exerciseId) ?? null : null, unit)}: now ${progressText(g, p, unit)}${g.deadline ? `, deadline ${g.deadline}` : ""}${p.projectedDate ? `, projected ${p.projectedDate} at the current pace` : ""}`;
   });
+  // Stalled lifts, so James can push progressive overload where it's needed.
+  const stalls = detectPlateaus(sets, exercises, now, cfg).slice(0, 3);
+  const plateauLine = stalls.length ? `Stalled lifts (no new best e1RM for 3+ weeks while still training them): ${stalls.map((p) => `${p.name} ${p.weeks} weeks`).join(", ")}.` : null;
   let bwLine = "Bodyweight: not logged.";
   if (bodyweight.length) {
     const last = bodyweight[bodyweight.length - 1];
@@ -121,6 +125,7 @@ export async function buildTrainingContext(data: BotData, user: BotUser, cfg: Ap
       goalLines.length ? "Goals:" : "Goals: none set.",
       ...goalLines,
       bwLine,
+      ...(plateauLine ? [plateauLine] : []),
     ].join("\n");
     if (estimateTokens(out) <= maxTokens || n === 0) return out;
   }
