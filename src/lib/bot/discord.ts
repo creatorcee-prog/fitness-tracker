@@ -140,7 +140,7 @@ export const COMMANDS = [
 COMMANDS.push({
   name: "ask",
   description: "Ask James (AI coach). Your question + a training summary are sent to Groq.",
-  options: [{ type: STRING, name: "question", description: "e.g. How is my bench trending? What should I add next Push day?", required: true, max_length: 300 }],
+  options: [{ type: STRING, name: "question", description: "e.g. How is my bench trending? What should I add next Push day?", required: true, max_length: 1500 }],
   ...EVERYWHERE,
 } as (typeof COMMANDS)[number]);
 

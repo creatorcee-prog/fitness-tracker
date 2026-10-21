@@ -25,6 +25,8 @@ export interface AiEnv {
   contextTokens: number;
   /** In-app chat only: how many earlier exchanges to include for follow-up questions (0 = none). */
   historyTurns: number;
+  /** Longest question accepted (characters, ~4 per token). Longer text is cut. */
+  maxQuestionChars: number;
   /** In-app chat only: extra output tokens so James can add proposed changes (the Apply cards). */
   actionTokens: number;
   /** Sampling: higher temperature = more varied wording. */
@@ -50,6 +52,7 @@ export function aiEnvFromProcess(e: NodeJS.ProcessEnv = process.env): AiEnv {
     contextTokens: num(e.AI_CONTEXT_TOKENS, 2000),
     historyTurns: num(e.AI_CHAT_HISTORY_TURNS, 2),
     actionTokens: num(e.AI_ACTION_TOKENS, 200),
+    maxQuestionChars: num(e.AI_MAX_QUESTION_CHARS, 1500),
     temperature: num(e.AI_TEMPERATURE, 0.5),
     topP: num(e.AI_TOP_P, 0.9),
     frequencyPenalty: num(e.AI_FREQUENCY_PENALTY, 0.25),
@@ -199,7 +202,7 @@ export async function handleAsk(deps: AskDeps, question: string, history: ChatTu
   const { data, cfg, env, now } = deps;
   const bot = cfg.brand.botName;
   const inApp = "userId" in deps.who;
-  const q = question.trim().slice(0, 500);
+  const q = question.trim().slice(0, env.maxQuestionChars);
 
   const user = "userId" in deps.who ? await data.getUserById(deps.who.userId) : await data.findUser(deps.who.discordUserId);
   if (!user) return { outcome: "unlinked", content: `👋 I'm ${bot}. Link your account first: sign in at ${deps.appUrl} with this Discord account, then ask again.` };
