@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { AnnounceSettings, Reminder } from "@/lib/domain/types";
+import { localDate } from "@/lib/domain/split";
 import { uid } from "@/lib/store/local";
 import { useApp } from "./AppProvider";
 
@@ -10,7 +11,10 @@ const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frid
 
 /** Settings → Reminders & announcements. Sending needs the Supabase backend + Discord bot. */
 export function RemindersCard() {
-  const { cfg, store, profile, version } = useApp();
+  const { cfg, store, profile, version, now } = useApp();
+  const [test, setTest] = useState<{ ok: boolean; message: string } | null>(null);
+  const [testing, setTesting] = useState(false);
+  const today = localDate(now(), profile.timezone);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [announce, setAnnounce] = useState<AnnounceSettings>({ enabled: false, channelSet: false });
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +62,9 @@ export function RemindersCard() {
       {reminders.map((r) => (
         <div key={r.id} className="stack" style={{ background: "var(--surface-2)", borderRadius: 14, padding: 12, gap: 8 }}>
           {r.lastError && <div className="small" style={{ color: "var(--bad)" }}>⚠️ {r.lastError}</div>}
+          {!r.lastError && r.lastSentOn === today && (
+            <div className="muted small">✓ Already handled today (sent, or skipped because you trained or it&apos;s a rest day). Next one tomorrow.</div>
+          )}
           <div className="row">
             <input type="time" value={r.localTime} onChange={(e) => save({ ...r, localTime: e.target.value })} aria-label="Reminder time" />
             <label className="row small">
@@ -84,7 +91,28 @@ export function RemindersCard() {
           </div>
         </div>
       ))}
-      <button className="btn" style={{ justifySelf: "start" }} onClick={add}>+ Add reminder</button>
+      <div className="row">
+        <button className="btn" onClick={add}>+ Add reminder</button>
+        <button
+          className="btn"
+          disabled={testing}
+          onClick={async () => {
+            setTesting(true);
+            setTest(null);
+            try {
+              setTest(await store.sendTestReminder(reminders[0]?.id));
+            } catch (e) {
+              setTest({ ok: false, message: e instanceof Error ? e.message : String(e) });
+            } finally {
+              setTesting(false);
+            }
+          }}
+        >
+          {testing ? "Sending…" : "Send test reminder"}
+        </button>
+      </div>
+      {test && <div className="small" style={{ color: test.ok ? "var(--good)" : "var(--bad)" }}>{test.ok ? "✓ " : "⚠️ "}{test.message}</div>}
+      <p className="muted small" style={{ margin: 0 }}>The test DMs you right now and ignores the &quot;already trained&quot; and rest-day rules. Your real reminders aren&apos;t affected.</p>
 
       <h2 style={{ marginTop: 8 }}>PR announcements</h2>
       <label className="row small">

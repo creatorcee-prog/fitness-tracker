@@ -406,6 +406,9 @@ export class SyncStore implements Store {
   deleteReminder(id: string) {
     return this.online_(() => this.remote.deleteReminder(id));
   }
+  sendTestReminder(reminderId?: string) {
+    return this.online_(() => this.remote.sendTestReminder(reminderId));
+  }
   getAnnounceSettings() {
     return this.online_(() => this.remote.getAnnounceSettings());
   }

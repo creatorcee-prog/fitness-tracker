@@ -7,7 +7,7 @@ import { toKg } from "@/lib/domain/units";
 import { seedSplit, SEED_EXERCISES } from "@/lib/store/seed";
 import type { NewSet } from "@/lib/store/types";
 import { COMMANDS, DiscordError, toMessage, verifyDiscordRequest } from "./discord";
-import { runReminders } from "./reminders";
+import { runReminders, sendTestReminder } from "./reminders";
 import { FakeData } from "./testing";
 import { formatDuration, parseDuration } from "./duration";
 import { decodeEntries, encodeEntries, handleAutocomplete, handleCommand, handleComponent, type BotContext } from "./handlers";
@@ -357,6 +357,20 @@ describe("reminders / check-in", () => {
     const out = await runReminders(deps(async () => { throw new DiscordError("down", 500, null); }));
     expect(out[0].result).toBe("retry");
     expect(data.reminders[0]).toMatchObject({ enabled: true, sentOn: null });
+  });
+  it("Send test reminder DMs even after training, without touching the reminder", async () => {
+    await data.startSession("u1", null, new Date(clock - 3_600_000));
+    due();
+    const r = await sendTestReminder(deps(), "u1", "r1");
+    expect(r.ok).toBe(true);
+    expect(dms[0].content).toContain("Test reminder");
+    expect(dms[0].buttons).toContain("ci:snooze:r1");
+    expect(data.reminders[0].sentOn).toBeNull();
+  });
+  it("Send test reminder explains blocked DMs", async () => {
+    const r = await sendTestReminder(deps(async () => { throw new DiscordError("blocked", 403, 50007); }), "u1");
+    expect(r).toMatchObject({ ok: false });
+    expect(r.message).toContain("allow DMs");
   });
   it("[Start workout] starts today's day", async () => {
     const r = await handleComponent(ctx(), "ci:start");

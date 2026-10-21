@@ -351,6 +351,16 @@ export class SupabaseStore implements Store {
     check(await this.sb.from("reminders").delete().eq("id", id), "deleteReminder");
   }
 
+  async sendTestReminder(reminderId?: string) {
+    const { data } = await this.sb.auth.getSession();
+    const res = await fetch("/api/reminders/test", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${data.session?.access_token ?? ""}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ reminderId }),
+    });
+    return (await res.json()) as { ok: boolean; message: string };
+  }
+
   async getAnnounceSettings() {
     const id = await this.userId();
     const r = check(await this.sb.from("users").select("announce_prs, announce_channel_id").eq("id", id).single(), "getAnnounceSettings");

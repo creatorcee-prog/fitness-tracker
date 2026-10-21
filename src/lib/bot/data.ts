@@ -14,6 +14,8 @@ export interface BotUser {
   /** Channel chosen with /announce on; PRs are posted there when announcePrs is true. */
   announceChannelId: string | null;
   announcePrs: boolean;
+  /** Linked Discord account (null if signed up some other way). */
+  discordId: string | null;
 }
 
 /** Active goal, as stored (the app has no goals UI yet; /ask reads any that exist). */
@@ -77,10 +79,10 @@ export interface BotData {
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Row = Record<string, any>;
 
-const USER_COLS = "id, display_name, unit, timezone, announce_channel_id, announce_prs";
+const USER_COLS = "id, display_name, unit, timezone, announce_channel_id, announce_prs, discord_id";
 const toBotUser = (r: Row): BotUser => ({
   id: r.id, displayName: r.display_name, unit: r.unit, timezone: r.timezone,
-  announceChannelId: r.announce_channel_id ?? null, announcePrs: !!r.announce_prs,
+  announceChannelId: r.announce_channel_id ?? null, announcePrs: !!r.announce_prs, discordId: r.discord_id ?? null,
 });
 
 export function serviceClient(): SupabaseClient {
