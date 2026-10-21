@@ -3,7 +3,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { fill, MOOD, pickLine, PRIORITY, type MascotEvent, type Mood } from "@/lib/mascot/lines";
 import { useApp } from "./AppProvider";
-import { JamesSilhouette } from "./JamesSilhouette";
 
 interface Said {
   event: MascotEvent;
@@ -62,7 +61,7 @@ export function MascotProvider({ children }: { children: ReactNode }) {
 }
 
 /** Letter-by-letter reveal; a tap shows the whole line. Reduced motion shows it at once. */
-function useTypewriter(text: string, msPerChar: number) {
+export function useTypewriter(text: string, msPerChar: number) {
   const [shown, setShown] = useState(0);
   useEffect(() => {
     const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -74,20 +73,22 @@ function useTypewriter(text: string, msPerChar: number) {
   return { visible: text.slice(0, shown), done: shown >= text.length, finish: () => setShown(text.length) };
 }
 
-/** James + speech bubble. Sits beside the workout, never over the logging controls. */
+/**
+ * James's speech bubble. It hangs from his chat button in Today's header (the
+ * tail points up at him), so there's one James on screen, not two.
+ */
 export function MascotBubble() {
   const { cfg } = useApp();
   const { current, dismiss } = useMascot();
   const tw = useTypewriter(current?.text ?? "", cfg.mascot.typeMs);
   if (!cfg.mascot.enabled || !current) return null;
   return (
-    <div className="mascot" onClick={tw.finish} role="status" aria-live="polite" aria-label={`James says: ${current.text}`}>
-      <JamesSilhouette mood={current.mood} size={52} />
+    <div className="mascot attached" onClick={tw.finish} role="status" aria-live="polite" aria-label={`${cfg.brand.botName} says: ${current.text}`}>
       <div className="mascot-bubble">
         <span aria-hidden>{tw.visible}</span>
         {!tw.done && <span className="mascot-caret" aria-hidden />}
       </div>
-      <button className="btn sm ghost" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); dismiss(); }}>✕</button>
+      <button className="btn sm ghost mascot-close" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); dismiss(); }}>✕</button>
     </div>
   );
 }

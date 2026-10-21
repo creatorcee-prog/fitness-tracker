@@ -12,10 +12,13 @@ import type { Mood } from "@/lib/mascot/lines";
 import { parseFreeText } from "@/lib/domain/freetext";
 import { useApp } from "./AppProvider";
 import { JamesButton } from "./JamesButton";
+import { useTypewriter } from "./Mascot";
 import { JamesSilhouette } from "./JamesSilhouette";
 
 /** Other screens open the chat with window.dispatchEvent(new Event(OPEN_CHAT_EVENT)). */
 export const OPEN_CHAT_EVENT = "ft:open-chat";
+/** No floating James button here: Today has him in the header, and editing pages need the space. */
+const NO_FLOATING_BUTTON = ["/", "/split", "/settings", "/import"];
 
 interface Proposal {
   action: AccountAction;
@@ -32,6 +35,22 @@ interface Msg {
   proposals?: Proposal[];
   /** James's face for this reply (header avatar follows the latest one). */
   mood?: Mood;
+  /** Just arrived: type it out (replies restored from earlier aren't re-typed). */
+  fresh?: boolean;
+}
+
+/** A reply typing out letter by letter, like James's quote on Today. Tap to show it all. */
+function Typed({ text, ms, onDone }: { text: string; ms: number; onDone: () => void }) {
+  const tw = useTypewriter(text, ms);
+  useEffect(() => {
+    if (tw.done) onDone();
+  }, [tw.done]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <span onClick={tw.finish} style={{ cursor: tw.done ? undefined : "pointer" }}>
+      <Rich text={tw.visible} />
+      {!tw.done && <span className="mascot-caret" aria-hidden />}
+    </span>
+  );
 }
 
 /** Tiny, safe renderer for the coach's replies: **bold**, `code`, bullet lines and paragraphs. No HTML injection. */
@@ -101,7 +120,7 @@ export function CoachChat() {
   }, []);
   useEffect(() => {
     try {
-      sessionStorage.setItem("ft:coach-chat", JSON.stringify(msgs.slice(-20)));
+      sessionStorage.setItem("ft:coach-chat", JSON.stringify(msgs.slice(-20).map(({ fresh: _f, ...m }) => m)));
     } catch {
       /* ignore */
     }
@@ -128,13 +147,13 @@ export function CoachChat() {
       // Validate again here: never trust what comes over the network.
       const proposals = (json.actions ?? []).map(validateAction).filter((a): a is AccountAction => a !== null).map((action): Proposal => ({ action, state: "new" }));
       const answered = json.outcome === "answered";
-      setMsgs((m) => [...m, { role: "coach", text: json.answer ?? "Something went wrong.", answered, proposals, mood: answered ? "happy" : "concerned" }]);
+      setMsgs((m) => [...m, { role: "coach", text: json.answer ?? "Something went wrong.", answered, proposals, mood: answered ? "happy" : "concerned", fresh: true }]);
     } catch (e) {
       const offline = typeof navigator !== "undefined" && !navigator.onLine;
       const text = (e as Error).message === "local"
         ? `${bot} needs the online (Supabase) version of the app.`
         : offline ? "You're offline. Ask me again when you have signal." : "⚠️ I couldn't answer right now. Please try again in a bit.";
-      setMsgs((m) => [...m, { role: "coach", text, mood: "concerned" }]);
+      setMsgs((m) => [...m, { role: "coach", text, mood: "concerned", fresh: true }]);
     } finally {
       setBusy(false);
     }
@@ -187,7 +206,7 @@ export function CoachChat() {
   return (
     <>
       {/* No floating button on Today: it has a chat button in its header instead (less over the workout). */}
-      {!open && path !== "/" && (
+      {!open && !NO_FLOATING_BUTTON.some((p) => p === "/" ? path === "/" : path.startsWith(p)) && (
         <JamesButton name={bot} size={52} className="coach-fab-james" onClick={() => setOpen(true)} />
       )}
       {open && (
@@ -211,8 +230,14 @@ export function CoachChat() {
             )}
             {msgs.map((m, i) => (
               <div key={i} className="stack" style={{ gap: 6 }}>
-                <div className={`bubble ${m.role}`}>{m.role === "coach" ? <Rich text={m.text} /> : m.text}</div>
-                {m.proposals?.map((p, j) => (
+                <div className={`bubble ${m.role}`} aria-label={m.role === "coach" ? m.text : undefined}>
+                  {m.role === "coach"
+                    ? m.fresh
+                      ? <Typed text={m.text} ms={cfg.ai.typeMs} onDone={() => setMsgs((all) => all.map((x, j) => (j === i ? { ...x, fresh: false } : x)))} />
+                      : <Rich text={m.text} />
+                    : m.text}
+                </div>
+                {!m.fresh && m.proposals?.map((p, j) => (
                   <div key={j} className="proposal" aria-live="polite">
                     <div className="small"><strong>{describeAction(p.action, profile.unit)}</strong></div>
                     {p.error && <div className="small" style={{ color: "var(--bad)" }}>{p.error}</div>}

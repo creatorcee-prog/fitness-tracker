@@ -27,6 +27,7 @@ export function check<T>(res: { data: T; error: { message: string } | null }, op
 
 export const toExercise = (r: Row): Exercise => ({
   id: r.id, name: r.name, category: r.category, equipment: r.equipment, incrementKg: r.increment_kg == null ? null : Number(r.increment_kg), ownerId: r.owner_id,
+  aliases: Array.isArray(r.aliases) ? r.aliases : [],
 });
 export const toSession = (r: Row): Session => ({ id: r.id, splitDayId: r.split_day_id, startedAt: r.started_at, finishedAt: r.finished_at, source: r.source });
 export const toSet = (r: Row): SetEntry => ({

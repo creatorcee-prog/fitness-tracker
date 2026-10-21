@@ -114,6 +114,11 @@ export function GoalsCard() {
     await reload();
   };
 
+  // Arriving from a Today widget (/progress#goals): scroll here once the content has loaded.
+  useEffect(() => {
+    if (data && typeof location !== "undefined" && location.hash === "#goals") document.getElementById("goals")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [data]);
+
   return (
     <div className="card stack" id="goals">
       <div className="spread">

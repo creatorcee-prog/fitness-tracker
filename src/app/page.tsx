@@ -452,7 +452,7 @@ export default function TodayPage() {
         <div className="header-actions">
           {cfg.ai.chatButton && (
             // On Today the chat lives up here, so nothing floats over the workout and logging bar.
-            <JamesButton name={cfg.brand.botName} onClick={() => window.dispatchEvent(new Event(OPEN_CHAT_EVENT))} />
+            <JamesButton name={cfg.brand.botName} size={52} mood={mascot.current?.mood ?? "happy"} onClick={() => window.dispatchEvent(new Event(OPEN_CHAT_EVENT))} />
           )}
           <Link href="/settings" className={`avatar-btn ${media.avatar ? "has-photo" : ""}`} aria-label="Profile and settings">
             {/* eslint-disable-next-line @next/next/no-img-element */}

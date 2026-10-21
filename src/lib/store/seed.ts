@@ -1,3 +1,4 @@
+import { LIBRARY } from "@/lib/domain/library";
 import type { Exercise, Split } from "@/lib/domain/types";
 
 export const SEED_EXERCISES: Omit<Exercise, "ownerId">[] = [
@@ -57,4 +58,16 @@ export function starterSplitFor(exercises: Exercise[], newId: () => string): Spl
         .filter((x) => x.exerciseId),
     })),
   };
+}
+
+/**
+ * The whole library for the local backend: the seed exercises keep their ids
+ * (the starter split uses them), everything else gets a stable "lib-" id.
+ */
+export function libraryExercises(): Omit<Exercise, "ownerId">[] {
+  const seeded = new Map(SEED_EXERCISES.map((e) => [e.name.toLowerCase(), e]));
+  return LIBRARY.map((l) => {
+    const s = seeded.get(l.name.toLowerCase());
+    return { id: s?.id ?? `lib-${l.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, name: l.name, category: l.category, equipment: l.equipment, incrementKg: null, aliases: l.aliases };
+  });
 }

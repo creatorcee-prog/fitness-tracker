@@ -1,16 +1,5 @@
--- Shared exercise library (owner_id null = visible to everyone).
-insert into public.exercises (name, category, equipment) values
-  ('Bench Press', 'upper', 'barbell'),
-  ('Overhead Press', 'upper', 'barbell'),
-  ('Incline Dumbbell Press', 'upper', 'dumbbell'),
-  ('Dip', 'upper', 'bodyweight'),
-  ('Barbell Row', 'upper', 'barbell'),
-  ('Pull-up', 'upper', 'bodyweight'),
-  ('Lat Pulldown', 'upper', 'cable'),
-  ('Barbell Curl', 'upper', 'barbell'),
-  ('Back Squat', 'lower', 'barbell'),
-  ('Deadlift', 'lower', 'barbell'),
-  ('Romanian Deadlift', 'lower', 'barbell'),
-  ('Leg Press', 'lower', 'machine'),
-  ('Calf Raise', 'lower', 'machine'),
-  ('Plank', 'core', 'bodyweight');
+-- The exercise library now lives in supabase/migrations/0012_exercise_library.sql
+-- (generated from src/lib/domain/library.ts), which is safe to run more than once.
+-- This file used to insert the library without that protection; running it twice
+-- created duplicates, which 0012 merges. Nothing to run here any more.
+select 'Run supabase/migrations/0012_exercise_library.sql instead' as note;
