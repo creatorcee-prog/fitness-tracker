@@ -9,6 +9,7 @@ import { buildTrainingContext } from "./context";
  * written to the database.
  */
 export interface AiEnv {
+  /** Kill switch (AI_ENABLED=false turns /ask off without a redeploy of code). */
   enabled: boolean;
   apiKey: string | null;
   /** OpenAI-compatible base URL. Groq by default. */
@@ -17,23 +18,34 @@ export interface AiEnv {
   fallbackModel: string | null;
   dailyUserLimit: number;
   dailyGlobalLimit: number;
+  /** Most tokens the model may write (on gpt-oss this includes its hidden reasoning). */
   maxOutputTokens: number;
+  /** Budget for the training summary we send. */
   contextTokens: number;
+  /** Sampling: higher temperature = more varied wording. */
+  temperature: number;
+  /** Sampling: only consider the most likely 90% of words. */
+  topP: number;
+  /** Discourages repeating the same words. */
+  frequencyPenalty: number;
 }
 
 /** Reads the AI settings from server env vars. GROQ_API_KEY never reaches the browser (no NEXT_PUBLIC_ prefix). */
 export function aiEnvFromProcess(e: NodeJS.ProcessEnv = process.env): AiEnv {
-  const int = (v: string | undefined, d: number) => (v && Number.isFinite(Number(v)) ? Number(v) : d);
+  const num = (v: string | undefined, d: number) => (v && Number.isFinite(Number(v)) ? Number(v) : d);
   return {
     enabled: (e.AI_ENABLED ?? "true").toLowerCase() !== "false",
     apiKey: e.GROQ_API_KEY || null,
     baseUrl: (e.AI_BASE_URL || "https://api.groq.com/openai/v1").replace(/\/+$/, ""),
     model: e.GROQ_MODEL || "openai/gpt-oss-120b",
     fallbackModel: e.GROQ_FALLBACK_MODEL || null,
-    dailyUserLimit: int(e.AI_DAILY_USER_LIMIT, 10),
-    dailyGlobalLimit: int(e.AI_DAILY_GLOBAL_LIMIT, 70),
-    maxOutputTokens: int(e.AI_MAX_OUTPUT_TOKENS, 500),
-    contextTokens: int(e.AI_CONTEXT_TOKENS, 2000),
+    dailyUserLimit: num(e.AI_DAILY_USER_LIMIT, 10),
+    dailyGlobalLimit: num(e.AI_DAILY_GLOBAL_LIMIT, 70),
+    maxOutputTokens: num(e.AI_MAX_OUTPUT_TOKENS, 500),
+    contextTokens: num(e.AI_CONTEXT_TOKENS, 2000),
+    temperature: num(e.AI_TEMPERATURE, 0.5),
+    topP: num(e.AI_TOP_P, 0.9),
+    frequencyPenalty: num(e.AI_FREQUENCY_PENALTY, 0.25),
   };
 }
 
@@ -59,16 +71,30 @@ export interface AskResult {
 const DISCORD_LIMIT = 2000;
 const FOOTER = "\n-# AI answer from your logged data · not medical advice";
 
+/**
+ * The system prompt: the standing instructions the model reads before every
+ * question. Based on the app owner's coach prompt, plus the rules this
+ * integration needs (read-only, only use the provided numbers, units).
+ */
 export function systemPrompt(cfg: AppConfig, unit: string): string {
-  return [
-    `You are ${cfg.brand.botName}, a concise, encouraging lifting coach in the ${cfg.brand.appName} app, talking with one user about their own training.`,
-    "Rules:",
-    "- Use ONLY the numbers in TRAINING DATA. If something you'd need is missing, say it's missing instead of guessing. Never invent sets, weights, dates or PRs.",
-    `- Be brief: at most about 120 words. Plain sentences or a few short bullets. Use ${unit}.`,
-    "- You are read-only. If the user is trying to log a set or change their data, tell them to use /log (or the app); don't pretend it was saved.",
-    "- Prefer conservative progressions (small jumps only when all reps were hit).",
-    "- This is not medical advice. For pain, injury or health concerns, suggest seeing a qualified professional. Never encourage training through pain, extreme cutting, crash dieting or unsafe weight loss.",
-  ].join("\n");
+  return `You are ${cfg.brand.botName}, a supportive, knowledgeable fitness coach inside a Discord bot for the ${cfg.brand.appName} workout tracking app.
+
+Your style:
+- Encouraging but realistic
+- Clear and concise (Discord users hate walls of text)
+- Prefer short paragraphs and bullet points
+- Always prioritize safety
+
+Rules you must follow:
+- Never give medical advice
+- Never encourage extreme deficits, dangerous form, or overtraining
+- If the user asks something medical (pain, injury, illness, medication), politely redirect them to a professional
+- Use the actual numbers in TRAINING DATA instead of guessing. If something you'd need isn't there, say it's missing. Never invent sets, weights, dates or PRs
+- You can't log or change anything. If the user is trying to log a set, tell them to use /log
+- Use ${unit} for weights
+- Keep responses under ~150-200 words unless the user asks for more detail
+
+You have the user's recent workout history and goals in TRAINING DATA when provided.`;
 }
 
 class HttpError extends Error {
@@ -77,40 +103,80 @@ class HttpError extends Error {
   }
 }
 
+/**
+ * One call to the provider's "chat completions" endpoint (the OpenAI-style API
+ * Groq offers). We send two messages: the system prompt (instructions) and the
+ * user message (training summary + question). We get back text plus a `usage`
+ * block saying how many tokens went in and out, which we record for the caps.
+ */
 async function chat(deps: AskDeps, model: string, system: string, user: string) {
+  const { env } = deps;
   const body: Record<string, unknown> = {
     model,
-    messages: [{ role: "system", content: system }, { role: "user", content: user }],
-    temperature: 0.4,
-    // On reasoning models the cap includes reasoning tokens; low effort keeps them small.
-    max_completion_tokens: deps.env.maxOutputTokens,
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+    max_completion_tokens: env.maxOutputTokens,
+    temperature: env.temperature,
+    top_p: env.topP,
+    frequency_penalty: env.frequencyPenalty,
   };
+  // gpt-oss "thinks" before answering; low effort keeps that short (and cheap).
   if (/gpt-oss/i.test(model)) body.reasoning_effort = "low";
 
+  let res = await post(deps, body);
+  // Some models reject optional tuning knobs. Rather than fail, retry once without them.
+  if (res.status === 400) {
+    const detail = await res.text();
+    if (/frequency_penalty|top_p|temperature|reasoning_effort|unsupported|not supported/i.test(detail)) {
+      console.warn(`[ask] ${model} rejected an optional parameter, retrying without them: ${detail.slice(0, 200)}`);
+      for (const k of ["frequency_penalty", "top_p", "temperature", "reasoning_effort"]) delete body[k];
+      res = await post(deps, body);
+    } else {
+      throw new HttpError(400, `400 ${detail.slice(0, 300)}`);
+    }
+  }
+  if (!res.ok) throw new HttpError(res.status, `${res.status} ${(await res.text()).slice(0, 300)}`);
+
+  const json = (await res.json()) as {
+    choices?: { message?: { content?: string | null } }[];
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
+  };
+  return {
+    // Some models wrap their reasoning in <think> tags; users shouldn't see it.
+    text: (json.choices?.[0]?.message?.content ?? "").replace(/<think>[\s\S]*?<\/think>/g, "").trim(),
+    tokensIn: json.usage?.prompt_tokens ?? 0,
+    tokensOut: json.usage?.completion_tokens ?? 0,
+  };
+}
+
+/** POST with a 25-second timeout (Discord lets us edit the reply for 15 minutes, but nobody waits that long). */
+async function post(deps: AskDeps, body: Record<string, unknown>): Promise<Response> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 25_000);
   try {
-    const res = await deps.fetch(`${deps.env.baseUrl}/chat/completions`, {
+    return await deps.fetch(`${deps.env.baseUrl}/chat/completions`, {
       method: "POST",
       headers: { Authorization: `Bearer ${deps.env.apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
       signal: ctrl.signal,
     });
-    if (!res.ok) throw new HttpError(res.status, `${res.status} ${(await res.text()).slice(0, 300)}`);
-    const json = (await res.json()) as {
-      choices?: { message?: { content?: string | null } }[];
-      usage?: { prompt_tokens?: number; completion_tokens?: number };
-    };
-    return {
-      text: (json.choices?.[0]?.message?.content ?? "").replace(/<think>[\s\S]*?<\/think>/g, "").trim(),
-      tokensIn: json.usage?.prompt_tokens ?? 0,
-      tokensOut: json.usage?.completion_tokens ?? 0,
-    };
   } finally {
     clearTimeout(timer);
   }
 }
 
+/**
+ * The whole /ask flow, in order:
+ *  1. Find the app account for this Discord user (stop if not linked).
+ *  2. Stop early if AI is switched off, the question is empty, or it's really a set to /log.
+ *  3. Check today's caps (per user and for everyone) so we stay inside the free tier.
+ *  4. Build a short training summary from the database (the model sees nothing else).
+ *  5. Ask the model; on "429 Too Many Requests" try the fallback model once.
+ *  6. Record the token usage, trim to Discord's 2,000 characters and return the text.
+ * The caller (the Discord route) posts the returned text as the reply.
+ */
 export async function handleAsk(deps: AskDeps, question: string): Promise<AskResult> {
   const { data, cfg, env, now } = deps;
   const bot = cfg.brand.botName;

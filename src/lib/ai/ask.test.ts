@@ -50,7 +50,7 @@ describe("/ask", () => {
     expect(r.content).toContain("not medical advice");
     // Request shape: Groq OpenAI-compatible endpoint, low reasoning, capped output.
     expect(calls[0].url).toBe("https://api.groq.com/openai/v1/chat/completions");
-    expect(calls[0].body).toMatchObject({ model: "openai/gpt-oss-120b", reasoning_effort: "low", max_completion_tokens: 500 });
+    expect(calls[0].body).toMatchObject({ model: "openai/gpt-oss-120b", reasoning_effort: "low", max_completion_tokens: 500, temperature: 0.5, top_p: 0.9, frequency_penalty: 0.25 });
     const user = (calls[0].body.messages as { content: string }[])[1].content;
     expect(user).toContain("Bench Press 200x5");
     expect(user).toContain("QUESTION: How is my bench trending?");
@@ -109,6 +109,22 @@ describe("/ask", () => {
     const r = await handleAsk(deps(fakeFetch([ok("a".repeat(5000))])), "Tell me everything?");
     expect(r.content.length).toBeLessThanOrEqual(2000);
     expect(r.content).toContain("…");
+  });
+
+  it("retries without optional knobs if the model rejects one", async () => {
+    const reject = { status: 400, json: { error: { message: "frequency_penalty is not supported for this model" } } };
+    const r = await handleAsk(deps(fakeFetch([reject, ok("Fine without it")])), "What's next?");
+    expect(r.outcome).toBe("answered");
+    expect(calls[1].body.frequency_penalty).toBeUndefined();
+    expect(calls[1].body.max_completion_tokens).toBe(500);
+  });
+
+  it("uses the coach prompt with the safety and read-only rules", () => {
+    const p = systemPrompt(defaultConfig, "lb");
+    expect(p).toContain("You are James, a supportive, knowledgeable fitness coach");
+    expect(p).toContain("Never give medical advice");
+    expect(p).toContain("use /log");
+    expect(p).toContain("~150-200 words");
   });
 
   it("handles provider errors gracefully", async () => {

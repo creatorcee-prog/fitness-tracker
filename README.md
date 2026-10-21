@@ -126,7 +126,9 @@ Setup:
   2. Add `GROQ_API_KEY` to Vercel as a Secret, then redeploy.
   3. Save the Interactions Endpoint URL again (or open `/api/discord?register=1`) to register `/ask`.
   4. `GET /api/discord` shows the AI settings. It never shows the key.
-- **Measured prompt size:** about 680 input tokens per `/ask`, using the o200k tokenizer on a 12-week PPL history. Output is capped at 500 tokens, reasoning included. That keeps 70 requests a day at about 84k tokens or less, under Groq's free 200K/day. Check the current limits at https://console.groq.com/docs/rate-limits; they change.
+- **Measured prompt size:** about 710 input tokens per `/ask` (system prompt about 207, training summary about 480, plus the question), using the o200k tokenizer on a 12-week PPL history. Output is capped at 500 tokens, reasoning included. That keeps 70 requests a day at about 85k tokens or less, under Groq's free 200K/day.
+- **Sampling:** temperature 0.5, top_p 0.9, frequency_penalty 0.25 (`AI_TEMPERATURE`, `AI_TOP_P`, `AI_FREQUENCY_PENALTY`). If the model rejects one of these, the request is retried once without them.
+- **No chat history:** each `/ask` stands alone. Slash commands don't see earlier messages, and the bot doesn't read channel messages (no Message Content intent). Check the current limits at https://console.groq.com/docs/rate-limits; they change.
 - **Privacy:** `/privacy`, linked from Settings, explains what is sent to Groq.
 
 ## To-do
