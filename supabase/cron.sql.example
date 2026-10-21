@@ -15,11 +15,13 @@ select cron.schedule(
   select net.http_post(
     url     := 'https://YOUR-APP.vercel.app/api/cron/reminders',
     headers := jsonb_build_object('Authorization', 'Bearer YOUR-CRON-SECRET', 'Content-Type', 'application/json'),
-    body    := '{}'::jsonb
+    body    := '{}'::jsonb,
+    -- pg_net's default timeout is ~2s; a cold Vercel function can take longer.
+    timeout_milliseconds := 15000
   );
   $$
 );
 
 -- To check it's running:   select * from cron.job_run_details order by start_time desc limit 5;
--- To see HTTP responses:   select status_code, content from net._http_response order by created desc limit 5;
+-- To see HTTP responses:   select status_code, timed_out, error_msg, content from net._http_response order by created desc limit 5;
 -- To stop it:              select cron.unschedule('fitness-reminders');

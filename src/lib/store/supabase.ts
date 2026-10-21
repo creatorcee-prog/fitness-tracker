@@ -380,10 +380,18 @@ export class SupabaseStore implements Store {
     check(await this.sb.from("users").update({ prefs }).eq("id", id), "savePrefs");
   }
 
+  /** Live updates: split pointer, and sets/sessions logged elsewhere (e.g. from Discord). RLS limits events to your rows. */
   subscribe(cb: () => void) {
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const debounced = () => {
+      if (t) clearTimeout(t);
+      t = setTimeout(cb, 250); // a /log of 3 sets arrives as 3 events
+    };
     const ch = this.sb
-      .channel("split_state")
-      .on("postgres_changes", { event: "*", schema: "public", table: "split_state" }, () => cb())
+      .channel("live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "split_state" }, debounced)
+      .on("postgres_changes", { event: "*", schema: "public", table: "sessions" }, debounced)
+      .on("postgres_changes", { event: "*", schema: "public", table: "sets" }, debounced)
       .subscribe();
     return () => {
       void this.sb.removeChannel(ch);

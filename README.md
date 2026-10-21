@@ -75,6 +75,7 @@ Debug tools:
 - **Nicknames:** give any friend a nickname. Only you see it, and it's used in the app and in Discord `/friends`.
 - **Calories:** the Calories card on Today logs intake with quick-add buttons and optional protein. It shows progress against your target (Settings → Nutrition) and the last 7 days.
 - **Setup:** run `supabase/migrations/0005_profiles_nutrition.sql`.
+- **Live updates:** run `supabase/migrations/0006_realtime_sets.sql` so sets logged from Discord show up in an open app without refreshing. The app also reloads whenever you switch back to it.
 
 ## Offline logging
 
@@ -108,7 +109,8 @@ Commands: `/today` `/log` `/undo` `/done` `/skip` `/swap` `/lift` `/streak` `/fr
 Setup:
 1. Run `supabase/migrations/0004_reminders.sql`.
 2. In Vercel, add `CRON_SECRET` (Secret, any long random string) and redeploy.
-3. Copy `supabase/cron.sql.example`, put in your app URL and `CRON_SECRET`, and run it in the SQL editor. It schedules a call to `/api/cron/reminders` every minute via `pg_cron` + `pg_net`.
+3. Turn on the `pg_cron` and `pg_net` extensions (Database → Extensions).
+4. Copy `supabase/cron.sql.example`, put in your app URL and `CRON_SECRET`, and run it in the SQL editor. It schedules a call to `/api/cron/reminders` every minute. If you use the Integrations → Cron UI instead, set the timeout to about 15 s; pg_net's default of about 2 s is shorter than a cold Vercel start.
 
 ## To-do
 

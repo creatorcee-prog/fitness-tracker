@@ -114,9 +114,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     })();
     const unsub = store.subscribe(refresh);
+    // Coming back to the app (switching from Discord, unlocking the phone) reloads data too,
+    // in case a live update was missed while the tab was asleep.
+    const onVisible = () => document.visibilityState === "visible" && refresh();
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       cancelled = true;
       unsub();
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [store, refresh]);
 
