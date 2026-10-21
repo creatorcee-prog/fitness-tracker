@@ -170,7 +170,9 @@ export const defaultConfig = {
 
   theme: {
     /** Key of THEME_PRESETS in src/config/themes.ts. */
-    preset: "midnight",
+    preset: "ember",
+    /** Dark, light, or follow the phone's setting ("system"). Every theme has both. */
+    appearance: "dark" as "dark" | "light" | "system",
     /** Per-variable overrides, e.g. { "accent": "#ff00aa", "radius": "8px" }. */
     vars: {} as Record<string, string>,
     /** Layout style: "auto" follows the preset; "playful" or "pro" forces one. */

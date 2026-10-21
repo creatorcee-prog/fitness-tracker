@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { defaultConfig, type Unit, type WidgetConfig } from "@/config/app.config";
 import { deepMerge } from "@/config/runtime";
-import { contrastRatio, THEME_PRESETS } from "@/config/themes";
+import { contrastRatio, THEME_PRESETS, themeVars as presetVars } from "@/config/themes";
 import { useApp } from "@/components/AppProvider";
 import { withNewWidgets } from "@/components/Dashboard";
 import { ProfileMediaHeader } from "@/components/ProfileMediaCard";
@@ -25,7 +25,7 @@ const CONTRAST_PAIRS: [string, string][] = [["text", "bg"], ["text", "surface"],
 type Overrides = Record<string, unknown>;
 
 export default function SettingsPage() {
-  const { cfg, store, profile, setProfile, overrides, setOverrides, refresh, now } = useApp();
+  const { cfg, store, profile, setProfile, overrides, setOverrides, refresh, now, mode } = useApp();
   const toast = useToast(cfg.logging.undoToastMs);
   const [json, setJson] = useState("");
   const [jsonErr, setJsonErr] = useState<string | null>(null);
@@ -54,7 +54,7 @@ export default function SettingsPage() {
     setWidgets(out);
   };
 
-  const themeVars = { ...(THEME_PRESETS[cfg.theme.preset] ?? THEME_PRESETS.midnight).vars, ...cfg.theme.vars };
+  const themeVars = { ...presetVars(THEME_PRESETS[cfg.theme.preset] ?? THEME_PRESETS.ember, mode), ...cfg.theme.vars };
   const colorKeys = Object.keys(themeVars).filter((k) => /^#[0-9a-f]{6}$/i.test(themeVars[k]));
 
   const saveProfile = async (p: { unit?: Unit; displayName?: string; timezone?: string }) => {
@@ -122,7 +122,7 @@ export default function SettingsPage() {
       <div className="card stack">
         <h2>Theme</h2>
         <div className="swatches">
-          {Object.entries(THEME_PRESETS).map(([id, t]) => (
+          {Object.entries(THEME_PRESETS).filter(([id]) => id !== "professional").map(([id, preset]) => ({ id, t: { ...preset, vars: presetVars(preset, mode) } })).map(({ id, t }) => (
             <button
               key={id}
               className={`swatch ${cfg.theme.preset === id ? "on" : ""}`}
@@ -137,6 +137,16 @@ export default function SettingsPage() {
               {t.label}
             </button>
           ))}
+        </div>
+        <div className="row">
+          <span className="muted small" style={{ minWidth: 96 }}>Appearance</span>
+          <div className="segmented">
+            {(["dark", "light", "system"] as const).map((a) => (
+              <button key={a} className={cfg.theme.appearance === a ? "on" : ""} onClick={() => patch({ theme: { appearance: a } }, `Appearance: ${a === "system" ? "follow my phone" : a}`)}>
+                {a === "dark" ? "Dark" : a === "light" ? "Light" : "Follow my phone"}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="row">
           <span className="muted small" style={{ minWidth: 96 }}>Layout style</span>
