@@ -6,7 +6,7 @@ import { useApp } from "@/components/AppProvider";
 import { useToast } from "@/components/UndoToast";
 import { applyAction, describeAction } from "@/lib/ai/actions";
 import { buildImport, type ImportChoices } from "@/lib/import/build";
-import { detectCsv, readWorkoutCsv } from "@/lib/import/csv";
+import { detectCsv, isProgramCsv, readProgramCsv, readWorkoutCsv } from "@/lib/import/csv";
 import { inferProgram } from "@/lib/import/infer";
 import { readWorkoutText } from "@/lib/import/text";
 import type { ImportedData, ImportedProgram } from "@/lib/import/types";
@@ -45,21 +45,31 @@ export default function ImportPage() {
   const [choices, setChoices] = useState<ImportChoices>({ history: true, program: true, activate: false, goals: true });
   const [done, setDone] = useState<string | null>(null);
 
-  const program: ImportedProgram | null = useMemo(() => (data ? data.program ?? inferProgram(data.sessions) : null), [data]);
+  // Day names can be renamed in the preview (e.g. a code like "RE" you'd rather call "Recovery").
+  const [dayNames, setDayNames] = useState<Record<number, string>>({});
+  const program: ImportedProgram | null = useMemo(() => {
+    const p = data ? data.program ?? inferProgram(data.sessions) : null;
+    return p ? { ...p, days: p.days.map((d, i) => ({ ...d, name: dayNames[i]?.trim() || d.name })) } : null;
+  }, [data, dayNames]);
   const built = useMemo(() => (data ? buildImport(data, program, exercises, choices, cfg, uid) : null), [data, program, exercises, choices, cfg]);
 
   const show = async (d: ImportedData) => {
     setExercises(await store.listExercises());
     setData(d);
     setDone(null);
-    setChoices({ history: d.sessions.length > 0, program: true, activate: false, goals: d.goals.length > 0 });
+    setDayNames({});
+    // A plan with no history is almost always meant to become the split you follow.
+    setChoices({ history: d.sessions.length > 0, program: true, activate: !d.sessions.length && !!d.program, goals: d.goals.length > 0 });
     if (!d.sessions.length && !d.program && !d.goals.length) setErr(`Nothing I could read as workouts.${sb ? ` Try “Have ${bot} read it”.` : ""}`);
   };
 
   const readLocally = async () => {
     setErr(null);
     const csv = detectCsv(text);
-    await show(csv ? readWorkoutCsv(text, profile.unit) : readWorkoutText(text, profile.unit, now()));
+    const d = csv ? readWorkoutCsv(text, profile.unit)
+      : isProgramCsv(text) ? readProgramCsv(text, profile.unit, { sets: cfg.import.defaultSets, reps: cfg.import.defaultReps })
+      : readWorkoutText(text, profile.unit, now());
+    await show(d);
   };
 
   const readWithJames = async () => {
@@ -86,11 +96,14 @@ export default function ImportPage() {
     try {
       const before = new Set((await store.listSplits()).map((s) => s.id));
       const r = await store.importAll(built.exportData);
-      let msg = r ? `Imported ${r.sessions} workouts, ${r.sets} sets${r.skipped ? ` (${r.skipped} were already here)` : ""}` : "Imported";
-      if (choices.program && program && choices.activate) {
+      const parts: string[] = [];
+      if (choices.history && data.sessions.length) parts.push(r ? `Imported ${r.sessions} workouts, ${r.sets} sets${r.skipped ? ` (${r.skipped} were already here)` : ""}` : "Imported your workouts");
+      if (choices.program && program) {
         const added = (await store.listSplits()).find((s) => !before.has(s.id));
-        if (added) await store.setActiveSplit(added.id);
+        if (added && choices.activate) await store.setActiveSplit(added.id);
+        parts.push(`Saved your ${program.days.length}-day split${choices.activate ? " as your active split" : ""}`);
       }
+      let msg = parts.join(" · ") || "Imported";
       if (choices.goals && data.goals.length) {
         let ok = 0;
         for (const g of data.goals) {
@@ -141,7 +154,7 @@ export default function ImportPage() {
       {!data && (
         <div className="card stack">
           <p className="muted small" style={{ margin: 0 }}>
-            Paste your log or choose a file. <strong>Strong</strong> and <strong>Hevy</strong> CSV exports, and notes like the example, are read right here (free, exact).
+            Paste your log or choose a file. <strong>Strong</strong> and <strong>Hevy</strong> CSV exports, program tables (a day column and an exercise column, like a split spreadsheet) and notes like the example are read right here (free, exact).
             {sb ? <> For messier notes or spreadsheets, <strong>Have {bot} read it</strong> (uses one of today&apos;s {bot} requests; up to about 8,000 characters at a time).</> : null}
             {" "}You&apos;ll see everything before it&apos;s saved.
           </p>
@@ -164,8 +177,8 @@ export default function ImportPage() {
               <button className="btn sm ghost" onClick={() => setData(null)}>Back</button>
             </div>
             <div className="small">
-              {data.sessions.length ? <><strong>{data.sessions.length}</strong> workouts, <strong>{data.sessions.reduce((a, s) => a + s.sets.length, 0)}</strong> sets, {data.sessions[0].date} → {data.sessions[data.sessions.length - 1].date}</> : "No dated workouts."}
-              <span className="muted"> · read by {data.format === "ai" ? bot : data.format === "text" ? "the notes reader" : data.format === "hevy-csv" ? "the Hevy reader" : "the Strong reader"}</span>
+              {!data.sessions.length && data.program ? "A program (no dated workouts, so nothing is added to your history)." : data.sessions.length ? <><strong>{data.sessions.length}</strong> workouts, <strong>{data.sessions.reduce((a, s) => a + s.sets.length, 0)}</strong> sets, {data.sessions[0].date} → {data.sessions[data.sessions.length - 1].date}</> : "No dated workouts."}
+              <span className="muted"> · read by {data.format === "ai" ? bot : data.format === "text" ? "the notes reader" : data.format === "hevy-csv" ? "the Hevy reader" : data.format === "program-csv" ? "the program-table reader" : "the Strong reader"}</span>
             </div>
             {data.sessions.length > 0 && (
               <details>
@@ -203,12 +216,20 @@ export default function ImportPage() {
             <div className="card stack">
               <h2 style={{ margin: 0 }}>{program.source === "stated" ? "Your program, as written" : "Your split, rebuilt from these workouts"}</h2>
               <div className="muted small">{program.mode === "weekly" ? "Weekly (days on fixed weekdays)" : "Rotation (next day after each workout)"}{program.source === "inferred" ? " · usual sets and the reps you actually did, from each day's last 4 workouts" : ""}</div>
-              {program.days.map((d) => (
-                <div key={d.name}>
-                  <strong className="small">{d.name}{d.weekday != null && program.mode === "weekly" ? ` · ${DOW[d.weekday]}` : ""}</strong>
-                  <div className="muted small">{d.exercises.map((x) => `${x.name} ${x.sets}×${x.reps}`).join(" · ")}</div>
+              {program.days.map((d, i) => (
+                <div key={i} className="stack" style={{ gap: 4 }}>
+                  <div className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
+                    <input style={{ flex: 1, minWidth: 0, fontWeight: 650 }} value={dayNames[i] ?? d.name} onChange={(e) => setDayNames({ ...dayNames, [i]: e.target.value })} aria-label={`Name for day ${i + 1}`} maxLength={40} />
+                    {d.weekday != null && program.mode === "weekly" && <span className="pill">{DOW[d.weekday]}</span>}
+                  </div>
+                  <div className="muted small">
+                    {d.exercises.map((x) => `${x.name} ${x.sets}×${x.reps}${x.stated === false ? "*" : ""}${x.weight ? ` @ ${x.weight} ${x.unit ?? profile.unit}` : ""}${x.note ? ` (${x.note})` : ""}`).join(" · ")}
+                  </div>
                 </div>
               ))}
+              {program.days.some((d) => d.exercises.some((x) => x.stated === false)) && (
+                <p className="muted small" style={{ margin: 0 }}>* Sets and reps weren&apos;t in your file, so these use {cfg.import.defaultSets} × {cfg.import.defaultReps}. Change them on the Split page any time. Weights listed become each lift&apos;s starting weight until you log it.</p>
+              )}
             </div>
           )}
 

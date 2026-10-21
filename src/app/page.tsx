@@ -178,9 +178,13 @@ export default function TodayPage() {
   useEffect(() => {
     if (!prefill) return setDraft(null);
     // No history: start a barbell lift at the empty bar.
-    const startKg = prefill.reason === "plan" && prefill.weightKg === 0 && focusEx?.equipment === "barbell" ? toKg(cfg.plates.bar[unit], unit) : prefill.weightKg;
+    // No history: the plan's starting weight (e.g. from an imported program), else an empty barbell.
+    const startKg = prefill.reason === "plan" && prefill.weightKg === 0
+      ? focusPlan?.startWeightKg ?? (focusEx?.equipment === "barbell" ? toKg(cfg.plates.bar[unit], unit) : 0)
+      : prefill.weightKg;
     setDraft({ weight: roundTo(fromKg(startKg, unit), stepDisplay), reps: prefill.reps, isWarmup: false, rpe: "", note: "" });
     setShowMore(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefill, unit, stepDisplay, focusEx, cfg.plates.bar]);
 
   // Let CSS know how tall the dock is so the toast and page padding clear it.
@@ -409,6 +413,8 @@ export default function TodayPage() {
                   <strong>{ex?.name ?? "Unknown exercise"}</strong>
                   <div className="muted small">
                     {working}/{p.targetSets} sets · {p.repRange} reps
+                    {p.note && ` · ${p.note}`}
+                    {!last.length && p.startWeightKg ? ` · start ${formatWeight(p.startWeightKg, unit, cfg.units.displayDecimals)}` : ""}
                     {last.length > 0 && ` · last: ${last.map((s) => `${Number(fromKg(s.weightKg, unit).toFixed(1))}×${s.reps}`).join(", ")}`}
                   </div>
                 </div>

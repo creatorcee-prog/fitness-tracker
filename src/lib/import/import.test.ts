@@ -1,11 +1,14 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { fromKg } from "@/lib/domain/units";
 import { defaultConfig as cfg } from "@/config/app.config";
 import { aiEnvFromProcess } from "@/lib/ai/ask";
 import { FakeData } from "@/lib/bot/testing";
 import { LocalStore } from "@/lib/store/local";
 import { readWithJames } from "./ai";
 import { buildImport, guessCategory } from "./build";
-import { detectCsv, parseCsv, readWorkoutCsv } from "./csv";
+import { detectCsv, isProgramCsv, parseCsv, readProgramCsv, readWorkoutCsv } from "./csv";
 import { inferProgram } from "./infer";
 import { findDate, parseGoalLine, readWorkoutText } from "./text";
 import type { ImportedSession } from "./types";
@@ -198,5 +201,48 @@ describe("James import", () => {
     expect((await data.aiUsageToday("u1", NOW.toISOString().slice(0, 10))).user).toBe(1);
     const long = await readWithJames({ data, cfg, env, importEnv: { maxChars: 10, maxOutputTokens: 3500 }, now: NOW, userId: "u1", fetch: fetchFn }, "x".repeat(50));
     expect(long).toMatchObject({ ok: false, outcome: "too-long" });
+  });
+});
+
+describe("program tables (a split spreadsheet)", () => {
+  // Real-world example: weekday, focus code, section, exercise, weight, detail. No dates, sets or reps.
+  const CSV = readFileSync(join(__dirname, "fixtures/program-table.csv"), "utf8");
+  const defaults = { sets: 3, reps: "8-12" };
+
+  it("is recognised as a program, not a log", () => {
+    expect(detectCsv(CSV)).toBeNull();
+    expect(isProgramCsv(CSV)).toBe(true);
+    expect(isProgramCsv(STRONG)).toBe(false);
+  });
+  it("keeps every day, exercise, weight and note as written, on its weekday", () => {
+    const d = readProgramCsv(CSV, "lb", defaults);
+    const p = d.program!;
+    expect(d.skipped).toEqual([]);
+    expect(d.sessions).toEqual([]);
+    expect(p.mode).toBe("weekly");
+    expect(p.days.map((x) => [x.name, x.weekday, x.exercises.length])).toEqual([
+      ["Recovery (Sun)", 0, 5], ["Chest", 1, 10], ["Back", 2, 10], ["Legs", 3, 12], ["Recovery (Thu)", 4, 5], ["Shoulders", 5, 8], ["Arms", 6, 12],
+    ]);
+    const mon = p.days[1].exercises;
+    expect(mon[0]).toMatchObject({ name: "Dead-hang", weight: null, note: "30s", sets: 3, reps: "8-12", stated: false });
+    expect(mon[1]).toMatchObject({ name: "Machine Shoulder Press", weight: 90, unit: "lb", note: null });
+    expect(p.days[0].exercises[1]).toMatchObject({ name: "DB Shoulder Press", weight: 40, note: "x2" });
+    expect(p.days[2].exercises.find((x) => x.name === "Bent Over Row")).toMatchObject({ weight: null, note: null });
+    expect(p.days[5].exercises.map((x) => x.name)).toContain("Lifty Arm Thingy");
+  });
+  it("reads stated sets × reps from a detail column", () => {
+    const d = readProgramCsv("Day,Exercise,Weight,Detail\nMon,Bench,185,4x6-8\nWed,Squat,100kg,", "lb", defaults);
+    expect(d.program!.days[0].exercises[0]).toMatchObject({ sets: 4, reps: "6-8", stated: true, weight: 185, note: null });
+    expect(d.program!.days[1].exercises[0]).toMatchObject({ weight: 100, unit: "kg", stated: false });
+  });
+  it("saves start weights and notes into the split", async () => {
+    const store = new LocalStore(cfg, new Mem());
+    const d = readProgramCsv(CSV, "lb", defaults);
+    const { exportData } = buildImport(d, d.program, await store.listExercises(), { history: false, program: true, activate: true, goals: false }, cfg, id);
+    await store.importAll(exportData);
+    const split = (await store.listSplits()).find((s) => s.name === "Imported program")!;
+    const chest = split.days.find((x) => x.name === "Chest")!;
+    expect(chest.exercises[0]).toMatchObject({ note: "30s", startWeightKg: null });
+    expect(fromKg(chest.exercises[1].startWeightKg!, "lb")).toBeCloseTo(90, 5);
   });
 });

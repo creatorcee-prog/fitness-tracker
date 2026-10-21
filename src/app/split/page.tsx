@@ -5,7 +5,7 @@ import type { Category } from "@/config/app.config";
 import { useApp } from "@/components/AppProvider";
 import { useToast } from "@/components/UndoToast";
 import type { Exercise, Split, SplitState } from "@/lib/domain/types";
-import { toKg } from "@/lib/domain/units";
+import { formatWeight, toKg } from "@/lib/domain/units";
 import { uid } from "@/lib/store/local";
 import { starterSplitFor } from "@/lib/store/seed";
 
@@ -129,7 +129,7 @@ export default function SplitPage() {
                   </li>
                 )}
                 {d.exercises.map((x, k) => (
-                  <li key={k}>
+                  <li key={k} style={{ flexWrap: "wrap" }}>
                     <select style={{ flex: 1, minWidth: 0 }} value={x.exerciseId} onChange={(v) => updDay(i, { exercises: d.exercises.map((y, m) => (m === k ? { ...y, exerciseId: v.target.value } : y)) })}>
                       {exercises.map((ex) => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
                     </select>
@@ -137,6 +137,11 @@ export default function SplitPage() {
                     <input style={{ width: 70 }} placeholder="e.g. 6-8" value={x.repRange} onChange={(v) => updDay(i, { exercises: d.exercises.map((y, m) => (m === k ? { ...y, repRange: v.target.value } : y)) })} aria-label="Rep range" />
                     <button className="btn sm ghost" title="Move up" aria-label="Move exercise up" onClick={() => updDay(i, { exercises: move(d.exercises, k, -1) })}>↑</button>
                     <button className="btn sm ghost" title="Remove" aria-label="Remove exercise" onClick={() => updDay(i, { exercises: d.exercises.filter((_, m) => m !== k) })}>✕</button>
+                    {(x.note || x.startWeightKg) && (
+                      <span className="muted small" style={{ flexBasis: "100%", fontWeight: 500 }}>
+                        {[x.startWeightKg ? `Start ${formatWeight(x.startWeightKg, profile.unit, cfg.units.displayDecimals)}` : null, x.note].filter(Boolean).join(" · ")}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>

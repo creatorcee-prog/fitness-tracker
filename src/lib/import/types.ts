@@ -28,15 +28,28 @@ export interface ImportedSession {
 export interface ImportedProgram {
   name: string;
   mode: SplitMode;
-  days: { name: string; weekday: number | null; exercises: { name: string; sets: number; reps: string }[] }[];
+  days: { name: string; weekday: number | null; exercises: ProgramExercise[] }[];
   /** "stated": written out in the source. "inferred": rebuilt from the logged sessions. */
   source: "stated" | "inferred";
+}
+
+export interface ProgramExercise {
+  name: string;
+  sets: number;
+  reps: string;
+  /** False when the source didn't say (defaults were filled in; the preview says so). */
+  stated?: boolean;
+  /** Working weight from the source, if any. */
+  weight?: number | null;
+  unit?: "lb" | "kg";
+  /** Anything else it said about the lift ("30s", "x2"). */
+  note?: string | null;
 }
 
 export type GoalAction = Extract<AccountAction, { type: "add_goal" }>;
 
 export interface ImportedData {
-  format: "strong-csv" | "hevy-csv" | "text" | "ai";
+  format: "strong-csv" | "hevy-csv" | "program-csv" | "text" | "ai";
   sessions: ImportedSession[];
   program: ImportedProgram | null;
   goals: GoalAction[];

@@ -28,7 +28,7 @@ export function importPrompt(cfg: AppConfig, unit: string, today: string): strin
 
 Return ONLY a JSON object:
 {"sessions":[{"date":"YYYY-MM-DD","day":"Push"|null,"sets":[{"e":"Bench Press","w":185,"u":"lb","r":5,"n":3,"rpe":null,"wu":false}]}],
- "program":null|{"name":"PPL","mode":"rotation"|"weekly","days":[{"name":"Push","weekday":null,"exercises":[{"e":"Bench Press","sets":4,"reps":"6-8"}]}]},
+ "program":null|{"name":"PPL","mode":"rotation"|"weekly","days":[{"name":"Push","weekday":null,"exercises":[{"e":"Bench Press","sets":4,"reps":"6-8","w":185,"u":"lb","note":null}]}]},
  "goals":[{"goal":"lift_e1rm","lift":"Bench Press","target":225,"deadline":"YYYY-MM-DD"|null}|{"goal":"lift_reps","lift":"Pull-up","weight":0,"target":12}|{"goal":"sessions_per_week","target":4}],
  "unclear":["lines you could not interpret, copied verbatim"]}
 
@@ -37,7 +37,9 @@ Rules:
 - One sets entry = n identical sets: w weight (0 for bodyweight), u "lb" or "kg" (default ${unit}), r reps, n how many sets. Warm-ups: "wu":true.
 - "day" is the workout's own label if it has one (Push, Legs, Upper A, Day 2), else null.
 - Dates without a year: use the most recent such date on or before ${today}. Weekday names alone: leave the session out and add the line to "unclear".
-- "program": only if the text lays out a plan/split (days with sets x reps targets). Otherwise null. weekday 0=Sunday..6=Saturday, only when stated.
+- "program": if the text lays out a plan/split (a list of days with their exercises, with or without dates). Otherwise null. weekday 0=Sunday..6=Saturday, only when stated (then mode "weekly").
+  sets/reps: only if stated, else null (never guess). "w": a working weight if listed. "note": anything else about the lift as written (e.g. "30s", "x2").
+  Day names: use the plan's own label; expand obvious gym abbreviations (CH=Chest, BK=Back, LG=Legs, SH=Shoulders, AR=Arms) and keep anything unclear as written.
 - "goals": only goals the text states. Otherwise [].
 - Put anything you couldn't place in "unclear". Don't explain; output JSON only.`;
 }
@@ -83,7 +85,7 @@ export async function readWithJames(
       } catch {
         return { ok: false, outcome: "bad-output", message: `${cfg.brand.botName} couldn't finish reading that${r.tokensOut >= importEnv.maxOutputTokens - 50 ? " (it was too long to answer in one go: try a smaller part)" : ""}. Nothing was saved.` };
       }
-      return { ok: true, data: validateImported(parsed, user.unit), tokensIn: r.tokensIn, tokensOut: r.tokensOut, model };
+      return { ok: true, data: validateImported(parsed, user.unit, { sets: cfg.import.defaultSets, reps: cfg.import.defaultReps }), tokensIn: r.tokensIn, tokensOut: r.tokensOut, model };
     } catch (e) {
       if (e instanceof HttpError && e.status === 429) continue;
       console.error("[import]", e);

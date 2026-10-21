@@ -148,6 +148,7 @@ Progress → **Bodyweight**, or `/bodyweight 182` in Discord (`/bodyweight` alon
 ## Import old workouts
 
 Settings → **Import old workouts** (`/import`). Paste or choose a file:
+- **Program tables** (a spreadsheet of your split: a day column and an exercise column, plus any of weight, sets, reps, focus, notes) become your split: weekdays kept, focus codes like CH/BK/LG expanded (rename any day in the preview), listed weights saved as each lift's **starting weight** (used until you log it), extras like "30s" or "x2" kept as notes. Sets/reps not in the file default to `import.defaultSets` × `import.defaultReps` (3 × 8-12) and are marked. Run `supabase/migrations/0010_split_start_weights.sql` to keep start weights and notes (without it the split still saves, without them).
 - **Strong / Hevy CSV exports** and **notes** ("Oct 14 - Push" then "Bench press 185x5x3", "OHP: 115 8,8,7", "Pull-ups 3x8", "Goal: bench 225 by 2027-03-01") are read in the browser: free, exact, no AI (`src/lib/import/csv.ts`, `text.ts`).
 - **Have James read it** sends messier text (up to `AI_IMPORT_MAX_CHARS`, 8,000 by default) to the model, which only transcribes into JSON. The result is validated (`validate.ts`) and counts as one of the day's James requests. On Groq's free tier a long log may need to go in parts.
 - The **preview** shows the workouts as read, which lifts match yours (exact name, alias, initials or name prefix only; anything else becomes a new lift with the name as written), the split, goals, and every line that wasn't imported.

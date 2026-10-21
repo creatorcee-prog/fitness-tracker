@@ -51,7 +51,7 @@ export const toSplit = (s: Row): Split => ({
   days: (s.split_days ?? []).map((d: Row): SplitDay => ({
     id: d.id, splitId: s.id, position: d.position, name: d.name, weekday: d.weekday,
     exercises: (d.split_day_exercises ?? [])
-      .map((x: Row) => ({ exerciseId: x.exercise_id, order: x.order, targetSets: x.target_sets, repRange: x.rep_range }))
+      .map((x: Row) => ({ exerciseId: x.exercise_id, order: x.order, targetSets: x.target_sets, repRange: x.rep_range, startWeightKg: x.start_weight != null ? Number(x.start_weight) : null, note: x.note ?? null }))
       .sort((a: { order: number }, b: { order: number }) => a.order - b.order),
   })),
 });
@@ -156,9 +156,22 @@ export class SupabaseStore implements Store {
       check(await this.sb.from("split_days").upsert(split.days.map((d) => ({ id: d.id, split_id: split.id, position: d.position, name: d.name, weekday: d.weekday }))), "saveSplit/days2");
       check(await this.sb.from("split_day_exercises").delete().in("split_day_id", keep), "saveSplit/exDelete");
       const ex = split.days.flatMap((d) =>
-        d.exercises.map((x) => ({ split_day_id: d.id, exercise_id: x.exerciseId, order: x.order, target_sets: x.targetSets, rep_range: x.repRange })),
+        d.exercises.map((x) => ({
+          split_day_id: d.id, exercise_id: x.exerciseId, order: x.order, target_sets: x.targetSets, rep_range: x.repRange,
+          // Optional columns (migration 0010): only sent when set.
+          ...(x.startWeightKg != null ? { start_weight: x.startWeightKg } : {}),
+          ...(x.note ? { note: x.note.slice(0, 80) } : {}),
+        })),
       );
-      if (ex.length) check(await this.sb.from("split_day_exercises").insert(ex), "saveSplit/exInsert");
+      if (ex.length) {
+        let r = await this.sb.from("split_day_exercises").insert(ex);
+        // Before 0010 is run those columns don't exist: save the split without them rather than fail.
+        if (r.error && /start_weight|note/.test(r.error.message)) {
+          console.warn("[saveSplit] run migration 0010 to keep start weights and notes:", r.error.message);
+          r = await this.sb.from("split_day_exercises").insert(ex.map(({ start_weight: _w, note: _n, ...rest }) => rest));
+        }
+        check(r, "saveSplit/exInsert");
+      }
     }
     return split;
   }

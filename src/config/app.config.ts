@@ -202,6 +202,12 @@ export const defaultConfig = {
     weeklyTarget: 3,
   },
 
+  import: {
+    /** Sets and reps for imported program lifts when the source doesn't say (shown in the preview; edit later on the Split page). */
+    defaultSets: 3,
+    defaultReps: "8-12",
+  },
+
   reminders: {
     /** A reminder is sent at most this long after its time (covers missed cron ticks, never hours late). */
     windowMinutes: 120,

@@ -25,6 +25,10 @@ export interface SplitDayExercise {
   order: number;
   targetSets: number;
   repRange: string;
+  /** Where to start before there's any history (kg), e.g. from an imported program. */
+  startWeightKg?: number | null;
+  /** Short note shown with the exercise ("30s", "x2 dumbbells"). */
+  note?: string | null;
 }
 
 export interface SplitDay {
