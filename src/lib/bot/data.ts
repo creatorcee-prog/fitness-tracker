@@ -17,6 +17,8 @@ export interface BotUser {
   announcePrs: boolean;
   /** Linked Discord account (null if signed up some other way). */
   discordId: string | null;
+  /** First sign-in setup answers, for James (absent before migration 0013). */
+  about?: import("@/lib/domain/about").About;
 }
 
 /** Goals as stored (see src/lib/domain/goals.ts). */
@@ -77,10 +79,12 @@ export interface BotData {
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Row = Record<string, any>;
 
-const USER_COLS = "id, display_name, unit, timezone, announce_channel_id, announce_prs, discord_id";
+// "*" so newer optional columns (setup answers) come along without breaking older databases.
+const USER_COLS = "*";
 const toBotUser = (r: Row): BotUser => ({
   id: r.id, displayName: r.display_name, unit: r.unit, timezone: r.timezone,
   announceChannelId: r.announce_channel_id ?? null, announcePrs: !!r.announce_prs, discordId: r.discord_id ?? null,
+  about: { style: r.training_style ?? null, frequency: r.training_frequency ?? null, experience: r.experience ?? null, heightCm: r.height_cm == null ? null : Number(r.height_cm) },
 });
 
 export function serviceClient(): SupabaseClient {

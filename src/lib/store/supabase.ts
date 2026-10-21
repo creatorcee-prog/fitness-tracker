@@ -78,7 +78,12 @@ export class SupabaseStore implements Store {
   async getProfile(): Promise<Profile> {
     const id = await this.userId();
     const r = check(await this.sb.from("users").select("*").eq("id", id).single(), "getProfile");
-    return { id: r.id, displayName: r.display_name, unit: r.unit, timezone: r.timezone };
+    return {
+      id: r.id, displayName: r.display_name, unit: r.unit, timezone: r.timezone,
+      about: { style: r.training_style ?? null, frequency: r.training_frequency ?? null, experience: r.experience ?? null, heightCm: r.height_cm == null ? null : Number(r.height_cm) },
+      // Before migration 0013 the column doesn't exist: treat as onboarded so nobody gets stuck in setup.
+      onboardedAt: "onboarded_at" in r ? r.onboarded_at : "pre-0013",
+    };
   }
 
   async updateProfile(patch: Partial<Omit<Profile, "id">>) {
@@ -87,7 +92,15 @@ export class SupabaseStore implements Store {
     if (patch.displayName !== undefined) row.display_name = patch.displayName;
     if (patch.unit !== undefined) row.unit = patch.unit;
     if (patch.timezone !== undefined) row.timezone = patch.timezone;
-    check(await this.sb.from("users").update(row).eq("id", id), "updateProfile");
+    const extra: Row = {};
+    if (patch.about) Object.assign(extra, { training_style: patch.about.style, training_frequency: patch.about.frequency, experience: patch.about.experience, height_cm: patch.about.heightCm });
+    if (patch.onboardedAt !== undefined) extra.onboarded_at = patch.onboardedAt;
+    const r = await this.sb.from("users").update({ ...row, ...extra }).eq("id", id);
+    // Setup columns (migration 0013) missing: save the rest rather than fail.
+    if (r.error && Object.keys(extra).length && /column|schema cache/i.test(r.error.message)) {
+      console.warn("[profile] run migration 0013 to save setup answers:", r.error.message);
+      if (Object.keys(row).length) check(await this.sb.from("users").update(row).eq("id", id), "updateProfile");
+    } else check(r, "updateProfile");
     return this.getProfile();
   }
 

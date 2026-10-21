@@ -6,6 +6,7 @@ import { useApp } from "@/components/AppProvider";
 import { MascotBubble, useMascot } from "@/components/Mascot";
 import { OPEN_CHAT_EVENT } from "@/components/CoachChat";
 import { JamesButton } from "@/components/JamesButton";
+import { Onboarding } from "@/components/Onboarding";
 import { useMyMedia } from "@/components/ProfileMediaCard";
 import { WeekStrip } from "@/components/WeekStrip";
 import { Dashboard } from "@/components/Dashboard";
@@ -65,6 +66,8 @@ export default function TodayPage() {
   const [busy, setBusy] = useState(false);
   /** The logging bar shows only while you're logging: a workout is open, or you picked an exercise / tapped Start. */
   const [logging, setLogging] = useState(false);
+  /** First sign-in setup, until it's finished or skipped. */
+  const [setupDone, setSetupDone] = useState(false);
   const workoutRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -441,6 +444,14 @@ export default function TodayPage() {
   const dashboard = (
     <Dashboard today={today} onFocusWorkout={() => workoutRef.current?.scrollIntoView({ behavior: "smooth" })} hide={workoutFirst ? ["today"] : []} />
   );
+
+  if (!profile.onboardedAt && !setupDone && today !== null) {
+    return (
+      <div className="page stack">
+        <Onboarding hasSplit={!!split && split.days.length > 0} todayName={today?.kind === "day" ? today.day.name : undefined} onDone={() => { setSetupDone(true); void load(); }} />
+      </div>
+    );
+  }
 
   return (
     <div className="page stack">

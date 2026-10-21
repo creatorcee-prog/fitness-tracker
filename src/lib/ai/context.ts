@@ -1,4 +1,5 @@
 import type { AppConfig } from "@/config/app.config";
+import { bmi, describeAbout } from "@/lib/domain/about";
 import { e1rm } from "@/lib/domain/e1rm";
 import { goalProgress } from "@/lib/domain/goals";
 import { describeGoal, progressText } from "@/lib/domain/goalText";
@@ -39,6 +40,11 @@ export async function buildTrainingContext(data: BotData, user: BotUser, cfg: Ap
   const nowLocal = localDate(now, user.timezone);
   // No name or Discord ID: the provider doesn't need to know who this is.
   lines.push(`Units: ${unit}. Today: ${nowLocal} (${DOW[new Date(nowLocal + "T12:00:00").getDay()]}).`);
+  // What they told James in setup, so advice fits their goal and schedule.
+  const about = describeAbout(user.about ?? {});
+  const latestBw = bodyweight.length ? bodyweight[bodyweight.length - 1].weightKg : null;
+  const b = bmi(user.about?.heightCm, latestBw);
+  if (about.length || b) lines.push(`About them: ${[...about, b ? `BMI ${b.value} (${b.band}; BMI overestimates for muscular people)` : null].filter(Boolean).join(". ")}.`);
 
   // Today's split day
   if (today.kind === "day") {
