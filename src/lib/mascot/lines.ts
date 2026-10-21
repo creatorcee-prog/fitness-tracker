@@ -5,6 +5,7 @@
  */
 export type MascotEvent =
   | "first_visit"
+  | "weigh_in"
   | "morning"
   | "afternoon"
   | "evening"
@@ -28,6 +29,7 @@ export interface Line {
 
 export const MOOD: Record<MascotEvent, Mood> = {
   first_visit: "happy",
+  weigh_in: "neutral",
   morning: "neutral",
   afternoon: "neutral",
   evening: "neutral",
@@ -46,7 +48,7 @@ export const MOOD: Record<MascotEvent, Mood> = {
 /** Higher wins when two events want the bubble at once (one line per screen). */
 export const PRIORITY: Record<MascotEvent, number> = {
   first_visit: 1, morning: 1, afternoon: 1, evening: 1, rest_day: 1,
-  missed_days: 2, comeback: 3, session_start: 3, workout_done: 3, streak_milestone: 4, pr: 5, goal_hit: 6, welcome: 4, plateau: 2,
+  missed_days: 2, comeback: 3, session_start: 3, workout_done: 3, streak_milestone: 4, pr: 5, goal_hit: 6, welcome: 4, plateau: 2, weigh_in: 1,
 };
 
 export const LINES: Record<MascotEvent, Line[]> = {
@@ -123,6 +125,11 @@ export const LINES: Record<MascotEvent, Line[]> = {
     { text: "Welcome back! Start a little lighter and build it up again." },
     { text: "There you are! Back under the bar where you belong." },
     { text: "The comeback starts with this set. Glad you're here." },
+  ],
+  weigh_in: [
+    { text: "Morning, {name}! Hop on the scale before breakfast and log it. Same time each day keeps the trend honest." },
+    { text: "Quick one: weigh-in time! Tap + Log on the bodyweight tile." },
+    { text: "Don't forget today's weigh-in, {name}! The weekly average only works if you feed it." },
   ],
   plateau: [
     { text: "{lift} has been stuck for {weeks} weeks. {advice}" },

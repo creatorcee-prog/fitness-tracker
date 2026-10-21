@@ -350,6 +350,19 @@ describe("reminders / check-in", () => {
     expect(data.reminders[0].sentOn).toBe("2026-10-21");
     expect(await runReminders(deps())).toEqual([]); // once per day
   });
+  it("adds a weigh-in line for people who track their weight, and sends it alone when the workout part is skipped", async () => {
+    data.bodyweight.push({ date: "2026-10-19", weightKg: toKg(182, "lb") });
+    due();
+    await runReminders(deps());
+    expect(dms[0].content).toContain("**Push** is up today");
+    expect(dms[0].content).toContain("weigh in today: `/bodyweight 182`");
+    data.reminders.length = 0;
+    await data.startSession("u1", null, new Date("2026-10-21T08:00:00Z"));
+    due();
+    expect((await runReminders(deps()))[0].result).toBe("sent");
+    expect(dms[1].content).toMatch(/^⚖️/);
+    expect(dms[1].buttons).toEqual([]);
+  });
   it("skips when you already trained today", async () => {
     await data.startSession("u1", null, new Date("2026-10-21T08:00:00Z"));
     due();

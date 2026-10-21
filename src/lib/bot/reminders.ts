@@ -1,6 +1,8 @@
 import type { AppConfig } from "@/config/app.config";
+import { weighInDue } from "@/lib/domain/bodyweight";
 import { localDate } from "@/lib/domain/split";
-import type { BotData, DueReminder } from "./data";
+import { fromKg } from "@/lib/domain/units";
+import type { BotData, BotUser, DueReminder } from "./data";
 import { DiscordError } from "./discord";
 import { checkInButtons, type BotReply } from "./handlers";
 
@@ -23,9 +25,22 @@ export interface ReminderOutcome {
  * `force` (Settings → Send test reminder) ignores the skip rules so you can see the DM any time.
  */
 export async function buildCheckIn(deps: ReminderDeps, r: DueReminder, force = false): Promise<{ reply: BotReply } | { skip: string }> {
-  const { data, cfg, now } = deps;
-  const user = await data.getUserById(r.userId);
+  const user = await deps.data.getUserById(r.userId);
   if (!user) return { skip: "user gone" };
+  const msg = await workoutCheckIn(deps, r, user, force);
+  // Daily checklist: a weigh-in line for people who track their weight. It also
+  // goes out on its own when the workout part is skipped (rest day, trained already).
+  const entries = await deps.data.listBodyweight(user.id);
+  if (!weighInDue(entries, r.localDate, deps.cfg.reminders.weighInActiveDays)) return msg;
+  const latest = entries[entries.length - 1];
+  const example = Math.round(fromKg(latest.weightKg, user.unit));
+  const line = `⚖️ Don't forget to weigh in today: \`/bodyweight ${example}\``;
+  if ("skip" in msg) return { reply: { content: `${line}\n-# You get this because you've been logging your weight.` } };
+  return { reply: { ...msg.reply, content: `${msg.reply.content}\n${line}` } };
+}
+
+async function workoutCheckIn(deps: ReminderDeps, r: DueReminder, user: BotUser, force: boolean): Promise<{ reply: BotReply } | { skip: string }> {
+  const { data, cfg, now } = deps;
 
   if (cfg.reminders.skipIfTrainedToday && !force) {
     const sessions = await data.listSessions(user.id);

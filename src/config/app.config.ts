@@ -241,6 +241,11 @@ export const defaultConfig = {
     skipIfTrainedToday: true,
     /** Send on weekly-split rest days too. */
     onRestDays: false,
+    /**
+     * Weigh-in nudge: the check-in DM (and James on Today, mornings) reminds you to
+     * log bodyweight if you've logged it within this many days but not today. 0 = off.
+     */
+    weighInActiveDays: 14,
   },
 
   nutrition: {

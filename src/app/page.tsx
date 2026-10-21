@@ -18,7 +18,8 @@ import { platesPerSide } from "@/lib/domain/plates";
 import { prefillFor, type Prefill } from "@/lib/domain/progression";
 import { prsForSet, replayPRs } from "@/lib/domain/prs";
 import { parseShorthand } from "@/lib/domain/shorthand";
-import { nextPosition, type Today } from "@/lib/domain/split";
+import { weighInDue, type BodyweightEntry } from "@/lib/domain/bodyweight";
+import { localDate, nextPosition, type Today } from "@/lib/domain/split";
 import type { Exercise, PREvent, PRType, Session, SetEntry, Split, SplitDay } from "@/lib/domain/types";
 import { formatWeight, fromKg, roundTo, toKg } from "@/lib/domain/units";
 import { finishedBetween, weekStart, freezeRules, weeklyStreak } from "@/lib/domain/stats";
@@ -70,10 +71,11 @@ export default function TodayPage() {
   /** First sign-in setup, until it's finished or skipped. */
   const [setupDone, setSetupDone] = useState(false);
   const workoutRef = useRef<HTMLDivElement>(null);
+  const [bodyweight, setBodyweight] = useState<BodyweightEntry[]>([]);
 
   const load = useCallback(async () => {
-    const [t, splits, open, exList, sessions] = await Promise.all([
-      store.getToday(now()), store.listSplits(), store.getOpenSession(), store.listExercises(), store.listSessions(),
+    const [t, splits, open, exList, sessions, bw] = await Promise.all([
+      store.getToday(now()), store.listSplits(), store.getOpenSession(), store.listExercises(), store.listSessions(), store.listBodyweight().catch(() => []),
     ]);
     const exMap = new Map(exList.map((e) => [e.id, e]));
     const active = splits.find((s) => s.isActive) ?? null;
@@ -86,6 +88,7 @@ export default function TodayPage() {
     setExercises(exMap);
     setHistory(hist);
     setAllSessions(sessions);
+    setBodyweight(bw);
   }, [store, now]);
 
   useEffect(() => {
@@ -133,6 +136,9 @@ export default function TodayPage() {
     else if (stalledToday && !seen(`ft:mascot-plateau:${stalledToday.exerciseId}:${weekStart(t, cfg.split.weekStartsOn).toISOString().slice(0, 10)}`)) {
       // Once a week per lift: a stalled lift on today's plan gets James's next step.
       mascot.say("plateau", { lift: stalledToday.name, weeks: stalledToday.weeks, advice: stalledToday.advice });
+    } else if (t.getHours() < 12 && weighInDue(bodyweight, localDate(t, profile.timezone), cfg.reminders.weighInActiveDays) && !seen(`ft:mascot-weighin:${localDate(t, profile.timezone)}`)) {
+      // Mornings, once a day, only for people who've been logging their weight.
+      mascot.say("weigh_in");
     } else if (today.kind === "rest") mascot.say("rest_day");
     else mascot.say(t.getHours() < 12 ? "morning" : t.getHours() < 18 ? "afternoon" : "evening", { day: dayName });
     // eslint-disable-next-line react-hooks/exhaustive-deps
