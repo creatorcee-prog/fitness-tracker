@@ -160,6 +160,15 @@ export const defaultConfig = {
     weeklyTarget: 3,
   },
 
+  bot: {
+    /** In servers, replies with personal data are visible only to the person who ran the command. */
+    ephemeralInGuilds: true,
+    /** After /log, show a live "Rest over in 2 minutes" countdown (uses restTimer seconds). */
+    restCountdownAfterLog: true,
+    /** Upper bound for /rest. */
+    maxRestSeconds: 1800,
+  },
+
   features: {
     /** Toggle whole features on/off for debugging. */
     restTimer: true,

@@ -17,18 +17,29 @@ export function supabaseBrowserClient(): SupabaseClient {
 }
 
 /** Throws on error. Data may still be null for maybeSingle(); callers that use it check. */
-function check<T>(res: { data: T; error: { message: string } | null }, op: string): NonNullable<T> {
+export function check<T>(res: { data: T; error: { message: string } | null }, op: string): NonNullable<T> {
   if (res.error) throw new Error(`[store:supabase] ${op}: ${res.error.message}`);
   return res.data as NonNullable<T>;
 }
 
-const toExercise = (r: Row): Exercise => ({
+export const toExercise = (r: Row): Exercise => ({
   id: r.id, name: r.name, category: r.category, equipment: r.equipment, incrementKg: r.increment_kg == null ? null : Number(r.increment_kg), ownerId: r.owner_id,
 });
-const toSession = (r: Row): Session => ({ id: r.id, splitDayId: r.split_day_id, startedAt: r.started_at, finishedAt: r.finished_at, source: r.source });
-const toSet = (r: Row): SetEntry => ({
+export const toSession = (r: Row): Session => ({ id: r.id, splitDayId: r.split_day_id, startedAt: r.started_at, finishedAt: r.finished_at, source: r.source });
+export const toSet = (r: Row): SetEntry => ({
   id: r.id, sessionId: r.session_id, exerciseId: r.exercise_id, setIndex: r.set_index, weightKg: Number(r.weight), reps: r.reps,
   rpe: r.rpe == null ? null : Number(r.rpe), isWarmup: r.is_warmup, note: r.note, createdAt: r.created_at,
+});
+
+/** Row from `splits` selected with `*, split_days(*, split_day_exercises(*))`. */
+export const toSplit = (s: Row): Split => ({
+  id: s.id, name: s.name, mode: s.mode, isActive: s.is_active,
+  days: (s.split_days ?? []).map((d: Row): SplitDay => ({
+    id: d.id, splitId: s.id, position: d.position, name: d.name, weekday: d.weekday,
+    exercises: (d.split_day_exercises ?? [])
+      .map((x: Row) => ({ exerciseId: x.exercise_id, order: x.order, targetSets: x.target_sets, repRange: x.rep_range }))
+      .sort((a: { order: number }, b: { order: number }) => a.order - b.order),
+  })),
 });
 
 export class SupabaseStore implements Store {
@@ -92,15 +103,7 @@ export class SupabaseStore implements Store {
       await this.sb.from("splits").select("*, split_days(*, split_day_exercises(*))").order("created_at"),
       "listSplits",
     );
-    return rows.map((s: Row) => ({
-      id: s.id, name: s.name, mode: s.mode, isActive: s.is_active,
-      days: (s.split_days ?? []).map((d: Row): SplitDay => ({
-        id: d.id, splitId: s.id, position: d.position, name: d.name, weekday: d.weekday,
-        exercises: (d.split_day_exercises ?? [])
-          .map((x: Row) => ({ exerciseId: x.exercise_id, order: x.order, targetSets: x.target_sets, repRange: x.rep_range }))
-          .sort((a: { order: number }, b: { order: number }) => a.order - b.order),
-      })),
-    }));
+    return rows.map(toSplit);
   }
 
   /** Not one transaction: fine for a single user editing their own split. */

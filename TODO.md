@@ -1,21 +1,21 @@
 # To-do
 
-## In progress: Discord bot, round 1
+## Done: Discord bot, round 1 (built; needs live testing in Discord)
 
 Slash commands through `/api/discord` in the web app (no separate bot server).
 
-- [ ] `/today`: today's split day, exercises, targets and last time's numbers (**[Skip]** button)
-- [ ] `/log bench 185x5x3`: same shorthand and aliases as the app, flags PRs (**[Same again]** / **[Undo]** buttons)
-- [ ] `/undo`: remove the last logged set
-- [ ] `/done`: finish the workout, advance the split, post a summary
-- [ ] `/skip`: skip today's day (rotation mode)
-- [ ] `/swap <day>`: do a different day today (autocomplete)
-- [ ] `/lift <name>`: last session, records and % gain for one lift (autocomplete)
-- [ ] `/streak`: sessions this week and weekly streak
-- [ ] `/friends`: who's lifted today
-- [ ] `/plates 225`: plates per side (works without an account)
-- [ ] `/rest 2m`: live countdown message
-- [ ] SQL: server-only `*_for(user)` versions of today/finish/skip for the bot
+- [x] `/today`: today's split day, exercises, targets and last time's numbers (**[Skip]** button)
+- [x] `/log bench 185x5x3`: same shorthand and aliases as the app, flags PRs (**[Same again]** / **[Undo]** buttons)
+- [x] `/undo`: remove the last logged set
+- [x] `/done`: finish the workout, advance the split, post a summary
+- [x] `/skip`: skip today's day (rotation mode)
+- [x] `/swap <day>`: do a different day today (autocomplete)
+- [x] `/lift <name>`: last session, records and % gain for one lift (autocomplete)
+- [x] `/streak`: sessions this week and weekly streak
+- [x] `/friends`: who's lifted today
+- [x] `/plates 225`: plates per side (works without an account)
+- [x] `/rest 2m`: live countdown message
+- [x] SQL: server-only `*_for(user)` versions of today/finish/skip for the bot
 
 ## Next: Discord bot, round 2 (needs scheduled jobs)
 
