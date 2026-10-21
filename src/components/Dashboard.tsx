@@ -1,8 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import type { WidgetConfig } from "@/config/app.config";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { WidgetConfig, WidgetId } from "@/config/app.config";
+import { LAYOUT_PRESETS, WIDGET_INFO } from "@/config/layouts";
+import { deepMerge } from "@/config/runtime";
+import type { BodyweightEntry } from "@/lib/domain/bodyweight";
+import { buildWidgetData } from "@/lib/widgets/data";
+import { MAX_CODE_CHARS, WIDGET_TEMPLATE } from "@/lib/widgets/sandbox";
+import { uid } from "@/lib/store/local";
+import { BodyweightTile } from "./BodyweightTile";
+import { CustomWidget } from "./CustomWidget";
+import { useToast } from "./UndoToast";
 import { e1rm } from "@/lib/domain/e1rm";
 import { replayPRs } from "@/lib/domain/prs";
 import type { Today } from "@/lib/domain/split";
@@ -21,7 +30,12 @@ interface Data {
   exercises: Map<string, Exercise>;
   latestPr: PREvent | null;
   friends: FriendStatus[];
+  bodyweight: BodyweightEntry[];
+  dayNames: Map<string, string>;
 }
+
+const LONG_PRESS_MS = 550;
+const labelOf = (w: WidgetConfig) => w.custom?.title ?? WIDGET_INFO[w.id]?.label ?? w.id;
 
 const PR_LABEL: Record<string, string> = { weight: "Heaviest", reps_at_weight: "Rep PR", e1rm: "e1RM PR", session_volume: "Volume PR" };
 
@@ -39,16 +53,19 @@ function tileStyle(w: WidgetConfig): { className: string; style?: React.CSSPrope
 }
 
 export function Dashboard({ today, onFocusWorkout, hide = [] }: { today: Today | null; onFocusWorkout?: () => void; hide?: WidgetConfig["id"][] }) {
-  const { cfg, store, profile, version, now } = useApp();
+  const { cfg, store, profile, version, now, overrides, setOverrides } = useApp();
   const [data, setData] = useState<Data | null>(null);
+  const toast = useToast(cfg.logging.undoToastMs);
 
   useEffect(() => {
     (async () => {
-      const [sessions, sets, exList, friends] = await Promise.all([
+      const [sessions, sets, exList, friends, bodyweight, splits] = await Promise.all([
         store.listSessions(),
         store.listSets(),
         store.listExercises(),
         cfg.friends.enabled ? store.friendsToday(now()).catch(() => []) : Promise.resolve([]),
+        store.listBodyweight().catch(() => []),
+        store.listSplits().catch(() => []),
       ]);
       const byEx = new Map<string, SetEntry[]>();
       for (const s of sets) byEx.set(s.exerciseId, [...(byEx.get(s.exerciseId) ?? []), s]);
@@ -58,12 +75,111 @@ export function Dashboard({ today, onFocusWorkout, hide = [] }: { today: Today |
           if (!e.baseline && e.type !== "session_volume" && (!latestPr || e.achievedAt > latestPr.achievedAt)) latestPr = e;
         }
       }
-      setData({ sessions, sets, exercises: new Map(exList.map((e) => [e.id, e])), latestPr, friends });
+      const dayNames = new Map(splits.flatMap((sp) => sp.days.map((d) => [d.id, d.name] as [string, string])));
+      setData({ sessions, sets, exercises: new Map(exList.map((e) => [e.id, e])), latestPr, friends, bodyweight, dayNames });
     })();
   }, [store, cfg, version, now]);
 
+  // ---------------------------------------------------------------- edit mode (like Control Center)
+  const [editing, setEditing] = useState(false);
+  const [sheet, setSheet] = useState<null | "add" | { code: WidgetConfig }>(null);
+  const [draft, setDraft] = useState<WidgetConfig[] | null>(null); // live order while dragging
+  const all = draft ?? withNewWidgets(cfg.dashboard.widgets);
+  const save = (list: WidgetConfig[]) => setOverrides(deepMerge((overrides ?? {}) as Record<string, unknown>, { dashboard: { widgets: list } }));
+  /** Change the layout, with Undo (removing a tile never asks "are you sure?"). */
+  const change = (list: WidgetConfig[], text?: string) => {
+    const prev = withNewWidgets(cfg.dashboard.widgets);
+    save(list);
+    if (text) toast.show({ text, undo: () => save(prev) });
+  };
+  const visibleIds = (list: WidgetConfig[]) => list.filter((w) => w.enabled && !hide.includes(w.id)).map((w) => w.id);
+  const move = (id: WidgetId, dir: -1 | 1) => {
+    const vis = visibleIds(all);
+    const other = vis[vis.indexOf(id) + dir];
+    if (!other) return;
+    const list = [...all];
+    const a = list.findIndex((w) => w.id === id), b = list.findIndex((w) => w.id === other);
+    [list[a], list[b]] = [list[b], list[a]];
+    change(list);
+  };
+  const remove = (w: WidgetConfig) =>
+    change(w.custom ? all.filter((x) => x.id !== w.id) : all.map((x) => (x.id === w.id ? { ...x, enabled: false } : x)), `Removed ${labelOf(w)}`);
+  const add = (id: WidgetId) => {
+    const target = all.find((x) => x.id === id);
+    if (!target) return;
+    change([...all.filter((x) => x.id !== id), { ...target, enabled: true }]);
+    setSheet(null);
+  };
+  const applyLayout = (preset: (typeof LAYOUT_PRESETS)[number]) => {
+    const ids = new Set(preset.widgets.map((w) => w.id));
+    change([...preset.widgets, ...all.filter((w) => !ids.has(w.id)).map((w) => ({ ...w, enabled: false }))], `Layout: ${preset.label}`);
+    setSheet(null);
+  };
+
+  // Press and hold a tile to start editing (a visible Edit button does the same).
+  const press = useRef<{ timer: ReturnType<typeof setTimeout>; x: number; y: number; fired: boolean } | null>(null);
+  const holdStart = (e: React.PointerEvent) => {
+    if (editing) return;
+    const p = { x: e.clientX, y: e.clientY, fired: false, timer: setTimeout(() => {
+      p.fired = true;
+      setEditing(true);
+      if ("vibrate" in navigator) navigator.vibrate?.(10);
+    }, LONG_PRESS_MS) };
+    press.current = p;
+  };
+  const holdMove = (e: React.PointerEvent) => {
+    const p = press.current;
+    if (p && !p.fired && Math.hypot(e.clientX - p.x, e.clientY - p.y) > 8) clearTimeout(p.timer); // it's a scroll
+  };
+  const holdEnd = () => {
+    const p = press.current;
+    if (!p) return;
+    clearTimeout(p.timer);
+    // The click that follows this release is the only one to swallow; forget it right after.
+    if (p.fired) setTimeout(() => press.current === p && (press.current = null), 50);
+    else press.current = null;
+  };
+  // The tap that ends a long-press shouldn't also open the tile.
+  const swallowClick = (e: React.MouseEvent) => {
+    if (press.current?.fired) {
+      e.preventDefault();
+      e.stopPropagation();
+      press.current = null;
+    }
+  };
+
+  // Drag to reorder while editing (↑/↓ buttons do the same without dragging).
+  const drag = useRef<WidgetId | null>(null);
+  const dragStart = (e: React.PointerEvent, id: WidgetId) => {
+    if (!editing || (e.target as HTMLElement).closest("button")) return;
+    drag.current = id;
+    setDraft(all);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+  const dragMove = (e: React.PointerEvent) => {
+    if (!drag.current || !draft) return;
+    const over = (document.elementsFromPoint(e.clientX, e.clientY).find((el) => (el as HTMLElement).dataset?.wid && (el as HTMLElement).dataset.wid !== drag.current) as HTMLElement | undefined)?.dataset.wid;
+    if (!over) return;
+    const list = [...draft];
+    const from = list.findIndex((w) => w.id === drag.current), to = list.findIndex((w) => w.id === over);
+    const [item] = list.splice(from, 1);
+    list.splice(to, 0, item);
+    setDraft(list);
+  };
+  const dragEnd = () => {
+    if (drag.current && draft) save(draft);
+    drag.current = null;
+    setDraft(null);
+  };
+
+  const widgetData = useMemo(
+    () => (data ? buildWidgetData({ cfg, unit: profile.unit, now: now(), today, sessions: data.sessions, sets: data.sets, exercises: data.exercises, bodyweight: data.bodyweight, dayNames: data.dayNames }) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, cfg, profile.unit, today],
+  );
+
   if (!cfg.dashboard.enabled) return null;
-  const widgets = withNewWidgets(cfg.dashboard.widgets).filter((w) => w.enabled && !hide.includes(w.id));
+  const widgets = all.filter((w) => w.enabled && !hide.includes(w.id));
   const t = now();
   const ws = weekStart(t, cfg.split.weekStartsOn);
   const target = cfg.dashboard.weeklyTarget;
@@ -155,6 +271,8 @@ export function Dashboard({ today, onFocusWorkout, hide = [] }: { today: Today |
       }
       case "calories":
         return <CaloriesCard />;
+      case "bodyweight":
+        return <BodyweightTile />;
       case "goals":
         return <GoalsWidget />;
       case "volume": {
@@ -170,16 +288,133 @@ export function Dashboard({ today, onFocusWorkout, hide = [] }: { today: Today |
           </>
         );
       }
+      default:
+        return w.custom ? <CustomWidget code={w.custom.code} title={w.custom.title} data={widgetData} inert={editing} /> : null;
     }
   };
 
 
+  const hidden = all.filter((w) => !w.enabled && !hide.includes(w.id));
   return (
-    <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr" }}>
-      {widgets.map((w) => {
-        const { className, style } = tileStyle(w);
-        return <div key={w.id} className={className} style={style}>{render(w)}</div>;
-      })}
+    <div className="stack" style={{ gap: 10 }}>
+      <div className="spread">
+        <span className="today-section-title" style={{ margin: 0 }}>Widgets</span>
+        {editing ? (
+          <div className="row" style={{ gap: 6 }}>
+            <button className="btn sm" onClick={() => setSheet("add")}>+ Add</button>
+            <button className="btn sm primary" onClick={() => setEditing(false)}>Done</button>
+          </div>
+        ) : (
+          <button className="btn sm ghost" onClick={() => setEditing(true)} aria-label="Edit widgets">Edit</button>
+        )}
+      </div>
+
+      <div className={`grid2 widgets ${editing ? "editing" : ""}`} style={{ gridTemplateColumns: "1fr 1fr" }} onPointerMove={dragMove} onPointerUp={dragEnd} onPointerCancel={dragEnd}>
+        {widgets.map((w, i) => {
+          const { className, style } = tileStyle(w);
+          return (
+            <div
+              key={w.id}
+              data-wid={w.id}
+              className={`${className} widget ${drag.current === w.id ? "dragging" : ""}`}
+              style={{ ...style, animationDelay: `${(i % 3) * -0.13}s` }}
+              onPointerDown={(e) => (editing ? dragStart(e, w.id) : holdStart(e))}
+              onPointerMove={holdMove}
+              onPointerUp={holdEnd}
+              onPointerLeave={holdEnd}
+              onClickCapture={swallowClick}
+              onContextMenu={(e) => e.preventDefault()}
+            >
+              <div className="widget-body" inert={editing || undefined}>{render(w)}</div>
+              {editing && (
+                <>
+                  <button className="widget-remove" aria-label={`Remove ${labelOf(w)}`} onClick={() => remove(w)}>−</button>
+                  <div className="widget-tools">
+                    <button className="btn sm" aria-label={`Move ${labelOf(w)} up`} disabled={i === 0} onClick={() => move(w.id, -1)}>↑</button>
+                    <button className="btn sm" aria-label={`Move ${labelOf(w)} down`} disabled={i === widgets.length - 1} onClick={() => move(w.id, 1)}>↓</button>
+                    <button className="btn sm" aria-label={`Make ${labelOf(w)} ${w.size === 2 ? "half" : "full"} width`} onClick={() => change(all.map((x) => (x.id === w.id ? { ...x, size: w.size === 2 ? 1 : 2 } : x)))}>{w.size === 2 ? "½" : "Full"}</button>
+                    {w.custom && <button className="btn sm" onClick={() => setSheet({ code: w })}>Code</button>}
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })}
+        {editing && (
+          <button className="tile widget-add" onClick={() => setSheet("add")}>+ Add a widget</button>
+        )}
+      </div>
+
+      {sheet === "add" && (
+        <div className="sheet-backdrop" onClick={() => setSheet(null)}>
+          <div className="sheet" role="dialog" aria-label="Add a widget" onClick={(e) => e.stopPropagation()}>
+            <div className="spread"><h2 style={{ margin: 0 }}>Add a widget</h2><button className="btn sm ghost" onClick={() => setSheet(null)} aria-label="Close">✕</button></div>
+            {hidden.length > 0 ? hidden.map((w) => (
+              <button key={w.id} className="sheet-item" onClick={() => add(w.id)}>
+                <strong>{labelOf(w)}</strong>
+                <span className="muted small">{w.custom ? "Your widget" : WIDGET_INFO[w.id]?.description}</span>
+              </button>
+            )) : <p className="muted small">Every widget is already on Today.</p>}
+            <button className="sheet-item" onClick={() => setSheet({ code: { id: `custom:${uid()}`, enabled: true, size: 2, color: "surface", custom: { title: "My widget", code: WIDGET_TEMPLATE } } })}>
+              <strong>✎ Make your own</strong>
+              <span className="muted small">Write a widget in HTML/JavaScript. It runs sandboxed: no internet, no access to your account.</span>
+            </button>
+            <h3 style={{ margin: "8px 0 0" }}>Layouts</h3>
+            {LAYOUT_PRESETS.map((p) => (
+              <button key={p.id} className="sheet-item" onClick={() => applyLayout(p)}>
+                <strong>{p.label}</strong>
+                <span className="muted small">{p.description}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {sheet && typeof sheet === "object" && (
+        <CodeEditor
+          widget={sheet.code}
+          data={widgetData}
+          onCancel={() => setSheet(null)}
+          onSave={(w) => {
+            const exists = all.some((x) => x.id === w.id);
+            change(exists ? all.map((x) => (x.id === w.id ? w : x)) : [...all, w]);
+            setSheet(null);
+          }}
+        />
+      )}
+      {toast.node}
+    </div>
+  );
+}
+
+/** Write or edit a custom widget, with a live preview in the same sandbox it will run in. */
+function CodeEditor({ widget, data, onSave, onCancel }: { widget: WidgetConfig; data: ReturnType<typeof buildWidgetData> | null; onSave: (w: WidgetConfig) => void; onCancel: () => void }) {
+  const [title, setTitle] = useState(widget.custom?.title ?? "My widget");
+  const [code, setCode] = useState(widget.custom?.code ?? "");
+  const [preview, setPreview] = useState(code);
+  // Re-render the preview shortly after typing stops.
+  useEffect(() => {
+    const t = setTimeout(() => setPreview(code), 600);
+    return () => clearTimeout(t);
+  }, [code]);
+  return (
+    <div className="sheet-backdrop" onClick={onCancel}>
+      <div className="sheet" role="dialog" aria-label="Edit custom widget" onClick={(e) => e.stopPropagation()}>
+        <div className="spread"><h2 style={{ margin: 0 }}>Custom widget</h2><button className="btn sm ghost" onClick={onCancel} aria-label="Close">✕</button></div>
+        <label className="field">Title<input value={title} maxLength={40} onChange={(e) => setTitle(e.target.value)} /></label>
+        <label className="field">Code (HTML, CSS, JavaScript)
+          <textarea className="code-input" rows={12} value={code} maxLength={MAX_CODE_CHARS} spellCheck={false} autoCapitalize="off" autoCorrect="off" onChange={(e) => setCode(e.target.value)} />
+        </label>
+        <div className="muted small">{code.length.toLocaleString()} / {MAX_CODE_CHARS.toLocaleString()} · Runs sandboxed: it can read your training data but can&apos;t reach the internet, your account or the rest of the app. Only paste code you understand.</div>
+        <div className="tile" style={{ padding: 12 }}>
+          <span className="label">Preview</span>
+          <CustomWidget code={preview} title={title} data={data} />
+        </div>
+        <div className="row">
+          <button className="btn primary" disabled={!title.trim() || !code.trim()} onClick={() => onSave({ ...widget, enabled: true, custom: { title: title.trim(), code } })}>Save</button>
+          <button className="btn" onClick={onCancel}>Cancel</button>
+        </div>
+      </div>
     </div>
   );
 }

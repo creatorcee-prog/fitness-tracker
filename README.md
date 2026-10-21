@@ -151,6 +151,19 @@ Setup:
 - **Streak freezes:** one is earned every 4 weeks on target (up to 2 saved) and covers a missed week instead of resetting the streak (`streak.*`). Research on streaks found intact streaks motivate and broken ones make people quit, so repairs soften that.
 - **Rest timer:** sound and vibration switches in Settings → Training. iPhone web apps can't vibrate, so the timer also flashes.
 
+## Editable Today and custom widgets
+
+- **Edit like Control Center:**
+  - Press and hold any widget, or tap **Edit**, to enter edit mode. Widgets wiggle (a dashed outline with Reduce Motion).
+  - Each widget gets **−** to remove (with Undo), **↑/↓** to move, and **½/Full** for size. You can also drag widgets around; ↑/↓ are the non-drag alternative WCAG 2.5.7 requires.
+  - **+ Add** lists hidden widgets, ready-made **Layouts** (Lifter, Minimal, Nutrition, With friends), and **Make your own**.
+  - The layout is saved to your account. Widgets that work on the tile itself: Calories (+ Add), Bodyweight (+ Log), Today (tap to jump to the workout).
+- **Custom widgets** (HTML/CSS/JavaScript, like personal scripts on a wiki):
+  - They run in `<iframe sandbox="allow-scripts">` with no same-origin. A CSP inside the frame blocks all network access, and the app's `frame-src 'self'` header stops a frame from navigating away. So a widget can **read a copy of your training data** but **can't reach the internet, your login, or the rest of the app**. That makes pasting someone else's widget safe from data theft.
+  - API: `gg.onData(fn)` gives `{ unit, today, week, streak, recent, lifts, prs, bodyweight }` with no ids; `gg.open("/progress")` opens a page; `gg.resize()` fits the tile. Theme colours are CSS variables (`var(--accent)`, `var(--text)` …).
+  - The editor shows a live preview and starts from a documented template. Code is capped at 20,000 characters. See `src/lib/widgets/sandbox.ts`.
+- **Custom CSS:** Settings → Advanced. It's saved to your account; `@import`, external `url()`, `image-set()` and web addresses are removed (`src/lib/widgets/css.ts`).
+
 ## Bodyweight
 
 Progress → **Bodyweight**, or `/bodyweight 182` in Discord (`/bodyweight` alone shows the trend). One entry per day; logging again replaces it. The headline numbers are the **7-day average** and a fitted **rate per week** over the last 4 weeks, not today vs yesterday (single weigh-ins swing with water and food). **Strength ÷ bodyweight** shows each lift's best est. 1RM over the last 6 weeks divided by your latest weight. No migration needed (`bodyweight_entries` exists since 0001). After deploying, open `/api/discord?register=1` to add `/bodyweight` and `/help`.

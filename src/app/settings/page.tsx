@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { defaultConfig, type Unit, type WidgetConfig } from "@/config/app.config";
 import { deepMerge } from "@/config/runtime";
+import { WIDGET_INFO } from "@/config/layouts";
 import { contrastRatio, THEME_PRESETS, themeVars as presetVars } from "@/config/themes";
 import { useApp } from "@/components/AppProvider";
 import { withNewWidgets } from "@/components/Dashboard";
@@ -15,10 +16,7 @@ import { useToast } from "@/components/UndoToast";
 import { generateDemoHistory } from "@/lib/service";
 import { supabaseOf } from "@/lib/store";
 
-const WIDGET_LABEL: Record<WidgetConfig["id"], string> = {
-  today: "Today's split day", week: "Sessions this week", streak: "Weekly streak", lastPr: "Latest PR",
-  friends: "Friends lifting today", topLift: "Top e1RM", volume: "Weekly volume", calories: "Calories today", goals: "Goals",
-};
+const widgetLabel = (w: WidgetConfig) => w.custom?.title ?? WIDGET_INFO[w.id]?.label ?? w.id;
 const NAMED_COLORS = ["surface", "hero", "lime"];
 const CONTRAST_PAIRS: [string, string][] = [["text", "bg"], ["text", "surface"], ["accent-text", "accent"], ["highlight-text", "highlight"]];
 
@@ -210,8 +208,8 @@ export default function SettingsPage() {
         <ul className="setlist">
           {widgets.map((w, i) => (
             <li key={w.id} style={{ flexWrap: "wrap" }}>
-              <input type="checkbox" checked={w.enabled} onChange={(e) => updWidget(i, { enabled: e.target.checked })} aria-label={`Show ${WIDGET_LABEL[w.id]}`} />
-              <span className="grow">{WIDGET_LABEL[w.id]}</span>
+              <input type="checkbox" checked={w.enabled} onChange={(e) => updWidget(i, { enabled: e.target.checked })} aria-label={`Show ${widgetLabel(w)}`} />
+              <span className="grow">{widgetLabel(w)}</span>
               <select value={w.size} onChange={(e) => updWidget(i, { size: Number(e.target.value) as 1 | 2 })} aria-label="Size">
                 <option value={1}>Half</option>
                 <option value={2}>Full</option>
@@ -292,6 +290,19 @@ export default function SettingsPage() {
           <button className="btn sm" onClick={() => patch({ debug: { logStore: !cfg.debug.logStore } })}>Log store calls: {cfg.debug.logStore ? "on" : "off"}</button>
           <button className="btn sm" onClick={() => patch({ restTimer: { defaultSeconds: 5, byCategory: { upper: 5, lower: 5, core: 5, cardio: 0, other: 5 } } }, "Rest timer set to 5s")}>5s rest timer</button>
         </div>
+        <label className="field">
+          Custom CSS <span className="muted small">(restyle anything; saved to your account; external URLs and @import are removed)</span>
+          <textarea
+            className="code-input"
+            rows={6}
+            spellCheck={false}
+            defaultValue={cfg.theme.customCss}
+            placeholder={".tile .value { font-size: 2.4rem; }\n.nav { border-radius: 18px; }"}
+            onBlur={(e) => e.target.value !== cfg.theme.customCss && patch({ theme: { customCss: e.target.value } }, "Custom CSS saved")}
+            aria-label="Custom CSS"
+          />
+        </label>
+        <p className="muted small" style={{ margin: 0 }}>Custom widgets (HTML/JavaScript) are made on Today: Edit → + Add → Make your own.</p>
         <textarea rows={12} value={json} onChange={(e) => setJson(e.target.value)} spellCheck={false} aria-label="Config overrides JSON" />
         {jsonErr && <div className="small" style={{ color: "var(--bad)" }}>{jsonErr}</div>}
         <div className="row">

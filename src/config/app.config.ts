@@ -15,12 +15,16 @@ export type SplitMode = "rotation" | "weekly";
 export type DataBackend = "local" | "supabase" | "local-sync";
 export type Category = "upper" | "lower" | "core" | "cardio" | "other";
 
-export type WidgetId = "today" | "week" | "streak" | "lastPr" | "friends" | "topLift" | "volume" | "calories" | "goals";
+export type BuiltInWidgetId = "today" | "week" | "streak" | "lastPr" | "friends" | "topLift" | "volume" | "calories" | "goals" | "bodyweight";
+/** Built-in widgets, or "custom:<id>" for a widget you wrote yourself (see CustomWidget). */
+export type WidgetId = BuiltInWidgetId | `custom:${string}`;
 export interface WidgetConfig {
   id: WidgetId;
   enabled: boolean;
   size: 1 | 2;
   color: string;
+  /** Custom widgets only: your title and code (HTML/CSS/JS, run in a locked-down sandbox). */
+  custom?: { title: string; code: string };
 }
 
 export const defaultConfig = {
@@ -179,6 +183,8 @@ export const defaultConfig = {
     style: "auto" as "auto" | "playful" | "pro",
     /** Frosted-glass surfaces: "auto" follows the preset (Aurora Glass has it). */
     glass: "auto" as "auto" | "on" | "off",
+    /** Your own CSS on top of the theme (Settings → Advanced). External URLs and @import are stripped. */
+    customCss: "",
   },
 
   /**
@@ -204,6 +210,7 @@ export const defaultConfig = {
       { id: "calories", enabled: true, size: 2, color: "surface" },
       { id: "topLift", enabled: false, size: 1, color: "surface" },
       { id: "volume", enabled: false, size: 1, color: "surface" },
+      { id: "bodyweight", enabled: false, size: 1, color: "surface" },
     ] as WidgetConfig[],
     /** Target sessions per week for the "week" widget. */
     weeklyTarget: 3,

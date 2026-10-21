@@ -62,6 +62,13 @@ Slash commands through `/api/discord` in the web app (no separate bot server).
 - [x] Photo/screenshot import (test feature, GROQ_VISION_MODEL)
 - [ ] Test photo import accuracy with real photos (notebook, Notes screenshot, spreadsheet screenshot)
 
+## Done: editable Today
+
+- [x] Edit mode (hold or Edit), remove/undo, move, resize, drag, add sheet, layouts
+- [x] Bodyweight widget logged on the tile
+- [x] Custom widgets (sandboxed HTML/JS) and custom CSS
+- [ ] Maybe: a gallery to share custom widgets between friends
+
 ## Next
 
 - [ ] Web push reminders (needs Home Screen install on iPhone)
