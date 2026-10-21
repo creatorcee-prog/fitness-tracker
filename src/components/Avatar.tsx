@@ -1,5 +1,9 @@
-/** Initial on a colour derived from the person's id, so each friend is recognisable at a glance. */
-export function Avatar({ id, name, size = 44 }: { id: string; name: string; size?: number }) {
+/** Profile photo if there is one, else an initial on a colour derived from the person's id. */
+export function Avatar({ id, name, size = 44, src }: { id: string; name: string; size?: number; src?: string | null }) {
+  if (src) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img className="avatar" src={src} alt="" aria-hidden width={size} height={size} style={{ width: size, height: size, objectFit: "cover" }} />;
+  }
   let h = 0;
   for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   const hue = h % 360;

@@ -15,7 +15,7 @@ export type SplitMode = "rotation" | "weekly";
 export type DataBackend = "local" | "supabase" | "local-sync";
 export type Category = "upper" | "lower" | "core" | "cardio" | "other";
 
-export type WidgetId = "today" | "week" | "streak" | "lastPr" | "friends" | "topLift" | "volume" | "calories";
+export type WidgetId = "today" | "week" | "streak" | "lastPr" | "friends" | "topLift" | "volume" | "calories" | "goals";
 export interface WidgetConfig {
   id: WidgetId;
   enabled: boolean;
@@ -31,6 +31,14 @@ export const defaultConfig = {
     shortName: "Garage Gym",
     /** The Discord bot's persona. Its actual Discord name is set in the Developer Portal. */
     botName: "James",
+  },
+
+  auth: {
+    /**
+     * Sign-in buttons on the login screen (Supabase backend). Each provider must
+     * also be enabled in Supabase → Authentication → Sign In / Providers.
+     */
+    providers: ["discord", "google"] as ("discord" | "google")[],
   },
 
   data: {
@@ -59,6 +67,12 @@ export const defaultConfig = {
   },
 
   logging: {
+    /**
+     * Guided sets: the logging bar suggests the next weight (auto-progression),
+     * explains why, and moves on to the next exercise when you finish one.
+     * Off = it starts from what you did last time and stays where you put it.
+     */
+    guided: false,
     /** Stepper step for weight, per display unit. Per-exercise `increment` wins when set. */
     weightStep: { lb: 5, kg: 2.5 } as Record<Unit, number>,
     repStep: 1,
@@ -179,6 +193,7 @@ export const defaultConfig = {
       { id: "streak", enabled: true, size: 1, color: "surface" },
       { id: "lastPr", enabled: true, size: 1, color: "surface" },
       { id: "friends", enabled: true, size: 1, color: "surface" },
+      { id: "goals", enabled: true, size: 2, color: "surface" },
       { id: "calories", enabled: true, size: 2, color: "surface" },
       { id: "topLift", enabled: false, size: 1, color: "surface" },
       { id: "volume", enabled: false, size: 1, color: "surface" },
@@ -202,6 +217,19 @@ export const defaultConfig = {
     defaultCalorieTarget: 2500,
     /** Quick-add buttons on the calories card (kcal). */
     quickAdd: [100, 250, 500, 750],
+  },
+
+  mascot: {
+    /** James on the Today screen: scripted lines (no AI) for PRs, goals, streaks and greetings. */
+    enabled: true,
+    /** Typewriter speed per character; 0 = show instantly. */
+    typeMs: 24,
+    /** Keep an important line (PR, goal) up at least this long before small talk can replace it. */
+    holdMs: 20_000,
+    /** "Haven't seen you in N days" after this many days without a workout. */
+    missedDays: 4,
+    /** Streak lengths (weeks) James celebrates. */
+    streakMilestones: [2, 4, 8, 12, 26, 52],
   },
 
   ai: {

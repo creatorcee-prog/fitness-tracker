@@ -115,6 +115,7 @@ export const COMMANDS = [
   { name: "lift", description: "Last session, records and % gain for a lift", options: [{ type: STRING, name: "name", description: "Lift", required: true, autocomplete: true }] },
   { name: "streak", description: "Sessions this week and your weekly streak" },
   { name: "friends", description: "Which friends have lifted today" },
+  { name: "goal", description: "Your goals with progress bars and projected dates" },
   {
     name: "plates",
     description: "Plates per side for a weight",

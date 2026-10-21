@@ -231,6 +231,23 @@ describe("/lift, /streak, /friends, /plates, /rest", () => {
   });
 });
 
+describe("/goal", () => {
+  it("explains how to add goals", async () => {
+    expect((await run("goal")).content).toContain("No goals yet");
+  });
+  it("shows progress bars", async () => {
+    await logC("bench 185x5");
+    data.goals = [
+      { id: "g1", type: "lift_e1rm", exerciseId: "ex-bench", targetValue: toKg(250, "lb"), targetWeightKg: null, deadline: null, achievedAt: null, createdAt: new Date(clock).toISOString() },
+      { id: "g2", type: "sessions_per_week", exerciseId: null, targetValue: 3, targetWeightKg: null, deadline: null, achievedAt: null, createdAt: new Date(clock).toISOString() },
+    ];
+    const r = await run("goal");
+    expect(r.content).toContain("**Bench Press est. 1RM 250 lb**");
+    expect(r.content).toMatch(/▰+▱+ 215\.8 \/ 250 lb \(86%\)/);
+    expect(r.content).toContain("0 / 3 this week");
+  });
+});
+
 describe("autocomplete", () => {
   it("suggests lifts, alias first", async () => {
     const r = await handleAutocomplete(ctx(), "lift", "ohp");
@@ -263,7 +280,7 @@ describe("discord plumbing", () => {
     expect(m.components[0].components[0]).toMatchObject({ type: 2, label: "Undo", custom_id: "undo:x" });
   });
   it("registers commands for server and user installs", () => {
-    expect(COMMANDS.map((c) => c.name)).toEqual(["today", "log", "undo", "done", "skip", "swap", "lift", "streak", "friends", "plates", "rest", "ask", "announce"]);
+    expect(COMMANDS.map((c) => c.name)).toEqual(["today", "log", "undo", "done", "skip", "swap", "lift", "streak", "friends", "goal", "plates", "rest", "ask", "announce"]);
     expect(COMMANDS.find((c) => c.name === "announce")!.contexts).toEqual([0]);
     for (const c of COMMANDS) {
       expect(c.integration_types).toEqual([0, 1]);

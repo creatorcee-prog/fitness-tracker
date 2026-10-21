@@ -145,6 +145,20 @@ describe("in-app chat", () => {
     expect(r).toMatchObject({ outcome: "answered", answer: "Keep going!" });
     expect((await data.aiUsageToday("u1", "2026-10-21")).user).toBe(1); // same cap as Discord
   });
+  it("app chat: James may propose changes; they come back validated and stripped from the text", async () => {
+    const reply = 'Good idea, let\'s add a set.\n<actions>[{"type":"set_plan","day":"Push","lift":"Bench Press","sets":4},{"type":"drop_table"}]</actions>';
+    const r = await handleAsk(appDeps(fakeFetch([ok(reply)])), "Can you add a bench set on push day?");
+    expect(r.answer).toBe("Good idea, let's add a set.");
+    expect(r.actions).toEqual([{ type: "set_plan", day: "Push", lift: "Bench Press", sets: 4 }]);
+    const sys = (calls[0].body.messages as { content: string }[])[0].content;
+    expect(sys).toContain("PROPOSE changes");
+    expect(calls[0].body.max_completion_tokens).toBe(700);
+  });
+  it("Discord /ask never gets the change list or returns actions", async () => {
+    const r = await handleAsk(deps(fakeFetch([ok('Sure <actions>[{"type":"set_unit","unit":"kg"}]</actions>')])), "switch me to kg?");
+    expect(r.actions ?? []).toEqual([]);
+    expect((calls[0].body.messages as { content: string }[])[0].content).not.toContain("PROPOSE");
+  });
   it("includes only the last N earlier turns", async () => {
     const history = [1, 2, 3].map((i) => ({ question: `Q${i}?`, answer: `A${i}` }));
     await handleAsk(appDeps(fakeFetch([ok("x")]), env({ historyTurns: 2 })), "And squats?", history);
@@ -183,10 +197,10 @@ describe("training context", () => {
   });
 
   it("includes goals and bodyweight trend when logged", async () => {
-    data.goals = [{ type: "lift_e1rm", exerciseId: "ex-bench", targetValue: toKg(250, "lb"), deadline: "2026-12-31" }];
+    data.goals = [{ id: "g1", type: "lift_e1rm", exerciseId: "ex-bench", targetValue: toKg(250, "lb"), targetWeightKg: null, deadline: "2026-12-31", achievedAt: null, createdAt: NOW.toISOString() }];
     data.bodyweight = [{ date: "2026-09-01", weightKg: toKg(185, "lb") }, { date: "2026-10-20", weightKg: toKg(181, "lb") }];
     const ctx = await buildTrainingContext(data, (await data.findUser("d1"))!, defaultConfig, NOW);
-    expect(ctx).toContain("lift e1rm Bench Press: 250 lb by 2026-12-31");
+    expect(ctx).toContain("- Bench Press est. 1RM 250 lb: now 0 / 250 lb (0%), deadline 2026-12-31");
     expect(ctx).toContain("Bodyweight: 181 lb on 2026-10-20, -4 lb vs 4 weeks earlier");
   });
 });

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useApp } from "@/components/AppProvider";
+import { MascotBubble, useMascot } from "@/components/Mascot";
+import { useMyMedia } from "@/components/ProfileMediaCard";
 import { WeekStrip } from "@/components/WeekStrip";
 import { Dashboard } from "@/components/Dashboard";
 import { RestTimer, type TimerState } from "@/components/RestTimer";
@@ -16,7 +18,14 @@ import { parseShorthand } from "@/lib/domain/shorthand";
 import { nextPosition, type Today } from "@/lib/domain/split";
 import type { Exercise, PREvent, PRType, Session, SetEntry, Split, SplitDay } from "@/lib/domain/types";
 import { formatWeight, fromKg, roundTo, toKg } from "@/lib/domain/units";
+import { finishedBetween, weekStart, weeklyStreak } from "@/lib/domain/stats";
 import { lastSessionSets, logSet, rebuildPRs, stepKg } from "@/lib/service";
+
+/** Whole days since the last finished workout (null if none yet). */
+function daysSinceLastWorkout(sessions: Session[], now: Date): number | null {
+  const last = sessions.filter((s) => s.finishedAt).map((s) => Date.parse(s.finishedAt!)).sort((a, b) => b - a)[0];
+  return last == null ? null : Math.floor((now.getTime() - last) / 86_400_000);
+}
 
 const PR_LABEL: Record<PRType, string> = { weight: "Heaviest", reps_at_weight: "Rep PR", e1rm: "e1RM PR", session_volume: "Volume PR" };
 
@@ -32,6 +41,9 @@ export default function TodayPage() {
   const { cfg, store, profile, version, refresh, now } = useApp();
   const unit = profile.unit;
   const toast = useToast(cfg.logging.undoToastMs);
+  const mascot = useMascot();
+  const greeted = useRef(false);
+  const { media } = useMyMedia();
 
   const [today, setToday] = useState<Today | null>(null);
   const [split, setSplit] = useState<Split | null>(null);
@@ -71,6 +83,37 @@ export default function TodayPage() {
   useEffect(() => {
     void load();
   }, [load, version]);
+
+  // James's greeting: once per visit to Today, after the data is in.
+  useEffect(() => {
+    if (greeted.current || today === null) return;
+    greeted.current = true;
+    const t = now();
+    const gap = daysSinceLastWorkout(allSessions, t);
+    const target = cfg.dashboard.weeklyTarget;
+    const streak = weeklyStreak(allSessions, t, cfg.split.weekStartsOn, target);
+    const thisWeek = finishedBetween(allSessions, weekStart(t, cfg.split.weekStartsOn), new Date(t.getTime() + 1)).length;
+    const milestoneKey = `ft:mascot-streak:${streak}`;
+    let seenMilestone = true;
+    try {
+      seenMilestone = localStorage.getItem(milestoneKey) === "1";
+    } catch {
+      /* ignore */
+    }
+    const dayName = today.kind === "day" ? today.day.name : undefined;
+    if (!allSessions.length) mascot.say("first_visit");
+    else if (cfg.mascot.streakMilestones.includes(streak) && thisWeek >= target && !seenMilestone) {
+      try {
+        localStorage.setItem(milestoneKey, "1");
+      } catch {
+        /* ignore */
+      }
+      mascot.say("streak_milestone", { streak });
+    } else if (gap != null && gap >= cfg.mascot.missedDays) mascot.say("missed_days", { days: gap, day: dayName });
+    else if (today.kind === "rest") mascot.say("rest_day");
+    else mascot.say(t.getHours() < 12 ? "morning" : t.getHours() < 18 ? "afternoon" : "evening", { day: dayName });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [today, allSessions]);
 
   // Which day are we showing? An open session wins (e.g. started from Discord), then a manual swap, then "today".
   const day: SplitDay | null = useMemo(() => {
@@ -121,7 +164,9 @@ export default function TodayPage() {
   const prefill: Prefill | null = useMemo(() => {
     if (!focusId || !focusPlan) return null;
     const last = lastSessionSets(history.get(focusId) ?? [], session?.id ?? null);
-    const pf = prefillFor(focusWorkingCount, last, focusPlan.repRange, focusEx?.category ?? "other", unit, cfg, step);
+    // Not guided: no suggested jumps, just last time's numbers.
+    const pcfg = cfg.logging.guided ? cfg : { ...cfg, progression: { ...cfg.progression, enabled: false } };
+    const pf = prefillFor(focusWorkingCount, last, focusPlan.repRange, focusEx?.category ?? "other", unit, pcfg, step);
     // Within a session, repeat this session's previous set rather than last time's.
     const cur = sessionSets.get(focusId)?.filter((s) => !s.isWarmup) ?? [];
     if (pf && cur.length && pf.reason !== "progression") return { weightKg: cur[cur.length - 1].weightKg, reps: pf.reps, reason: pf.reason };
@@ -157,6 +202,8 @@ export default function TodayPage() {
     if (session) return session;
     const s = await store.startSession(day?.id ?? null, now());
     setSession(s);
+    const gap = daysSinceLastWorkout(allSessions, now());
+    mascot.say(gap != null && gap >= cfg.mascot.missedDays ? "comeback" : "session_start", { day: day?.name });
     return s;
   };
 
@@ -167,6 +214,7 @@ export default function TodayPage() {
   };
 
   const advanceFocusIfDone = (exerciseId: string, newWorkingCount: number) => {
+    if (!cfg.logging.guided) return;
     const p = plan.find((x) => x.exerciseId === exerciseId);
     if (!p || newWorkingCount < p.targetSets) return;
     const next = plan.find((x) => x.exerciseId !== exerciseId && (sessionSets.get(x.exerciseId)?.filter((s) => !s.isWarmup).length ?? 0) < x.targetSets);
@@ -185,7 +233,10 @@ export default function TodayPage() {
         rpe: Number.isFinite(rpe) ? rpe : null, isWarmup: draft.isWarmup, note: draft.note.trim() || null, createdAt: now().toISOString(),
       });
       const prText = prs.length ? ` · 🏆 ${prs.map((p) => PR_LABEL[p]).join(", ")}` : "";
-      if (prs.length) void store.announcePRs(set.id);
+      if (prs.length) {
+        void store.announcePRs(set.id);
+        mascot.say("pr", { lift: focusEx?.name ?? "Lift", weight: `${Number(draft.weight.toFixed(2))} ${unit}`, reps: draft.reps });
+      }
       if (cfg.features.undoToast) {
         toast.show({
           text: `${draft.isWarmup ? "Warm-up" : "Set"} saved · ${Number(draft.weight.toFixed(2))} × ${draft.reps}${prText}`,
@@ -246,6 +297,10 @@ export default function TodayPage() {
       if (prs.length) void store.announcePRs(set.id);
     }
     setShorthand("");
+    if (allPrs.size) {
+      const best = created[created.length - 1];
+      mascot.say("pr", { lift: exercises.get(exId)?.name ?? "Lift", weight: `${Number(fromKg(best.weightKg, unit).toFixed(1))} ${unit}`, reps: best.reps });
+    }
     toast.show({
       text: `Logged ${created.length} set${created.length > 1 ? "s" : ""}${allPrs.size ? ` · 🏆 ${[...allPrs].map((p) => PR_LABEL[p]).join(", ")}` : ""}`,
       undo: async () => {
@@ -268,6 +323,8 @@ export default function TodayPage() {
     setExtraExercises([]);
     const sid = session.id;
     toast.show({ text: "Workout finished. Split advanced.", undo: async () => { await store.reopenSession(sid, prevPos); refresh(); } });
+    const next = await store.getToday(now()).catch(() => null);
+    mascot.say("workout_done", { next: next?.kind === "day" ? next.day.name : "rest" });
     await load();
   };
 
@@ -305,8 +362,13 @@ export default function TodayPage() {
           <div className="hello">{greeting}, {profile.displayName}</div>
           <h1>{day ? `Ready for ${day.name}?` : restDay ? "Rest day. Recover well." : today?.kind === "no-split" ? "Let's set up your split" : "Ready to train?"}</h1>
         </div>
-        <Link href="/settings" className="avatar-btn" aria-label="Profile and settings">{profile.displayName.slice(0, 1).toUpperCase()}</Link>
+        <Link href="/settings" className={`avatar-btn ${media.avatar ? "has-photo" : ""}`} aria-label="Profile and settings">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {media.avatar ? <img src={media.avatar} alt="" /> : profile.displayName.slice(0, 1).toUpperCase()}
+        </Link>
       </header>
+
+      <MascotBubble />
 
       {cfg.dashboard.weekStrip && <WeekStrip sessions={allSessions} now={now()} weekStartsOn={cfg.split.weekStartsOn} />}
 
@@ -383,7 +445,7 @@ export default function TodayPage() {
             {timer && <RestTimer timer={timer} onChange={setTimer} />}
             <div className="spread">
               <strong>{focusEx?.name} · {draft.isWarmup ? "warm-up" : `set ${focusWorkingCount + 1}`}</strong>
-              {cfg.features.progressionHints && prefill && (
+              {cfg.logging.guided && cfg.features.progressionHints && prefill && (
                 <span className="muted small">
                   {prefill.reason === "progression" ? `↑ +${cfg.progression.jump[unit][focusEx?.category ?? "other"]} ${unit}, all reps hit` : prefill.reason === "hold-missed" ? "Hold weight: missed reps last time" : prefill.reason === "last-time" ? "Same as last time" : "No history yet"}
                 </span>

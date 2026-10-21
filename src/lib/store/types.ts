@@ -1,5 +1,6 @@
+import type { Goal } from "@/lib/domain/goals";
 import type { Today } from "@/lib/domain/split";
-import type { AccountPrefs, AnnounceSettings, Exercise, FriendProfile, FriendRequest, FriendStatus, NutritionEntry, NutritionTargets, PREvent, Reminder, Profile, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
+import type { AccountPrefs, AnnounceSettings, Exercise, FriendProfile, FriendRequest, FriendStatus, NutritionEntry, NutritionTargets, PREvent, Reminder, Profile, ProfileMedia, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
 
 /** A set to insert. Pass `id` to choose it (offline sync replays inserts with the same id). */
 export type NewSet = Omit<SetEntry, "id" | "createdAt"> & { id?: string; createdAt?: string };
@@ -14,6 +15,11 @@ export interface Store {
 
   getProfile(): Promise<Profile>;
   updateProfile(patch: Partial<Omit<Profile, "id">>): Promise<Profile>;
+
+  /** Your profile photo and banner (visible to you and accepted friends). */
+  getMyMedia(): Promise<ProfileMedia>;
+  /** Set or clear (null) the photo and/or banner. */
+  setMyMedia(patch: Partial<ProfileMedia>): Promise<void>;
 
   listExercises(): Promise<Exercise[]>;
   createExercise(e: Omit<Exercise, "id" | "ownerId">): Promise<Exercise>;
@@ -72,6 +78,11 @@ export interface Store {
   getNutritionTargets(): Promise<NutritionTargets>;
   setNutritionTargets(t: NutritionTargets): Promise<void>;
   getShareStatus(): Promise<boolean>;
+
+  /** Goals (progress is computed from sets, never stored). */
+  listGoals(): Promise<Goal[]>;
+  saveGoal(g: Goal): Promise<Goal>;
+  deleteGoal(id: string): Promise<void>;
 
   /** Discord reminders / daily check-in (sent only on the Supabase backend). */
   listReminders(): Promise<Reminder[]>;

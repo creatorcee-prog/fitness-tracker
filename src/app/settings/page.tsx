@@ -7,15 +7,17 @@ import { deepMerge } from "@/config/runtime";
 import { contrastRatio, THEME_PRESETS } from "@/config/themes";
 import { useApp } from "@/components/AppProvider";
 import { withNewWidgets } from "@/components/Dashboard";
+import { ProfileMediaHeader } from "@/components/ProfileMediaCard";
 import { NutritionTargetsCard } from "@/components/NutritionTargetsCard";
 import { RemindersCard } from "@/components/RemindersCard";
+import { SignInMethodsCard } from "@/components/SignInMethodsCard";
 import { useToast } from "@/components/UndoToast";
 import { generateDemoHistory } from "@/lib/service";
 import { supabaseOf } from "@/lib/store";
 
 const WIDGET_LABEL: Record<WidgetConfig["id"], string> = {
   today: "Today's split day", week: "Sessions this week", streak: "Weekly streak", lastPr: "Latest PR",
-  friends: "Friends lifting today", topLift: "Top e1RM", volume: "Weekly volume", calories: "Calories today",
+  friends: "Friends lifting today", topLift: "Top e1RM", volume: "Weekly volume", calories: "Calories today", goals: "Goals",
 };
 const NAMED_COLORS = ["surface", "hero", "lime"];
 const CONTRAST_PAIRS: [string, string][] = [["text", "bg"], ["text", "surface"], ["accent-text", "accent"], ["highlight-text", "highlight"]];
@@ -86,6 +88,7 @@ export default function SettingsPage() {
 
       <div className="card stack">
         <h2>Profile</h2>
+        <ProfileMediaHeader onError={(m) => toast.show({ text: m })} />
         <label className="field">Display name<input value={name} onChange={(e) => setName(e.target.value)} onBlur={() => saveProfile({ displayName: name })} /></label>
         <div className="row">
           <span className="muted small">Unit</span>
@@ -100,6 +103,16 @@ export default function SettingsPage() {
             <button className="chip" style={{ justifySelf: "start" }} onClick={() => { setTz(deviceTz); void saveProfile({ timezone: deviceTz }); }}>Use this device&apos;s timezone ({deviceTz})</button>
           ) : null;
         })()}
+      </div>
+
+      <SignInMethodsCard />
+
+      <div className="card stack">
+        <h2>Logging</h2>
+        <label className="row small" style={{ alignItems: "flex-start" }}>
+          <input type="checkbox" checked={cfg.logging.guided} onChange={(e) => patch({ logging: { guided: e.target.checked } }, `Guided sets ${e.target.checked ? "on" : "off"}`)} />
+          <span><strong>Guided sets</strong><br /><span className="muted">Suggests your next weight (adds a little when you hit every rep last time), says why, and moves to the next exercise when one is done. Off: starts from last time&apos;s numbers and stays on the exercise you pick.</span></span>
+        </label>
       </div>
 
       <NutritionTargetsCard />
@@ -169,6 +182,7 @@ export default function SettingsPage() {
       <div className="card stack">
         <h2>Dashboard widgets</h2>
         <label className="row small"><input type="checkbox" checked={cfg.dashboard.enabled} onChange={(e) => patch({ dashboard: { enabled: e.target.checked } })} /> Show dashboard on Today</label>
+        <label className="row small"><input type="checkbox" checked={cfg.mascot.enabled} onChange={(e) => patch({ mascot: { enabled: e.target.checked } })} /> Show {cfg.brand.botName} (mascot) on Today</label>
         <ul className="setlist">
           {widgets.map((w, i) => (
             <li key={w.id} style={{ flexWrap: "wrap" }}>
@@ -220,6 +234,7 @@ export default function SettingsPage() {
         <h2>Data</h2>
         <p className="muted small">Backend: <strong>{store.kind}</strong>{store.kind === "local" && " (this browser only)"}</p>
         <div className="row">
+          <Link className="btn primary" href="/import">Import old workouts</Link>
           <button className="btn" onClick={download}>Export JSON</button>
           <button className="btn" onClick={downloadCsv}>Export CSV</button>
           <label className="btn">

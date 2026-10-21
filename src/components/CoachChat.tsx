@@ -3,14 +3,25 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { deepMerge } from "@/config/runtime";
+import { applyAction, describeAction, validateAction, type AccountAction } from "@/lib/ai/actions";
 import { supabaseOf } from "@/lib/store";
+import { uid } from "@/lib/store/local";
 import { useApp } from "./AppProvider";
+
+interface Proposal {
+  action: AccountAction;
+  state: "new" | "busy" | "applied" | "dismissed" | "undone";
+  error?: string;
+}
 
 interface Msg {
   role: "user" | "coach";
   text: string;
   /** Only real answers are sent back as history (not "try later" notices). */
   answered?: boolean;
+  /** Changes James proposed with this answer; nothing happens until Apply. */
+  proposals?: Proposal[];
 }
 
 /** Tiny, safe renderer for the coach's replies: **bold**, `code`, bullet lines and paragraphs. No HTML injection. */
@@ -42,7 +53,9 @@ function Rich({ text }: { text: string }) {
  * signed-in user's session; caps are shared with Discord /ask.
  */
 export function CoachChat() {
-  const { cfg, store } = useApp();
+  const { cfg, store, profile, setProfile, now, overrides, setOverrides, refresh } = useApp();
+  // Undo functions for applied proposals (not saved with the chat).
+  const undos = useRef(new Map<string, () => Promise<void>>());
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([]);
@@ -87,8 +100,10 @@ export function CoachChat() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session?.access_token ?? ""}` },
         body: JSON.stringify({ question: q, history }),
       });
-      const json = (await res.json()) as { outcome?: string; answer?: string };
-      setMsgs((m) => [...m, { role: "coach", text: json.answer ?? "Something went wrong.", answered: json.outcome === "answered" }]);
+      const json = (await res.json()) as { outcome?: string; answer?: string; actions?: unknown[] };
+      // Validate again here: never trust what comes over the network.
+      const proposals = (json.actions ?? []).map(validateAction).filter((a): a is AccountAction => a !== null).map((action): Proposal => ({ action, state: "new" }));
+      setMsgs((m) => [...m, { role: "coach", text: json.answer ?? "Something went wrong.", answered: json.outcome === "answered", proposals }]);
     } catch (e) {
       const offline = typeof navigator !== "undefined" && !navigator.onLine;
       const text = (e as Error).message === "local"
@@ -100,7 +115,41 @@ export function CoachChat() {
     }
   };
 
-  const suggestions = ["How's my bench trending?", "What should I aim for next session?", "Am I training consistently enough?"];
+  const setProposal = (mi: number, pi: number, p: Partial<Proposal>) =>
+    setMsgs((m) => m.map((x, i) => (i !== mi ? x : { ...x, proposals: x.proposals?.map((y, j) => (j === pi ? { ...y, ...p } : y)) })));
+
+  const apply = async (mi: number, pi: number, action: AccountAction) => {
+    setProposal(mi, pi, { state: "busy", error: undefined });
+    try {
+      const undo = await applyAction(action, {
+        store, cfg, profile, now, newId: uid,
+        patchConfig: (p) => setOverrides(deepMerge((overrides ?? {}) as Record<string, unknown>, p)),
+      });
+      undos.current.set(`${mi}:${pi}`, undo);
+      setProposal(mi, pi, { state: "applied" });
+      setProfile(await store.getProfile());
+      refresh();
+    } catch (e) {
+      setProposal(mi, pi, { state: "new", error: e instanceof Error ? e.message : String(e) });
+    }
+  };
+
+  const undo = async (mi: number, pi: number) => {
+    const fn = undos.current.get(`${mi}:${pi}`);
+    if (!fn) return;
+    setProposal(mi, pi, { state: "busy" });
+    try {
+      await fn();
+      undos.current.delete(`${mi}:${pi}`);
+      setProposal(mi, pi, { state: "undone" });
+      setProfile(await store.getProfile());
+      refresh();
+    } catch (e) {
+      setProposal(mi, pi, { state: "applied", error: e instanceof Error ? e.message : String(e) });
+    }
+  };
+
+  const suggestions = ["How's my bench trending?", "What should I aim for next session?", "Am I training consistently enough?", "Set me a realistic bench goal"];
 
   return (
     <>
@@ -119,7 +168,7 @@ export function CoachChat() {
             <div className="avatar-btn" style={{ width: 34, height: 34, fontSize: "0.9rem" }}>{bot.slice(0, 1)}</div>
             <div style={{ flex: 1 }}>
               <strong>{bot}</strong>
-              <div className="muted" style={{ fontSize: "0.72rem" }}>AI coach · reads your logged data · can&apos;t change it</div>
+              <div className="muted" style={{ fontSize: "0.72rem" }}>AI coach · reads your logged data · changes only when you tap Apply</div>
             </div>
             {msgs.length > 0 && <button className="btn sm ghost" onClick={() => setMsgs([])}>Clear</button>}
             <button className="btn sm ghost" onClick={() => setOpen(false)} aria-label="Close chat">✕</button>
@@ -133,7 +182,22 @@ export function CoachChat() {
               </div>
             )}
             {msgs.map((m, i) => (
-              <div key={i} className={`bubble ${m.role}`}>{m.role === "coach" ? <Rich text={m.text} /> : m.text}</div>
+              <div key={i} className="stack" style={{ gap: 6 }}>
+                <div className={`bubble ${m.role}`}>{m.role === "coach" ? <Rich text={m.text} /> : m.text}</div>
+                {m.proposals?.map((p, j) => (
+                  <div key={j} className="proposal" aria-live="polite">
+                    <div className="small"><strong>{describeAction(p.action, profile.unit)}</strong></div>
+                    {p.error && <div className="small" style={{ color: "var(--bad)" }}>{p.error}</div>}
+                    <div className="row" style={{ gap: 6 }}>
+                      {p.state === "new" && <><button className="btn sm primary" onClick={() => apply(i, j, p.action)}>Apply</button><button className="btn sm ghost" onClick={() => setProposal(i, j, { state: "dismissed" })}>No thanks</button></>}
+                      {p.state === "busy" && <span className="muted small">Working…</span>}
+                      {p.state === "applied" && <><span className="pill good">Applied</span>{undos.current.has(`${i}:${j}`) && <button className="btn sm ghost" onClick={() => undo(i, j)}>Undo</button>}</>}
+                      {p.state === "undone" && <span className="muted small">Undone</span>}
+                      {p.state === "dismissed" && <span className="muted small">Dismissed</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
             ))}
             {busy && <div className="bubble coach typing" aria-label={`${bot} is typing`}><i /><i /><i /></div>}
             <div ref={endRef} />

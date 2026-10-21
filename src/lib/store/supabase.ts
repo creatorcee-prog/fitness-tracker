@@ -2,10 +2,11 @@ import { createBrowserClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AppConfig } from "@/config/app.config";
 import { e1rm } from "@/lib/domain/e1rm";
+import type { Goal } from "@/lib/domain/goals";
 import { replayPRs } from "@/lib/domain/prs";
 import type { Today } from "@/lib/domain/split";
 import { planImport, type ExportData } from "@/lib/importPlan";
-import type { AccountPrefs, Exercise, FriendProfile, FriendRequest, FriendStatus, NutritionEntry, NutritionTargets, PREvent, Reminder, Profile, Session, SetEntry, Split, SplitDay } from "@/lib/domain/types";
+import type { AccountPrefs, Exercise, FriendProfile, FriendRequest, FriendStatus, NutritionEntry, NutritionTargets, PREvent, Reminder, Profile, ProfileMedia, Session, SetEntry, Split, SplitDay } from "@/lib/domain/types";
 import type { NewSet, Store } from "./types";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -37,6 +38,12 @@ export const toSet = (r: Row): SetEntry => ({
 export const toReminder = (r: Row): Reminder => ({
   id: r.id, channel: r.channel, localTime: String(r.local_time).slice(0, 5), days: r.days ?? [], enabled: r.enabled,
   lastSentOn: r.last_sent_on ?? null, lastError: r.last_error ?? null,
+});
+
+export const toGoal = (r: Row): Goal => ({
+  id: r.id, type: r.type, exerciseId: r.exercise_id, targetValue: Number(r.target_value),
+  targetWeightKg: r.target_weight == null ? null : Number(r.target_weight), deadline: r.deadline,
+  achievedAt: r.achieved_at ?? null, createdAt: r.created_at ?? new Date(0).toISOString(),
 });
 
 export const toSplit = (s: Row): Split => ({
@@ -81,6 +88,25 @@ export class SupabaseStore implements Store {
     if (patch.timezone !== undefined) row.timezone = patch.timezone;
     check(await this.sb.from("users").update(row).eq("id", id), "updateProfile");
     return this.getProfile();
+  }
+
+  async getMyMedia(): Promise<ProfileMedia> {
+    const id = await this.userId();
+    const r = check(await this.sb.from("profile_media").select("avatar, banner").eq("user_id", id).maybeSingle(), "getMyMedia") as Row | null;
+    return { avatar: r?.avatar ?? null, banner: r?.banner ?? null };
+  }
+
+  async setMyMedia(patch: Partial<ProfileMedia>) {
+    const user_id = await this.userId();
+    check(await this.sb.from("profile_media").upsert({ user_id, ...patch, updated_at: new Date().toISOString() }), "setMyMedia");
+  }
+
+  /** Photos of these users that you're allowed to see (RLS: yourself and accepted friends). */
+  private async mediaFor(ids: string[], cols = "user_id, avatar"): Promise<Map<string, Row>> {
+    if (!ids.length) return new Map();
+    const { data, error } = await this.sb.from("profile_media").select(cols).in("user_id", ids);
+    if (error) return new Map(); // photos are optional (e.g. migration 0009 not run yet)
+    return new Map(((data ?? []) as unknown as Row[]).map((r) => [r.user_id, r]));
   }
 
   async listExercises() {
@@ -276,18 +302,21 @@ export class SupabaseStore implements Store {
 
   async friendsToday(now: Date): Promise<FriendStatus[]> {
     const rows = check(await this.sb.rpc("friends_today", { p_now: now.toISOString() }), "friendsToday") as Row[];
+    const media = await this.mediaFor(rows.map((r) => r.friend_id));
     return rows.map((r) => ({
       friendId: r.friend_id, displayName: r.display_name, nickname: r.nickname ?? null, kind: r.kind, dayName: r.day_name,
-      setsToday: r.sets_today, lastSessionAt: r.last_session_at,
+      setsToday: r.sets_today, lastSessionAt: r.last_session_at, avatar: media.get(r.friend_id)?.avatar ?? null,
     }));
   }
 
   async getFriendProfile(friendId: string, now: Date): Promise<FriendProfile | null> {
     const p = check(await this.sb.rpc("friend_profile", { p_friend: friendId, p_now: now.toISOString() }), "getFriendProfile") as Row | null;
     if (!p) return null;
-    if (!p.shared) return { id: p.id, displayName: p.display_name, nickname: p.nickname ?? null, shared: false };
+    const m = (await this.mediaFor([p.id], "user_id, avatar, banner")).get(p.id);
+    const media = { avatar: m?.avatar ?? null, banner: m?.banner ?? null };
+    if (!p.shared) return { id: p.id, displayName: p.display_name, nickname: p.nickname ?? null, shared: false, ...media };
     return {
-      id: p.id, displayName: p.display_name, nickname: p.nickname ?? null, shared: true, unit: p.unit,
+      id: p.id, displayName: p.display_name, nickname: p.nickname ?? null, shared: true, unit: p.unit, ...media,
       today: { kind: p.today?.kind, dayName: p.today?.day_name ?? null, setsToday: p.today?.sets_today ?? null },
       lastSessionAt: p.last_session_at, sessionsThisWeek: Number(p.sessions_this_week ?? 0), sessions30d: Number(p.sessions_30d ?? 0),
       splitName: p.split_name ?? null,
@@ -335,6 +364,19 @@ export class SupabaseStore implements Store {
   async getShareStatus() {
     const id = await this.userId();
     return check(await this.sb.from("users").select("share_status").eq("id", id).single(), "getShareStatus").share_status as boolean;
+  }
+
+  async listGoals() {
+    return check(await this.sb.from("goals").select("*").order("created_at"), "listGoals").map(toGoal);
+  }
+
+  async saveGoal(g: Goal) {
+    const row = { id: g.id, type: g.type, exercise_id: g.exerciseId, target_value: g.targetValue, target_weight: g.targetWeightKg, deadline: g.deadline, achieved_at: g.achievedAt };
+    return toGoal(check(await this.sb.from("goals").upsert(row).select().single(), "saveGoal"));
+  }
+
+  async deleteGoal(id: string) {
+    check(await this.sb.from("goals").delete().eq("id", id), "deleteGoal");
   }
 
   async listReminders() {

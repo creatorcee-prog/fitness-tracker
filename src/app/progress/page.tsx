@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
+import { GoalsCard } from "@/components/GoalsCard";
 import { e1rm } from "@/lib/domain/e1rm";
 import { percentageGains } from "@/lib/domain/gain";
 import { currentRecords, replayPRs } from "@/lib/domain/prs";
@@ -148,7 +149,13 @@ export default function ProgressPage() {
   const w = (kg: number | null | undefined) => (kg == null ? "—" : formatWeight(kg, unit, cfg.units.displayDecimals));
 
   if (!exercises.length) {
-    return <div className="page"><h1>Progress</h1><p className="muted">Log a few sets and your graphs show up here. (Debugging? Settings → Generate demo history.)</p></div>;
+    return (
+      <div className="page stack">
+        <h1>Progress</h1>
+        <GoalsCard />
+        <p className="muted">Log a few sets and your graphs show up here. (Debugging? Settings → Generate demo history.)</p>
+      </div>
+    );
   }
 
   return (
@@ -172,6 +179,8 @@ export default function ProgressPage() {
       </div>
 
       <div className="card"><div ref={chartEl} className="chart" /></div>
+
+      <GoalsCard />
 
       <div className="tile hero">
         <span className="small" style={{ opacity: 0.8 }}>Percentage gain (best e1RM, last {cfg.progress.currentWindowDays} days)</span>

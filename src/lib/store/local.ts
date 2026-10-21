@@ -1,6 +1,9 @@
 import type { AppConfig } from "@/config/app.config";
+import type { Goal } from "@/lib/domain/goals";
 import { advance, getToday, type Today } from "@/lib/domain/split";
-import type { AccountPrefs, Exercise, FriendProfile, FriendRequest, FriendStatus, NutritionEntry, NutritionTargets, PREvent, Reminder, Profile, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
+import type { AccountPrefs, Exercise, FriendProfile, FriendRequest, FriendStatus, NutritionEntry, NutritionTargets, PREvent, Reminder, Profile, ProfileMedia, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
+import { replayPRs } from "@/lib/domain/prs";
+import { planImport, type ExportData } from "@/lib/importPlan";
 import { SEED_EXERCISES, seedSplit } from "./seed";
 import type { NewSet, Store } from "./types";
 
@@ -19,8 +22,10 @@ interface DB {
   reminders: Reminder[];
   announcePRs: boolean;
   nicknames: Record<string, string>;
+  goals: Goal[];
   nutrition: NutritionEntry[];
   nutritionTargets: NutritionTargets;
+  media: ProfileMedia;
 }
 
 /** UUIDs everywhere so ids are valid in both backends. */
@@ -48,8 +53,10 @@ function freshDb(cfg: AppConfig): DB {
     reminders: [],
     announcePRs: false,
     nicknames: {},
+    goals: [],
     nutrition: [],
     nutritionTargets: { calories: null, protein: null },
+    media: { avatar: null, banner: null },
   };
 }
 
@@ -106,6 +113,14 @@ export class LocalStore implements Store {
 
   async updateProfile(patch: Partial<Omit<Profile, "id">>) {
     return this.mutate("updateProfile", (db) => (db.profile = { ...db.profile, ...patch }));
+  }
+
+  async getMyMedia() {
+    return { ...this.db.media };
+  }
+
+  async setMyMedia(patch: Partial<ProfileMedia>) {
+    this.mutate("setMyMedia", (db) => (db.media = { ...db.media, ...patch }));
   }
 
   async listExercises() {
@@ -361,6 +376,23 @@ export class LocalStore implements Store {
     return this.read("getShareStatus", (db) => db.shareStatus);
   }
 
+  async listGoals() {
+    return this.read("listGoals", (db) => [...db.goals].sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
+  }
+
+  async saveGoal(g: Goal) {
+    return this.mutate("saveGoal", (db) => {
+      const i = db.goals.findIndex((x) => x.id === g.id);
+      if (i >= 0) db.goals[i] = g;
+      else db.goals.push(g);
+      return g;
+    });
+  }
+
+  async deleteGoal(id: string) {
+    this.mutate("deleteGoal", (db) => (db.goals = db.goals.filter((g) => g.id !== id)));
+  }
+
   // Reminders and announcements are stored so the Settings UI can be debugged
   // locally, but only the Supabase backend + Discord bot actually send them.
   async listReminders() {
@@ -414,7 +446,22 @@ export class LocalStore implements Store {
   }
 
   async importAll(data: unknown) {
-    this.mutate("importAll", (db) => Object.assign(db, data as DB));
+    const d = data as ExportData & { merge?: boolean };
+    if (!d?.merge) return void this.mutate("importAll", (db) => Object.assign(db, data as DB));
+    // Merge (Import old workouts): same rules as the Supabase importer.
+    const plan = planImport(d, { exercises: this.db.exercises, sessionStarts: new Set(this.db.sessions.map((x) => new Date(x.startedAt).toISOString())), hasActiveSplit: this.db.splits.some((x) => x.isActive) }, uid);
+    this.mutate("importAll", (db) => {
+      db.exercises.push(...plan.newExercises.map((e) => ({ ...e, ownerId: db.profile.id })));
+      db.splits.push(...plan.splits);
+      db.sessions.push(...plan.sessions);
+      db.sets.push(...plan.sets);
+      db.sessions.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+      db.sets.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    });
+    for (const exerciseId of new Set(plan.sets.map((x) => x.exerciseId))) {
+      await this.savePersonalRecords(exerciseId, replayPRs(await this.listSets({ exerciseId }), this.db.sessions, this.cfg));
+    }
+    return { sessions: plan.sessions.length, sets: plan.sets.length, skipped: plan.skippedSessions };
   }
 
   async resetAll() {

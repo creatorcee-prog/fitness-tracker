@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { resolveConfig } from "@/config/runtime";
 import { AppProvider } from "@/components/AppProvider";
 import { CoachChat } from "@/components/CoachChat";
+import { MascotProvider } from "@/components/Mascot";
 import { DebugPanel } from "@/components/DebugPanel";
 import { NavBar } from "@/components/NavBar";
 import { SyncBanner } from "@/components/SyncBanner";
@@ -27,10 +28,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <AppProvider>
-          <SyncBanner />
-          {children}
-          <NavBar />
-          <CoachChat />
+          <MascotProvider>
+            <SyncBanner />
+            {children}
+            <NavBar />
+            <CoachChat />
+          </MascotProvider>
           <DebugPanel />
         </AppProvider>
       </body>

@@ -1,9 +1,10 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { AppConfig, Unit } from "@/config/app.config";
 import { e1rm } from "@/lib/domain/e1rm";
+import type { Goal } from "@/lib/domain/goals";
 import type { Today } from "@/lib/domain/split";
 import type { Exercise, FriendStatus, PREvent, Session, SetEntry, Split } from "@/lib/domain/types";
-import { check, toExercise, toSession, toSet, toSplit } from "@/lib/store/supabase";
+import { check, toExercise, toGoal, toSession, toSet, toSplit } from "@/lib/store/supabase";
 import type { NewSet } from "@/lib/store/types";
 
 export interface BotUser {
@@ -18,13 +19,8 @@ export interface BotUser {
   discordId: string | null;
 }
 
-/** Active goal, as stored (the app has no goals UI yet; /ask reads any that exist). */
-export interface GoalRow {
-  type: string;
-  exerciseId: string | null;
-  targetValue: number;
-  deadline: string | null;
-}
+/** Goals as stored (see src/lib/domain/goals.ts). */
+export type GoalRow = Goal;
 
 export interface DueReminder {
   reminderId: string;
@@ -140,8 +136,7 @@ export class SupabaseBotData implements BotData {
   }
 
   async listGoals(uid: string): Promise<GoalRow[]> {
-    const rows = check(await this.sb.from("goals").select("*").eq("user_id", uid), "listGoals");
-    return rows.map((r: Row) => ({ type: r.type, exerciseId: r.exercise_id, targetValue: Number(r.target_value), deadline: r.deadline }));
+    return check(await this.sb.from("goals").select("*").eq("user_id", uid).order("created_at"), "listGoals").map(toGoal);
   }
 
   async listBodyweight(uid: string) {
