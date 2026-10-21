@@ -145,6 +145,20 @@ describe("in-app chat", () => {
     expect(r).toMatchObject({ outcome: "answered", answer: "Keep going!" });
     expect((await data.aiUsageToday("u1", "2026-10-21")).user).toBe(1); // same cap as Discord
   });
+  it("app chat: James may propose changes; they come back validated and stripped from the text", async () => {
+    const reply = 'Good idea, let\'s add a set.\n<actions>[{"type":"set_plan","day":"Push","lift":"Bench Press","sets":4},{"type":"drop_table"}]</actions>';
+    const r = await handleAsk(appDeps(fakeFetch([ok(reply)])), "Can you add a bench set on push day?");
+    expect(r.answer).toBe("Good idea, let's add a set.");
+    expect(r.actions).toEqual([{ type: "set_plan", day: "Push", lift: "Bench Press", sets: 4 }]);
+    const sys = (calls[0].body.messages as { content: string }[])[0].content;
+    expect(sys).toContain("PROPOSE changes");
+    expect(calls[0].body.max_completion_tokens).toBe(700);
+  });
+  it("Discord /ask never gets the change list or returns actions", async () => {
+    const r = await handleAsk(deps(fakeFetch([ok('Sure <actions>[{"type":"set_unit","unit":"kg"}]</actions>')])), "switch me to kg?");
+    expect(r.actions ?? []).toEqual([]);
+    expect((calls[0].body.messages as { content: string }[])[0].content).not.toContain("PROPOSE");
+  });
   it("includes only the last N earlier turns", async () => {
     const history = [1, 2, 3].map((i) => ({ question: `Q${i}?`, answer: `A${i}` }));
     await handleAsk(appDeps(fakeFetch([ok("x")]), env({ historyTurns: 2 })), "And squats?", history);

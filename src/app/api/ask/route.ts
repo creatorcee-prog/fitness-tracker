@@ -32,8 +32,8 @@ export async function POST(req: NextRequest) {
       body.question,
       history,
     );
-    console.log(`[ask:app] outcome=${r.outcome}${r.model ? ` model=${r.model} in=${r.tokensIn} out=${r.tokensOut}` : ""}`);
-    return NextResponse.json({ outcome: r.outcome, answer: r.answer ?? r.content });
+    console.log(`[ask:app] outcome=${r.outcome}${r.model ? ` model=${r.model} in=${r.tokensIn} out=${r.tokensOut}` : ""}${r.actions?.length ? ` actions=${r.actions.map((a) => a.type).join(",")}` : ""}`);
+    return NextResponse.json({ outcome: r.outcome, answer: r.answer ?? r.content, actions: r.actions ?? [] });
   } catch (e) {
     console.error("[ask:app]", e);
     return NextResponse.json({ outcome: "error", answer: "⚠️ I couldn't answer right now. Please try again in a bit." }, { status: 200 });

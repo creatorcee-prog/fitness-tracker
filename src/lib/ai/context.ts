@@ -19,7 +19,7 @@ const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
  * database; the model is told to use nothing else. Shrinks itself to stay
  * under `maxTokens`.
  */
-export async function buildTrainingContext(data: BotData, user: BotUser, cfg: AppConfig, now: Date, maxTokens = 2000): Promise<string> {
+export async function buildTrainingContext(data: BotData, user: BotUser, cfg: AppConfig, now: Date, maxTokens = 2000, allDays = false): Promise<string> {
   const [today, split, exercises, sessions, sets, goals, bodyweight] = await Promise.all([
     data.getToday(user.id, now),
     data.getActiveSplit(user.id),
@@ -48,6 +48,10 @@ export async function buildTrainingContext(data: BotData, user: BotUser, cfg: Ap
     lines.push("Today: rest day on a weekly split.");
   } else {
     lines.push("No split set up.");
+  }
+  // In the app James can propose split edits, so he needs every day's plan, not just today's.
+  if (allDays && split?.days.length) {
+    lines.push(`All split days (${split.mode}): ${[...split.days].sort((a, b) => a.position - b.position).map((d) => `${d.name} [${[...d.exercises].sort((a, b) => a.order - b.order).map((x) => `${name.get(x.exerciseId) ?? "?"} ${x.targetSets}x${x.repRange}`).join(", ") || "empty"}]`).join("; ")}.`);
   }
   const open = sessions.find((s) => !s.finishedAt);
   if (open) lines.push(`Workout in progress: ${dayName.get(open.splitDayId ?? "") ?? "freestyle"}, ${sets.filter((s) => s.sessionId === open.id && !s.isWarmup).length} working sets so far.`);

@@ -1,6 +1,7 @@
 import type { AppConfig } from "@/config/app.config";
 import type { BotData } from "@/lib/bot/data";
 import { parseFreeText } from "@/lib/domain/freetext";
+import { ACTIONS_PROMPT, extractActions, type AccountAction } from "./actions";
 import { buildTrainingContext } from "./context";
 
 /**
@@ -24,6 +25,8 @@ export interface AiEnv {
   contextTokens: number;
   /** In-app chat only: how many earlier exchanges to include for follow-up questions (0 = none). */
   historyTurns: number;
+  /** In-app chat only: extra output tokens so James can add proposed changes (the Apply cards). */
+  actionTokens: number;
   /** Sampling: higher temperature = more varied wording. */
   temperature: number;
   /** Sampling: only consider the most likely 90% of words. */
@@ -46,6 +49,7 @@ export function aiEnvFromProcess(e: NodeJS.ProcessEnv = process.env): AiEnv {
     maxOutputTokens: num(e.AI_MAX_OUTPUT_TOKENS, 500),
     contextTokens: num(e.AI_CONTEXT_TOKENS, 2000),
     historyTurns: num(e.AI_CHAT_HISTORY_TURNS, 2),
+    actionTokens: num(e.AI_ACTION_TOKENS, 200),
     temperature: num(e.AI_TEMPERATURE, 0.5),
     topP: num(e.AI_TOP_P, 0.9),
     frequencyPenalty: num(e.AI_FREQUENCY_PENALTY, 0.25),
@@ -78,6 +82,8 @@ export interface AskResult {
   tokensOut?: number;
   /** The model's answer without the Discord footer (for the in-app chat). */
   answer?: string;
+  /** In-app chat only: validated changes James proposes; the user taps Apply. */
+  actions?: AccountAction[];
 }
 
 const DISCORD_LIMIT = 2000;
@@ -88,7 +94,7 @@ const FOOTER = "\n-# AI answer from your logged data · not medical advice";
  * question. Based on the app owner's coach prompt, plus the rules this
  * integration needs (read-only, only use the provided numbers, units).
  */
-export function systemPrompt(cfg: AppConfig, unit: string): string {
+export function systemPrompt(cfg: AppConfig, unit: string, inApp = false): string {
   return `You are ${cfg.brand.botName}, a supportive, knowledgeable fitness coach inside a Discord bot for the ${cfg.brand.appName} workout tracking app.
 
 Your style:
@@ -102,11 +108,11 @@ Rules you must follow:
 - Never encourage extreme deficits, dangerous form, or overtraining
 - If the user asks something medical (pain, injury, illness, medication), politely redirect them to a professional
 - Use the actual numbers in TRAINING DATA instead of guessing. If something you'd need isn't there, say it's missing. Never invent sets, weights, dates or PRs
-- You can't log or change anything. If the user is trying to log a set, tell them to use /log
+- ${inApp ? "You can't log sets. If the user is trying to log a set, tell them to use the Today screen" : "You can't log or change anything. If the user is trying to log a set, tell them to use /log"}
 - Use ${unit} for weights
 - Keep responses under ~150-200 words unless the user asks for more detail
 
-You have the user's recent workout history and goals in TRAINING DATA when provided.`;
+You have the user's recent workout history and goals in TRAINING DATA when provided.${inApp ? `\n\n${ACTIONS_PROMPT}` : ""}`;
 }
 
 class HttpError extends Error {
@@ -123,12 +129,12 @@ class HttpError extends Error {
  */
 type Message = { role: "system" | "user" | "assistant"; content: string };
 
-async function chat(deps: AskDeps, model: string, messages: Message[]) {
+async function chat(deps: AskDeps, model: string, messages: Message[], maxTokens = deps.env.maxOutputTokens) {
   const { env } = deps;
   const body: Record<string, unknown> = {
     model,
     messages,
-    max_completion_tokens: env.maxOutputTokens,
+    max_completion_tokens: maxTokens,
     temperature: env.temperature,
     top_p: env.topP,
     frequency_penalty: env.frequencyPenalty,
@@ -216,8 +222,8 @@ export async function handleAsk(deps: AskDeps, question: string, history: ChatTu
   if (used.user >= env.dailyUserLimit) return { outcome: "user-cap", content: `⏳ You've used today's ${env.dailyUserLimit} questions. They reset at midnight UTC. Try again tomorrow!` };
   if (used.global >= env.dailyGlobalLimit) return { outcome: "global-cap", content: `⏳ I've hit today's question limit for everyone (free tier). Try again tomorrow!` };
 
-  const context = await buildTrainingContext(data, user, cfg, now, env.contextTokens);
-  const system = systemPrompt(cfg, user.unit);
+  const context = await buildTrainingContext(data, user, cfg, now, env.contextTokens, inApp);
+  const system = systemPrompt(cfg, user.unit, inApp);
   const prompt = `TRAINING DATA:\n${context}\n\nQUESTION: ${q}`;
   // Earlier chat turns (app only), trimmed, so follow-ups like "and squats?" make sense.
   const keep = Math.max(0, env.historyTurns); // note: slice(-0) would return everything, hence the check
@@ -230,12 +236,14 @@ export async function handleAsk(deps: AskDeps, question: string, history: ChatTu
   const models = [env.model, ...(env.fallbackModel && env.fallbackModel !== env.model ? [env.fallbackModel] : [])];
   for (const model of models) {
     try {
-      const r = await chat(deps, model, messages);
+      // In the app, leave room for a proposed-changes block on top of the answer.
+      const r = await chat(deps, model, messages, inApp ? env.maxOutputTokens + env.actionTokens : env.maxOutputTokens);
       await data.recordAiUsage(user.id, day, r.tokensIn, r.tokensOut).catch((e) => console.error("[ask] usage", e));
-      if (!r.text) return { outcome: "empty", model, tokensIn: r.tokensIn, tokensOut: r.tokensOut, content: "🤔 I couldn't come up with an answer to that. Try asking it a different way." };
+      const { text: reply, actions } = inApp ? extractActions(r.text) : { text: r.text, actions: [] };
+      if (!reply && !actions.length) return { outcome: "empty", model, tokensIn: r.tokensIn, tokensOut: r.tokensOut, content: "🤔 I couldn't come up with an answer to that. Try asking it a different way." };
       const room = DISCORD_LIMIT - FOOTER.length;
-      const text = r.text.length > room ? `${r.text.slice(0, room - 1).trimEnd()}…` : r.text;
-      return { outcome: "answered", model, tokensIn: r.tokensIn, tokensOut: r.tokensOut, content: text + FOOTER, answer: r.text };
+      const text = reply.length > room ? `${reply.slice(0, room - 1).trimEnd()}…` : reply;
+      return { outcome: "answered", model, tokensIn: r.tokensIn, tokensOut: r.tokensOut, content: text + FOOTER, answer: reply || "Here's what I'd change:", actions };
     } catch (e) {
       if (e instanceof HttpError && e.status === 429) continue; // rate limited: try the fallback model, if any
       console.error("[ask]", e);
