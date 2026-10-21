@@ -149,14 +149,15 @@ describe("buildImport", () => {
   it("matches lifts conservatively and creates the rest with the written name", async () => {
     const store = new LocalStore(cfg, new Mem());
     const ex = await store.listExercises();
-    const data = readWorkoutText("Oct 14 - Push\nBench 185x5\nOHP 115x8\nPress 100x5\nZercher squat 135x5", "lb", NOW);
+    const data = readWorkoutText("Oct 14 - Push\nBench 185x5\nOHP 115x8\nPress 100x5\nMoon squat 135x5", "lb", NOW);
     const { preview } = buildImport(data, inferProgram(data.sessions), ex, { history: true, program: true, activate: false, goals: true }, cfg, id);
     const byName = Object.fromEntries(preview.lifts.map((l) => [l.name, l.existing]));
     expect(byName.Bench).toBe("Bench Press");
     expect(byName.OHP).toBe("Overhead Press"); // alias
     expect(byName.Press).toBeNull(); // too vague to guess
-    expect(byName["Zercher squat"]).toBeNull();
-    expect(guessCategory("Zercher squat")).toBe("lower");
+    expect(byName["Moon squat"]).toBeNull();
+    expect(guessCategory("Moon squat")).toBe("lower");
+
   });
   it("imports into the local store, merges, rebuilds PRs, and is safe to repeat", async () => {
     const store = new LocalStore(cfg, new Mem());
