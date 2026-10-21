@@ -400,7 +400,7 @@ export class SupabaseStore implements Store {
   /** Import an export (e.g. from local mode). Safe to repeat: sessions already present are skipped. */
   async importAll(raw: unknown) {
     const data = raw as ExportData;
-    if (!data || !Array.isArray(data.sessions) || !Array.isArray(data.sets)) throw new Error("That file doesn't look like a Fitness Tracker export.");
+    if (!data || !Array.isArray(data.sessions) || !Array.isArray(data.sets)) throw new Error(`That file doesn't look like a ${this.cfg.brand.appName} export.`);
     const owner_id = await this.userId();
     const [exercises, sessions, splits] = await Promise.all([this.listExercises(), this.listSessions(), this.listSplits()]);
     const plan = planImport(

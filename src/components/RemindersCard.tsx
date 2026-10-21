@@ -10,7 +10,7 @@ const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frid
 
 /** Settings → Reminders & announcements. Sending needs the Supabase backend + Discord bot. */
 export function RemindersCard() {
-  const { store, profile, version } = useApp();
+  const { cfg, store, profile, version } = useApp();
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [announce, setAnnounce] = useState<AnnounceSettings>({ enabled: false, channelSet: false });
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +49,7 @@ export function RemindersCard() {
     <div className="card stack">
       <h2>Reminders</h2>
       <p className="muted small">
-        A Discord DM at your chosen time with today&apos;s split day and <b>Start / Rest day / Skip / Snooze</b> buttons. It isn&apos;t sent if you&apos;ve
+        {cfg.brand.botName} sends a Discord DM at your chosen time with today&apos;s split day and <b>Start / Rest day / Skip / Snooze</b> buttons. It isn&apos;t sent if you&apos;ve
         already trained that day. Times are in your timezone ({profile.timezone}).
         {store.kind === "local" && " Local mode only stores these; sending needs the Supabase backend."}
       </p>

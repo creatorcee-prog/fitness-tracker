@@ -1,4 +1,4 @@
-# Fitness Tracker
+# Garage Gym
 
 Phase 1 (lifting core) of the build plan: fast set logging, automatic PR detection, PR-marked graphs and a split that always knows what day it is. It also includes friends, a customizable dashboard and themes.
 

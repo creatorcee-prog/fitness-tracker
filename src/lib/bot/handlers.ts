@@ -58,7 +58,7 @@ const setText = (s: SetEntry, unit: Unit) => `${num(s.weightKg, unit)}×${s.reps
 
 async function requireUser(ctx: BotContext): Promise<BotUser> {
   const u = await ctx.data.findUser(ctx.discordUserId);
-  if (!u) throw new UserError(`👋 I don't know you yet. Sign in at ${ctx.appUrl} with this Discord account, then try again.`);
+  if (!u) throw new UserError(`👋 Hey, I'm ${ctx.cfg.brand.botName}. I don't know you yet. Sign in at ${ctx.appUrl} with this Discord account, then try again.`);
   return u;
 }
 

@@ -24,6 +24,15 @@ export interface WidgetConfig {
 }
 
 export const defaultConfig = {
+  brand: {
+    /** Shown in the browser tab, home-screen install, login screen and share text. */
+    appName: "Garage Gym",
+    /** Home-screen label (keep it short). */
+    shortName: "Garage Gym",
+    /** The Discord bot's persona. Its actual Discord name is set in the Developer Portal. */
+    botName: "James",
+  },
+
   data: {
     /**
      * "local" keeps everything in this browser; "supabase" uses the hosted database.

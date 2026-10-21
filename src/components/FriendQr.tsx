@@ -1,10 +1,12 @@
 "use client";
 
 import QRCode from "qrcode";
+import { useApp } from "./AppProvider";
 import { useEffect, useState } from "react";
 
 /** QR of the add-friend link. Scanning with any phone camera opens the app and sends a request. */
 export function FriendQr({ code }: { code: string }) {
+  const { cfg } = useApp();
   const [svg, setSvg] = useState("");
   const link = typeof window === "undefined" ? "" : `${window.location.origin}/friends/add?code=${encodeURIComponent(code)}`;
 
@@ -16,7 +18,7 @@ export function FriendQr({ code }: { code: string }) {
   }, [code, link]);
 
   const share = async () => {
-    if (navigator.share) await navigator.share({ title: "Add me on Fitness Tracker", url: link }).catch(() => {});
+    if (navigator.share) await navigator.share({ title: `Add me on ${cfg.brand.appName}`, url: link }).catch(() => {});
     else await navigator.clipboard?.writeText(link);
   };
 
