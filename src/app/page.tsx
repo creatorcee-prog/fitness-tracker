@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useApp } from "@/components/AppProvider";
 import { MascotBubble, useMascot } from "@/components/Mascot";
+import { useMyMedia } from "@/components/ProfileMediaCard";
 import { WeekStrip } from "@/components/WeekStrip";
 import { Dashboard } from "@/components/Dashboard";
 import { RestTimer, type TimerState } from "@/components/RestTimer";
@@ -42,6 +43,7 @@ export default function TodayPage() {
   const toast = useToast(cfg.logging.undoToastMs);
   const mascot = useMascot();
   const greeted = useRef(false);
+  const { media } = useMyMedia();
 
   const [today, setToday] = useState<Today | null>(null);
   const [split, setSplit] = useState<Split | null>(null);
@@ -360,7 +362,10 @@ export default function TodayPage() {
           <div className="hello">{greeting}, {profile.displayName}</div>
           <h1>{day ? `Ready for ${day.name}?` : restDay ? "Rest day. Recover well." : today?.kind === "no-split" ? "Let's set up your split" : "Ready to train?"}</h1>
         </div>
-        <Link href="/settings" className="avatar-btn" aria-label="Profile and settings">{profile.displayName.slice(0, 1).toUpperCase()}</Link>
+        <Link href="/settings" className={`avatar-btn ${media.avatar ? "has-photo" : ""}`} aria-label="Profile and settings">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {media.avatar ? <img src={media.avatar} alt="" /> : profile.displayName.slice(0, 1).toUpperCase()}
+        </Link>
       </header>
 
       <MascotBubble />

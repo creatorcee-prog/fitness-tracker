@@ -91,7 +91,7 @@ export default function FriendsPage() {
           const s = statusLine(f);
           return (
             <Link key={f.friendId} href={`/friends/profile?id=${encodeURIComponent(f.friendId)}`} className="card friend" style={{ color: "inherit" }}>
-              <Avatar id={f.friendId} name={f.nickname || f.displayName} />
+              <Avatar id={f.friendId} name={f.nickname || f.displayName} src={f.avatar} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <strong>{f.nickname || f.displayName}</strong>
                 {f.nickname && <span className="muted small"> · {f.displayName}</span>}

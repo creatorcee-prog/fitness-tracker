@@ -33,6 +33,14 @@ export const defaultConfig = {
     botName: "James",
   },
 
+  auth: {
+    /**
+     * Sign-in buttons on the login screen (Supabase backend). Each provider must
+     * also be enabled in Supabase → Authentication → Sign In / Providers.
+     */
+    providers: ["discord", "google"] as ("discord" | "google")[],
+  },
+
   data: {
     /**
      * "local" keeps everything in this browser; "supabase" uses the hosted database.

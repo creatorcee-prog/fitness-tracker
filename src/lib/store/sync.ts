@@ -1,7 +1,7 @@
 import type { AppConfig } from "@/config/app.config";
 import type { Goal } from "@/lib/domain/goals";
 import type { Today } from "@/lib/domain/split";
-import type { AccountPrefs, Exercise, NutritionEntry, NutritionTargets, PREvent, Profile, Reminder, SetEntry, Split } from "@/lib/domain/types";
+import type { AccountPrefs, Exercise, NutritionEntry, NutritionTargets, PREvent, Profile, ProfileMedia, Reminder, SetEntry, Split } from "@/lib/domain/types";
 import { LocalStore, uid } from "./local";
 import type { NewSet, Store } from "./types";
 
@@ -376,6 +376,12 @@ export class SyncStore implements Store {
   }
   getShareStatus() {
     return this.online_(() => this.remote.getShareStatus());
+  }
+  getMyMedia() {
+    return this.online_(() => this.remote.getMyMedia());
+  }
+  setMyMedia(patch: Partial<ProfileMedia>) {
+    return this.online_(() => this.remote.setMyMedia(patch));
   }
   getFriendProfile(friendId: string, now: Date) {
     return this.online_(() => this.remote.getFriendProfile(friendId, now));

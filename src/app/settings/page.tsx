@@ -7,8 +7,10 @@ import { deepMerge } from "@/config/runtime";
 import { contrastRatio, THEME_PRESETS } from "@/config/themes";
 import { useApp } from "@/components/AppProvider";
 import { withNewWidgets } from "@/components/Dashboard";
+import { ProfileMediaHeader } from "@/components/ProfileMediaCard";
 import { NutritionTargetsCard } from "@/components/NutritionTargetsCard";
 import { RemindersCard } from "@/components/RemindersCard";
+import { SignInMethodsCard } from "@/components/SignInMethodsCard";
 import { useToast } from "@/components/UndoToast";
 import { generateDemoHistory } from "@/lib/service";
 import { supabaseOf } from "@/lib/store";
@@ -86,6 +88,7 @@ export default function SettingsPage() {
 
       <div className="card stack">
         <h2>Profile</h2>
+        <ProfileMediaHeader onError={(m) => toast.show({ text: m })} />
         <label className="field">Display name<input value={name} onChange={(e) => setName(e.target.value)} onBlur={() => saveProfile({ displayName: name })} /></label>
         <div className="row">
           <span className="muted small">Unit</span>
@@ -101,6 +104,8 @@ export default function SettingsPage() {
           ) : null;
         })()}
       </div>
+
+      <SignInMethodsCard />
 
       <div className="card stack">
         <h2>Logging</h2>

@@ -1,7 +1,7 @@
 import type { AppConfig } from "@/config/app.config";
 import type { Goal } from "@/lib/domain/goals";
 import { advance, getToday, type Today } from "@/lib/domain/split";
-import type { AccountPrefs, Exercise, FriendProfile, FriendRequest, FriendStatus, NutritionEntry, NutritionTargets, PREvent, Reminder, Profile, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
+import type { AccountPrefs, Exercise, FriendProfile, FriendRequest, FriendStatus, NutritionEntry, NutritionTargets, PREvent, Reminder, Profile, ProfileMedia, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
 import { SEED_EXERCISES, seedSplit } from "./seed";
 import type { NewSet, Store } from "./types";
 
@@ -23,6 +23,7 @@ interface DB {
   goals: Goal[];
   nutrition: NutritionEntry[];
   nutritionTargets: NutritionTargets;
+  media: ProfileMedia;
 }
 
 /** UUIDs everywhere so ids are valid in both backends. */
@@ -53,6 +54,7 @@ function freshDb(cfg: AppConfig): DB {
     goals: [],
     nutrition: [],
     nutritionTargets: { calories: null, protein: null },
+    media: { avatar: null, banner: null },
   };
 }
 
@@ -109,6 +111,14 @@ export class LocalStore implements Store {
 
   async updateProfile(patch: Partial<Omit<Profile, "id">>) {
     return this.mutate("updateProfile", (db) => (db.profile = { ...db.profile, ...patch }));
+  }
+
+  async getMyMedia() {
+    return { ...this.db.media };
+  }
+
+  async setMyMedia(patch: Partial<ProfileMedia>) {
+    this.mutate("setMyMedia", (db) => (db.media = { ...db.media, ...patch }));
   }
 
   async listExercises() {

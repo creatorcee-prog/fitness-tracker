@@ -55,8 +55,9 @@ function Profile() {
     <div className="page stack">
       <Link href="/friends" className="small" style={{ fontWeight: 600 }}>‹ Friends</Link>
 
-      <div className="row" style={{ gap: 14, flexWrap: "nowrap" }}>
-        <Avatar id={p.id} name={name} size={64} />
+      {p.banner && <div className="profile-banner" style={{ backgroundImage: `url(${p.banner})` }} />}
+      <div className="row" style={{ gap: 14, flexWrap: "nowrap", marginTop: p.banner ? -44 : 0, paddingLeft: p.banner ? 10 : 0 }}>
+        <Avatar id={p.id} name={name} size={64} src={p.avatar} />
         <div style={{ minWidth: 0 }}>
           <h1 style={{ fontSize: "1.7rem" }}>{name}</h1>
           <div className="muted small">{p.nickname ? `${p.displayName} · ` : ""}{p.shared && p.splitName ? p.splitName : p.shared ? "No active split" : "Keeps their training private"}</div>

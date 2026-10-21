@@ -99,6 +99,14 @@ export interface FriendStatus {
   /** Working sets logged today (friend's timezone); null when hidden. */
   setsToday: number | null;
   lastSessionAt: string | null;
+  /** Profile photo (data URL), when they've set one. */
+  avatar?: string | null;
+}
+
+/** Profile photo and banner as small data URLs (resized in the browser). */
+export interface ProfileMedia {
+  avatar: string | null;
+  banner: string | null;
 }
 
 export interface FriendRequest {
@@ -135,6 +143,8 @@ export interface FriendProfile {
   nickname: string | null;
   /** False when the friend turned off sharing: only the name is available. */
   shared: boolean;
+  avatar?: string | null;
+  banner?: string | null;
   unit?: "lb" | "kg";
   today?: { kind: FriendStatus["kind"]; dayName: string | null; setsToday: number | null };
   lastSessionAt?: string | null;
