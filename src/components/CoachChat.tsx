@@ -7,7 +7,10 @@ import { deepMerge } from "@/config/runtime";
 import { applyAction, describeAction, validateAction, type AccountAction } from "@/lib/ai/actions";
 import { supabaseOf } from "@/lib/store";
 import { uid } from "@/lib/store/local";
+import type { Mood } from "@/lib/mascot/lines";
+import { parseFreeText } from "@/lib/domain/freetext";
 import { useApp } from "./AppProvider";
+import { JamesSilhouette } from "./JamesSilhouette";
 
 interface Proposal {
   action: AccountAction;
@@ -22,6 +25,8 @@ interface Msg {
   answered?: boolean;
   /** Changes James proposed with this answer; nothing happens until Apply. */
   proposals?: Proposal[];
+  /** James's face for this reply (header avatar follows the latest one). */
+  mood?: Mood;
 }
 
 /** Tiny, safe renderer for the coach's replies: **bold**, `code`, bullet lines and paragraphs. No HTML injection. */
@@ -62,10 +67,18 @@ export function CoachChat() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const sb = supabaseOf(store);
   const bot = cfg.brand.botName;
 
   useEffect(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), [msgs, busy]);
+  // The message box grows with its text (up to ~6 lines, then scrolls).
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 150)}px`;
+  }, [input, open]);
   // Keep the conversation for this browser tab only (not stored anywhere).
   useEffect(() => {
     try {
@@ -103,13 +116,14 @@ export function CoachChat() {
       const json = (await res.json()) as { outcome?: string; answer?: string; actions?: unknown[] };
       // Validate again here: never trust what comes over the network.
       const proposals = (json.actions ?? []).map(validateAction).filter((a): a is AccountAction => a !== null).map((action): Proposal => ({ action, state: "new" }));
-      setMsgs((m) => [...m, { role: "coach", text: json.answer ?? "Something went wrong.", answered: json.outcome === "answered", proposals }]);
+      const answered = json.outcome === "answered";
+      setMsgs((m) => [...m, { role: "coach", text: json.answer ?? "Something went wrong.", answered, proposals, mood: answered ? "happy" : "concerned" }]);
     } catch (e) {
       const offline = typeof navigator !== "undefined" && !navigator.onLine;
       const text = (e as Error).message === "local"
         ? `${bot} needs the online (Supabase) version of the app.`
         : offline ? "You're offline. Ask me again when you have signal." : "⚠️ I couldn't answer right now. Please try again in a bit.";
-      setMsgs((m) => [...m, { role: "coach", text }]);
+      setMsgs((m) => [...m, { role: "coach", text, mood: "concerned" }]);
     } finally {
       setBusy(false);
     }
@@ -127,6 +141,7 @@ export function CoachChat() {
       });
       undos.current.set(`${mi}:${pi}`, undo);
       setProposal(mi, pi, { state: "applied" });
+      setMsgs((m) => m.map((x, i) => (i === mi ? { ...x, mood: "proud" } : x)));
       setProfile(await store.getProfile());
       refresh();
     } catch (e) {
@@ -149,6 +164,13 @@ export function CoachChat() {
     }
   };
 
+  // Header face: thinking while busy, else the mood of his latest reply.
+  const lastCoach = [...msgs].reverse().find((m) => m.role === "coach");
+  const mood: Mood = busy ? "neutral" : lastCoach?.mood ?? (msgs.length ? "neutral" : "happy");
+  const limit = cfg.ai.maxQuestionChars;
+  // Pasted workout notes belong on the Import page (it reads far more, and saves them).
+  const looksLikeLog = input.length > 120 && input.split("\n").filter((l) => /\d/.test(l) && parseFreeText(l).ok).length >= 3;
+
   const suggestions = ["How's my bench trending?", "What should I aim for next session?", "Am I training consistently enough?", "Set me a realistic bench goal"];
 
   return (
@@ -165,7 +187,7 @@ export function CoachChat() {
       {open && (
         <div className="coach-panel" role="dialog" aria-label={`Chat with ${bot}`}>
           <div className="coach-head">
-            <div className="avatar-btn" style={{ width: 34, height: 34, fontSize: "0.9rem" }}>{bot.slice(0, 1)}</div>
+            <JamesSilhouette mood={mood} size={38} />
             <div style={{ flex: 1 }}>
               <strong>{bot}</strong>
               <div className="muted" style={{ fontSize: "0.72rem" }}>AI coach · reads your logged data · changes only when you tap Apply</div>
@@ -204,9 +226,25 @@ export function CoachChat() {
           </div>
 
           <form className="coach-input" onSubmit={(e) => { e.preventDefault(); void send(input); }}>
-            <input value={input} onChange={(e) => setInput(e.target.value)} placeholder={`Message ${bot}…`} maxLength={300} aria-label="Your question" />
+            <textarea
+              ref={inputRef}
+              rows={1}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              // Enter sends; Shift+Enter (or the phone keyboard's return with Shift) adds a line.
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(input); } }}
+              placeholder={`Message ${bot}…`}
+              maxLength={limit}
+              aria-label="Your question"
+            />
             <button className="btn primary" type="submit" disabled={busy || !input.trim()} aria-label="Send">↑</button>
           </form>
+          {(input.length > limit * 0.8 || looksLikeLog) && (
+            <div className="muted" style={{ fontSize: "0.72rem", padding: "0 14px 4px" }}>
+              {looksLikeLog && <>Workout notes? <Link href="/import" onClick={() => setOpen(false)}>Import them</Link> instead: {bot} reads up to 8,000 characters there and saves them. </>}
+              {input.length > limit * 0.8 && `${input.length.toLocaleString()} / ${limit.toLocaleString()}`}
+            </div>
+          )}
           <div className="muted" style={{ fontSize: "0.68rem", padding: "0 14px 10px" }}>
             Not medical advice. Questions + a training summary go to Groq. <Link href="/privacy" onClick={() => setOpen(false)}>Privacy</Link>
           </div>

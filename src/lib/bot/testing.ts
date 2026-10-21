@@ -104,7 +104,10 @@ export class FakeData implements BotData {
     return this.goals;
   }
   async listBodyweight() {
-    return this.bodyweight;
+    return [...this.bodyweight].sort((a, b) => a.date.localeCompare(b.date));
+  }
+  async logBodyweight(_uid: string, date: string, weightKg: number) {
+    this.bodyweight = [...this.bodyweight.filter((b) => b.date !== date), { date, weightKg }];
   }
   async aiUsageToday(uid: string, date: string) {
     let global = 0;

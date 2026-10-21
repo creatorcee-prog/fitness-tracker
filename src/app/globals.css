@@ -323,3 +323,7 @@ label.row { flex-wrap: nowrap; }
 
 /* James's proposed change in the chat: nothing happens until Apply */
 .proposal { align-self: flex-start; max-width: 88%; display: grid; gap: 6px; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px dashed var(--accent); background: var(--surface-2); }
+.coach-input { align-items: flex-end; }
+.coach-input textarea { flex: 1; resize: none; border-radius: 22px; min-height: 44px; max-height: 150px; line-height: 1.35; padding: 11px 16px; overflow-y: auto; font: inherit; }
+.coach-input .btn { height: 44px; flex: none; }
+.setlist li.split-cols { background: none; padding-top: 0; padding-bottom: 0; font-weight: 600; }

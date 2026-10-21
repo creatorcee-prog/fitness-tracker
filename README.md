@@ -99,7 +99,7 @@ Setup:
 4. Discord Developer Portal → General Information → **Interactions Endpoint URL** = `https://<app>/api/discord`, then save. Discord verifies it, and that verification also registers the commands. (Manual fallback: `https://<app>/api/discord?register=1`.)
 5. Installation: enable Guild Install (scopes `applications.commands`, `bot`) and User Install (`applications.commands`), then use the install link.
 
-Commands: `/today` `/log` `/undo` `/done` `/skip` `/swap` `/lift` `/streak` `/friends` `/plates` `/rest` `/announce` `/goal`, with [Same again] / [Undo] buttons on `/log` and [Skip] on `/today`. Replies in servers are visible only to you (`bot.ephemeralInGuilds`).
+Commands: `/today` `/log` `/undo` `/done` `/skip` `/swap` `/lift` `/streak` `/friends` `/plates` `/rest` `/announce` `/goal` `/bodyweight` `/help`, with [Same again] / [Undo] buttons on `/log` and [Skip] on `/today`. Replies in servers are visible only to you (`bot.ephemeralInGuilds`).
 
 ### Reminders, daily check-in and PR announcements
 
@@ -129,6 +129,7 @@ Setup:
   4. `GET /api/discord` shows the AI settings. It never shows the key.
 - **Measured prompt size:** about 710 input tokens per `/ask` (system prompt about 207, training summary about 480, plus the question), using the o200k tokenizer on a 12-week PPL history. Output is capped at 500 tokens, reasoning included. That keeps 70 requests a day at about 85k tokens or less, under Groq's free 200K/day.
 - **Sampling:** temperature 0.5, top_p 0.9, frequency_penalty 0.25 (`AI_TEMPERATURE`, `AI_TOP_P`, `AI_FREQUENCY_PENALTY`). If the model rejects one of these, the request is retried once without them.
+- **Question length:** up to `AI_MAX_QUESTION_CHARS` (1,500 characters, about 375 tokens) in the app and in Discord `/ask`. Keep `ai.maxQuestionChars` in config the same. Pasted workout notes get a pointer to the Import page, which reads up to 8,000.
 - **In-app chat:** the floating **Ask James** button opens a chat panel. It calls `/api/ask` with your Supabase session, and uses the same prompt, caps (shared with Discord) and usage tracking. The app can see your conversation, so the last `AI_CHAT_HISTORY_TURNS` exchanges (default 2) are included for follow-ups. That adds about 300–400 tokens; set it to 0 to turn it off. The chat is kept in the browser tab only. Hide the button with `ai.chatButton: false` in config.
 - **No chat history in Discord:** each `/ask` stands alone. Slash commands don't see earlier messages, and the bot doesn't read channel messages (no Message Content intent). Check the current limits at https://console.groq.com/docs/rate-limits; they change.
 - **Privacy:** `/privacy`, linked from Settings, explains what is sent to Groq.
@@ -139,6 +140,10 @@ Setup:
 - **James** talks on the Today screen: greetings by time of day, session start, PRs, goals reached, streak milestones, and a nudge after `mascot.missedDays` days off. Lines are scripted, not AI (`src/lib/mascot/lines.ts`); add your own freely. One line at a time, and a PR or goal line isn't replaced by small talk for `mascot.holdMs`. Turn him off in Settings or with `mascot.enabled: false`.
 - **Art:** `src/components/JamesSilhouette.tsx` is a placeholder silhouette with mood eyebrows. Swap in real art later with the same props. `public/james.png` (512×512) is the same art for the Discord bot avatar (Developer Portal → Bot → Icon).
 - **Setup:** run `supabase/migrations/0008_goals.sql`, then open `/api/discord?register=1` to register `/goal`.
+
+## Bodyweight
+
+Progress → **Bodyweight**, or `/bodyweight 182` in Discord (`/bodyweight` alone shows the trend). One entry per day; logging again replaces it. The headline numbers are the **7-day average** and a fitted **rate per week** over the last 4 weeks, not today vs yesterday (single weigh-ins swing with water and food). **Strength ÷ bodyweight** shows each lift's best est. 1RM over the last 6 weeks divided by your latest weight. No migration needed (`bodyweight_entries` exists since 0001). After deploying, open `/api/discord?register=1` to add `/bodyweight` and `/help`.
 
 ## Import old workouts
 

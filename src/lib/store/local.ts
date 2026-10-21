@@ -1,4 +1,5 @@
 import type { AppConfig } from "@/config/app.config";
+import type { BodyweightEntry } from "@/lib/domain/bodyweight";
 import type { Goal } from "@/lib/domain/goals";
 import { advance, getToday, type Today } from "@/lib/domain/split";
 import type { AccountPrefs, Exercise, FriendProfile, FriendRequest, FriendStatus, NutritionEntry, NutritionTargets, PREvent, Reminder, Profile, ProfileMedia, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
@@ -26,6 +27,7 @@ interface DB {
   nutrition: NutritionEntry[];
   nutritionTargets: NutritionTargets;
   media: ProfileMedia;
+  bodyweight: BodyweightEntry[];
 }
 
 /** UUIDs everywhere so ids are valid in both backends. */
@@ -57,6 +59,7 @@ function freshDb(cfg: AppConfig): DB {
     nutrition: [],
     nutritionTargets: { calories: null, protein: null },
     media: { avatar: null, banner: null },
+    bodyweight: [],
   };
 }
 
@@ -374,6 +377,18 @@ export class LocalStore implements Store {
 
   async getShareStatus() {
     return this.read("getShareStatus", (db) => db.shareStatus);
+  }
+
+  async listBodyweight() {
+    return [...this.db.bodyweight].sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  async logBodyweight(e: BodyweightEntry) {
+    this.mutate("logBodyweight", (db) => (db.bodyweight = [...db.bodyweight.filter((x) => x.date !== e.date), e]));
+  }
+
+  async deleteBodyweight(date: string) {
+    this.mutate("deleteBodyweight", (db) => (db.bodyweight = db.bodyweight.filter((x) => x.date !== date)));
   }
 
   async listGoals() {

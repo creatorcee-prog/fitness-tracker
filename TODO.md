@@ -60,9 +60,9 @@ Slash commands through `/api/discord` in the web app (no separate bot server).
 
 ## Later: bot ideas
 
-- [ ] `/bodyweight 182`: log bodyweight. Build together with a **bodyweight page** in the app (chart plus relative strength, e1RM ÷ bodyweight) so the data is visible.
+- [x] `/bodyweight 182` + bodyweight card on Progress (7-day average, weekly rate, strength ÷ bodyweight)
 - [ ] `/leaderboard`: compare friends. Needs an **explicit opt-in** per user, and per-lift choices of what to share (e.g. e1RM only, or % gain only, which is fairer across sizes).
-- [ ] `/help`: short guide to shorthand (`185x5x3`, `185 5,5,4`, aliases), linking accounts and where to find the app. Discord already lists commands when typing `/`, so this should explain *how*, not just *what*.
+- [x] `/help`
 
 ## Done: look and feel
 

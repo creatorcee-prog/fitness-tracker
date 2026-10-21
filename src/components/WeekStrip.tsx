@@ -3,9 +3,9 @@
 import { weekStart } from "@/lib/domain/stats";
 import type { Session } from "@/lib/domain/types";
 
-const DOW = ["S", "M", "T", "W", "T", "F", "S"];
+const DOW = ["Su", "M", "T", "W", "Th", "F", "Sa"];
 
-/** Mon–Sun (or Sun–Sat) strip: today circled, a dot under days with a finished workout. */
+/** Sun–Sat (or from config.split.weekStartsOn) strip: today circled, a dot under days with a finished workout. */
 export function WeekStrip({ sessions, now, weekStartsOn }: { sessions: Session[]; now: Date; weekStartsOn: number }) {
   const start = weekStart(now, weekStartsOn);
   const trained = new Set(sessions.filter((s) => s.finishedAt).map((s) => new Date(s.startedAt).toDateString()));

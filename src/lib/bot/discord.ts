@@ -117,6 +117,15 @@ export const COMMANDS = [
   { name: "friends", description: "Which friends have lifted today" },
   { name: "goal", description: "Your goals with progress bars and projected dates" },
   {
+    name: "bodyweight",
+    description: "Log today's bodyweight, or see your trend",
+    options: [
+      { type: NUMBER, name: "weight", description: "Today's weight (leave empty to see your trend)", required: false, min_value: 0 },
+      { type: STRING, name: "unit", description: "lb or kg (default: yours)", required: false, choices: [{ name: "lb", value: "lb" }, { name: "kg", value: "kg" }] },
+    ],
+  },
+  { name: "help", description: "How to use the bot: logging shorthand, commands, linking" },
+  {
     name: "plates",
     description: "Plates per side for a weight",
     options: [
@@ -131,7 +140,7 @@ export const COMMANDS = [
 COMMANDS.push({
   name: "ask",
   description: "Ask James (AI coach). Your question + a training summary are sent to Groq.",
-  options: [{ type: STRING, name: "question", description: "e.g. How is my bench trending? What should I add next Push day?", required: true, max_length: 300 }],
+  options: [{ type: STRING, name: "question", description: "e.g. How is my bench trending? What should I add next Push day?", required: true, max_length: 1500 }],
   ...EVERYWHERE,
 } as (typeof COMMANDS)[number]);
 
