@@ -104,3 +104,25 @@ export interface FriendRequest {
   displayName: string;
   createdAt: string;
 }
+
+export interface Reminder {
+  id: ID;
+  channel: "discord" | "push";
+  /** "HH:MM" in the user's timezone. */
+  localTime: string;
+  /** 0 = Sunday ... 6 = Saturday. */
+  days: number[];
+  enabled: boolean;
+  lastSentOn: string | null;
+  /** Why the last Discord DM failed; reminders are switched off when this is set. */
+  lastError: string | null;
+}
+
+export interface AnnounceSettings {
+  enabled: boolean;
+  /** True once /announce on has been run in a server channel. */
+  channelSet: boolean;
+}
+
+/** Settings that follow the account across devices (Supabase backend). */
+export type AccountPrefs = { theme?: unknown; dashboard?: unknown };

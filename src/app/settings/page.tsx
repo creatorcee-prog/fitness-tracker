@@ -5,6 +5,7 @@ import { defaultConfig, type Unit, type WidgetConfig } from "@/config/app.config
 import { deepMerge } from "@/config/runtime";
 import { contrastRatio, THEME_PRESETS } from "@/config/themes";
 import { useApp } from "@/components/AppProvider";
+import { RemindersCard } from "@/components/RemindersCard";
 import { useToast } from "@/components/UndoToast";
 import { generateDemoHistory } from "@/lib/service";
 import { SupabaseStore } from "@/lib/store/supabase";
@@ -91,6 +92,8 @@ export default function SettingsPage() {
         </div>
         <label className="field">Timezone (decides "today" in weekly mode)<input value={tz} onChange={(e) => setTz(e.target.value)} onBlur={() => saveProfile({ timezone: tz })} /></label>
       </div>
+
+      <RemindersCard />
 
       <div className="card stack">
         <h2>Theme</h2>

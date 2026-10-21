@@ -1,5 +1,5 @@
 import type { Today } from "@/lib/domain/split";
-import type { Exercise, FriendRequest, FriendStatus, PREvent, Profile, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
+import type { AccountPrefs, AnnounceSettings, Exercise, FriendRequest, FriendStatus, PREvent, Reminder, Profile, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
 
 export type NewSet = Omit<SetEntry, "id" | "createdAt"> & { createdAt?: string };
 
@@ -59,6 +59,21 @@ export interface Store {
   friendsToday(now: Date): Promise<FriendStatus[]>;
   setShareStatus(share: boolean): Promise<void>;
   getShareStatus(): Promise<boolean>;
+
+  /** Discord reminders / daily check-in (sent only on the Supabase backend). */
+  listReminders(): Promise<Reminder[]>;
+  saveReminder(r: Reminder): Promise<Reminder>;
+  deleteReminder(id: string): Promise<void>;
+
+  /** Opt-in PR announcements in the Discord channel chosen with /announce on. */
+  getAnnounceSettings(): Promise<AnnounceSettings>;
+  setAnnouncePRs(on: boolean): Promise<void>;
+  /** Ask the server to announce any PRs this set earned (no-op when off or local). */
+  announcePRs(setId: string): Promise<void>;
+
+  /** Theme and dashboard saved to the account (null on the local backend). */
+  getPrefs(): Promise<AccountPrefs | null>;
+  savePrefs(prefs: AccountPrefs): Promise<void>;
 
   /** Called when data changes elsewhere (other tab, Realtime). Returns unsubscribe. */
   subscribe(cb: () => void): () => void;

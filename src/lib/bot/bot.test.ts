@@ -6,14 +6,17 @@ import type { Exercise, FriendStatus, PREvent, Session, SetEntry, Split, SplitSt
 import { toKg } from "@/lib/domain/units";
 import { seedSplit, SEED_EXERCISES } from "@/lib/store/seed";
 import type { NewSet } from "@/lib/store/types";
-import type { BotData, BotUser } from "./data";
-import { COMMANDS, toMessage, verifyDiscordRequest } from "./discord";
+import type { BotData, BotUser, DueReminder } from "./data";
+import { COMMANDS, DiscordError, toMessage, verifyDiscordRequest } from "./discord";
+import { runReminders } from "./reminders";
 import { formatDuration, parseDuration } from "./duration";
 import { handleAutocomplete, handleCommand, handleComponent, type BotContext } from "./handlers";
 
 /** In-memory BotData that follows the same rules as the SQL functions. */
 class FakeData implements BotData {
-  users: (BotUser & { discordId: string })[] = [{ id: "u1", discordId: "d1", displayName: "Cee", unit: "lb", timezone: "UTC" }];
+  users: (BotUser & { discordId: string })[] = [{ id: "u1", discordId: "d1", displayName: "Cee", unit: "lb", timezone: "UTC", announceChannelId: null, announcePrs: false }];
+  reminders: (DueReminder & { sentOn: string | null; enabled: boolean; error: string | null; snoozedUntil: Date | null })[] = [];
+  announced = new Set<string>();
   exercises: Exercise[] = SEED_EXERCISES.map((e) => ({ ...e, ownerId: null }));
   split: Split | null = seedSplit();
   state: SplitState | null = null;
@@ -75,6 +78,37 @@ class FakeData implements BotData {
   }
   async friendsToday() {
     return this.friends;
+  }
+  async getUserById(uid: string) {
+    return this.users.find((u) => u.id === uid) ?? null;
+  }
+  async setAnnounce(uid: string, channelId: string | null, on: boolean) {
+    const u = this.users.find((x) => x.id === uid)!;
+    if (channelId) u.announceChannelId = channelId;
+    u.announcePrs = on;
+  }
+  async claimAnnouncement(_uid: string, setId: string) {
+    if (this.announced.has(setId)) return false;
+    this.announced.add(setId);
+    return true;
+  }
+  async dueReminders() {
+    return this.reminders.filter((r) => r.enabled && !r.sentOn);
+  }
+  async markReminderSent(id: string, localDate: string) {
+    const r = this.reminders.find((x) => x.reminderId === id)!;
+    r.sentOn = localDate;
+  }
+  async markReminderFailed(id: string, error: string) {
+    const r = this.reminders.find((x) => x.reminderId === id)!;
+    r.enabled = false;
+    r.error = error;
+  }
+  async snoozeReminder(_uid: string, id: string, until: Date) {
+    const r = this.reminders.find((x) => x.reminderId === id);
+    if (!r) return false;
+    r.snoozedUntil = until;
+    return true;
   }
 }
 
@@ -269,7 +303,8 @@ describe("discord plumbing", () => {
     expect(m.components[0].components[0]).toMatchObject({ type: 2, label: "Undo", custom_id: "undo:x" });
   });
   it("registers commands for server and user installs", () => {
-    expect(COMMANDS.map((c) => c.name)).toEqual(["today", "log", "undo", "done", "skip", "swap", "lift", "streak", "friends", "plates", "rest"]);
+    expect(COMMANDS.map((c) => c.name)).toEqual(["today", "log", "undo", "done", "skip", "swap", "lift", "streak", "friends", "plates", "rest", "announce"]);
+    expect(COMMANDS.find((c) => c.name === "announce")!.contexts).toEqual([0]);
     for (const c of COMMANDS) {
       expect(c.integration_types).toEqual([0, 1]);
       expect(c.description.length).toBeLessThanOrEqual(100);
@@ -283,6 +318,101 @@ describe("discord plumbing", () => {
     expect(parseDuration("45s")).toBe(45);
     expect(parseDuration("x")).toBeNull();
     expect(formatDuration(125)).toBe("2:05");
+  });
+});
+
+describe("PR announcements", () => {
+  const posts: { channel: string; content: string }[] = [];
+  const withPost = (opts: Partial<BotContext> = {}): BotContext => ({ ...ctx(), post: async (channel, r) => void posts.push({ channel, content: r.content }), ...opts });
+  beforeEach(() => void (posts.length = 0));
+
+  it("/announce on needs a server channel", async () => {
+    expect((await handleCommand(withPost(), "announce", { mode: "on" })).content).toContain("inside a server channel");
+  });
+  it("/announce on posts a confirmation and saves the channel", async () => {
+    const r = await handleCommand(withPost({ guildId: "g", channelId: "c1" }), "announce", { mode: "on" });
+    expect(r.content).toContain("Done");
+    expect(posts[0]).toMatchObject({ channel: "c1" });
+    expect(data.users[0]).toMatchObject({ announceChannelId: "c1", announcePrs: true });
+  });
+  it("/announce explains when the bot can't post", async () => {
+    const r = await handleCommand({ ...ctx(), guildId: "g", channelId: "c1", post: async () => { throw new Error("403"); } }, "announce", { mode: "on" });
+    expect(r.content).toContain("can't post in this channel");
+    expect(data.users[0].announcePrs).toBe(false);
+  });
+  it("posts PRs once, only when opted in", async () => {
+    await handleCommand(withPost(), "log", { sets: "bench 185x5" }); // baseline, no PR
+    clock += 60_000;
+    await handleCommand({ ...withPost(), now: new Date(clock) }, "log", { sets: "bench 195x5" });
+    expect(posts).toHaveLength(0); // not opted in
+    await data.setAnnounce("u1", "c1", true);
+    clock += 60_000;
+    await handleCommand({ ...withPost(), now: new Date(clock) }, "log", { sets: "bench 205x5" });
+    expect(posts).toHaveLength(1);
+    expect(posts[0].content).toContain("**Cee** just hit a **Bench Press** PR");
+    expect(posts[0].content).toContain("205 × 5 lb");
+  });
+});
+
+describe("reminders / check-in", () => {
+  const due = (over: Partial<FakeData["reminders"][number]> = {}) =>
+    data.reminders.push({ reminderId: "r1", userId: "u1", discordId: "d1", localDate: "2026-10-21", snoozed: false, sentOn: null, enabled: true, error: null, snoozedUntil: null, ...over });
+  const dms: { to: string; content: string; buttons: string[] }[] = [];
+  const deps = (sendDM?: () => Promise<void>) => ({
+    data, cfg: defaultConfig, now: new Date(clock), appUrl: "https://app.test",
+    sendDM: sendDM ?? (async (to: string, r: { content: string; buttons?: { id: string }[] }) => void dms.push({ to, content: r.content, buttons: (r.buttons ?? []).map((b) => b.id) })),
+  });
+  beforeEach(() => void (dms.length = 0));
+
+  it("DMs today's day with check-in buttons and marks it sent", async () => {
+    due();
+    const out = await runReminders(deps());
+    expect(out[0].result).toBe("sent");
+    expect(dms[0].content).toContain("**Push** is up today: Bench Press, Overhead Press, Incline Dumbbell Press");
+    expect(dms[0].buttons).toEqual(["ci:start", "ci:rest", "ci:skip", "ci:snooze:r1"]);
+    expect(data.reminders[0].sentOn).toBe("2026-10-21");
+    expect(await runReminders(deps())).toEqual([]); // once per day
+  });
+  it("skips when you already trained today", async () => {
+    await data.startSession("u1", null, new Date("2026-10-21T08:00:00Z"));
+    due();
+    expect((await runReminders(deps()))[0]).toMatchObject({ result: "skipped", reason: "already trained today" });
+    expect(dms).toHaveLength(0);
+  });
+  it("skips weekly rest days", async () => {
+    data.split = { ...data.split!, mode: "weekly" }; // Push Mon, Pull Wed, Legs Fri
+    clock = Date.parse("2026-10-22T17:00:00Z"); // Thursday
+    due({ localDate: "2026-10-22" });
+    expect((await runReminders(deps()))[0]).toMatchObject({ result: "skipped", reason: "rest day" });
+  });
+  it("turns reminders off when Discord refuses the DM", async () => {
+    due();
+    const out = await runReminders(deps(async () => { throw new DiscordError("blocked", 403, 50007); }));
+    expect(out[0].result).toBe("failed");
+    expect(data.reminders[0]).toMatchObject({ enabled: false });
+    expect(data.reminders[0].error).toContain("allow DMs");
+  });
+  it("retries on other errors", async () => {
+    due();
+    const out = await runReminders(deps(async () => { throw new DiscordError("down", 500, null); }));
+    expect(out[0].result).toBe("retry");
+    expect(data.reminders[0]).toMatchObject({ enabled: true, sentOn: null });
+  });
+  it("[Start workout] starts today's day", async () => {
+    const r = await handleComponent(ctx(), "ci:start");
+    expect(r.content).toContain("Started **Push**");
+    expect(data.sessions[0].splitDayId).toBe("split-ppl-d0");
+    expect((await handleComponent(ctx(), "ci:start")).content).toContain("already have a workout");
+  });
+  it("[Snooze] snoozes the user's reminder", async () => {
+    due();
+    expect((await handleComponent(ctx(), "ci:snooze:r1")).content).toContain("Snoozed");
+    expect(data.reminders[0].snoozedUntil?.getTime()).toBe(clock + 60 * 60_000);
+    expect((await handleComponent(ctx(), "ci:snooze:nope")).content).toContain("no longer exists");
+  });
+  it("[Rest day] and [Skip]", async () => {
+    expect((await handleComponent(ctx(), "ci:rest")).content).toContain("Rest day");
+    expect((await handleComponent(ctx(), "ci:skip")).content).toContain("Skipped **Push**");
   });
 });
 

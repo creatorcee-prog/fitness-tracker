@@ -183,6 +183,7 @@ export default function TodayPage() {
         rpe: Number.isFinite(rpe) ? rpe : null, isWarmup: draft.isWarmup, note: draft.note.trim() || null, createdAt: now().toISOString(),
       });
       const prText = prs.length ? ` · 🏆 ${prs.map((p) => PR_LABEL[p]).join(", ")}` : "";
+      if (prs.length) void store.announcePRs(set.id);
       if (cfg.features.undoToast) {
         toast.show({
           text: `${draft.isWarmup ? "Warm-up" : "Set"} saved · ${Number(draft.weight.toFixed(2))} × ${draft.reps}${prText}`,
@@ -240,6 +241,7 @@ export default function TodayPage() {
       });
       created.push(set);
       prs.forEach((x) => allPrs.add(x));
+      if (prs.length) void store.announcePRs(set.id);
     }
     setShorthand("");
     toast.show({

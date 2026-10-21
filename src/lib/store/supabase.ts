@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AppConfig } from "@/config/app.config";
 import { e1rm } from "@/lib/domain/e1rm";
 import type { Today } from "@/lib/domain/split";
-import type { Exercise, FriendRequest, FriendStatus, PREvent, Profile, Session, SetEntry, Split, SplitDay } from "@/lib/domain/types";
+import type { AccountPrefs, Exercise, FriendRequest, FriendStatus, PREvent, Reminder, Profile, Session, SetEntry, Split, SplitDay } from "@/lib/domain/types";
 import type { NewSet, Store } from "./types";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -32,6 +32,11 @@ export const toSet = (r: Row): SetEntry => ({
 });
 
 /** Row from `splits` selected with `*, split_days(*, split_day_exercises(*))`. */
+export const toReminder = (r: Row): Reminder => ({
+  id: r.id, channel: r.channel, localTime: String(r.local_time).slice(0, 5), days: r.days ?? [], enabled: r.enabled,
+  lastSentOn: r.last_sent_on ?? null, lastError: r.last_error ?? null,
+});
+
 export const toSplit = (s: Row): Split => ({
   id: s.id, name: s.name, mode: s.mode, isActive: s.is_active,
   days: (s.split_days ?? []).map((d: Row): SplitDay => ({
@@ -282,6 +287,49 @@ export class SupabaseStore implements Store {
   async getShareStatus() {
     const id = await this.userId();
     return check(await this.sb.from("users").select("share_status").eq("id", id).single(), "getShareStatus").share_status as boolean;
+  }
+
+  async listReminders() {
+    return check(await this.sb.from("reminders").select("*").order("local_time"), "listReminders").map(toReminder);
+  }
+
+  async saveReminder(r: Reminder) {
+    // Saving clears the last error: turning a reminder back on is how you retry after fixing DMs.
+    const row = { id: r.id, channel: r.channel, local_time: r.localTime, days: r.days, enabled: r.enabled, last_error: r.enabled ? null : r.lastError };
+    return toReminder(check(await this.sb.from("reminders").upsert(row).select().single(), "saveReminder"));
+  }
+
+  async deleteReminder(id: string) {
+    check(await this.sb.from("reminders").delete().eq("id", id), "deleteReminder");
+  }
+
+  async getAnnounceSettings() {
+    const id = await this.userId();
+    const r = check(await this.sb.from("users").select("announce_prs, announce_channel_id").eq("id", id).single(), "getAnnounceSettings");
+    return { enabled: !!r.announce_prs, channelSet: !!r.announce_channel_id };
+  }
+
+  async setAnnouncePRs(on: boolean) {
+    const id = await this.userId();
+    check(await this.sb.from("users").update({ announce_prs: on }).eq("id", id), "setAnnouncePRs");
+  }
+
+  async announcePRs(setId: string) {
+    const { data } = await this.sb.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return;
+    // Fire and forget: the server re-checks the PR itself, so the client can't fake one.
+    await fetch("/api/announce", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ setId }) }).catch(() => {});
+  }
+
+  async getPrefs(): Promise<AccountPrefs | null> {
+    const id = await this.userId();
+    return (check(await this.sb.from("users").select("prefs").eq("id", id).single(), "getPrefs").prefs ?? {}) as AccountPrefs;
+  }
+
+  async savePrefs(prefs: AccountPrefs) {
+    const id = await this.userId();
+    check(await this.sb.from("users").update({ prefs }).eq("id", id), "savePrefs");
   }
 
   subscribe(cb: () => void) {

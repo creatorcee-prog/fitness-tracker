@@ -37,10 +37,38 @@ export function toMessage(reply: BotReply, flags = 0) {
   };
 }
 
+/** A failed Discord API call. `code` is Discord's JSON error code (e.g. 50007 = can't DM this user). */
+export class DiscordError extends Error {
+  constructor(message: string, readonly status: number, readonly code: number | null) {
+    super(message);
+  }
+}
+
 async function discordFetch(path: string, init: RequestInit) {
   const res = await fetch(`${API}${path}`, { ...init, headers: { "Content-Type": "application/json", ...(init.headers ?? {}) } });
-  if (!res.ok) throw new Error(`Discord ${init.method} ${path.split("/").slice(0, 3).join("/")}: ${res.status} ${await res.text()}`);
+  if (!res.ok) {
+    const text = await res.text();
+    let code: number | null = null;
+    try {
+      code = JSON.parse(text).code ?? null;
+    } catch {
+      /* not JSON */
+    }
+    throw new DiscordError(`Discord ${init.method} ${path.split("/").slice(0, 3).join("/")}: ${res.status} ${text}`, res.status, code);
+  }
   return res;
+}
+
+/** DM a user. Requires that the bot shares a server with them and they allow DMs from server members. */
+export async function sendDM(botToken: string, discordUserId: string, reply: BotReply) {
+  const auth = { Authorization: `Bot ${botToken}` };
+  const ch = await (await discordFetch("/users/@me/channels", { method: "POST", headers: auth, body: JSON.stringify({ recipient_id: discordUserId }) })).json();
+  await discordFetch(`/channels/${ch.id}/messages`, { method: "POST", headers: auth, body: JSON.stringify(toMessage(reply)) });
+}
+
+/** Post in a server channel (needs the bot installed in that server with View Channel + Send Messages). */
+export async function postToChannel(botToken: string, channelId: string, reply: BotReply) {
+  await discordFetch(`/channels/${channelId}/messages`, { method: "POST", headers: { Authorization: `Bot ${botToken}` }, body: JSON.stringify(toMessage(reply)) });
 }
 
 /** Replace the deferred "thinking…" reply, or the message a button was on. */
@@ -84,6 +112,15 @@ export const COMMANDS = [
   },
   { name: "rest", description: "Start a rest countdown", options: [{ type: STRING, name: "time", description: "e.g. 2m, 90, 1:30 (default from your settings)", required: false }] },
 ].map((c) => ({ ...c, ...EVERYWHERE }));
+
+// Announcements post in a server channel, so /announce only exists in servers.
+COMMANDS.push({
+  name: "announce",
+  description: "Post your PRs in this channel (opt-in)",
+  options: [{ type: STRING, name: "mode", description: "on: post my PRs here · off: stop", required: true, choices: [{ name: "on", value: "on" }, { name: "off", value: "off" }] }],
+  integration_types: [0, 1],
+  contexts: [0],
+} as (typeof COMMANDS)[number]);
 
 /** Bulk overwrite: idempotent, so it's safe to run on every endpoint verification. */
 export async function registerCommands(appId: string, botToken: string) {

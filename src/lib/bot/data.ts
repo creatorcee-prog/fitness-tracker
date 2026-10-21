@@ -11,6 +11,18 @@ export interface BotUser {
   displayName: string;
   unit: Unit;
   timezone: string;
+  /** Channel chosen with /announce on; PRs are posted there when announcePrs is true. */
+  announceChannelId: string | null;
+  announcePrs: boolean;
+}
+
+export interface DueReminder {
+  reminderId: string;
+  userId: string;
+  discordId: string;
+  /** User's local date (YYYY-MM-DD) the reminder is for. */
+  localDate: string;
+  snoozed: boolean;
 }
 
 /**
@@ -34,10 +46,27 @@ export interface BotData {
   deleteSet(uid: string, setId: string): Promise<void>;
   savePersonalRecords(uid: string, exerciseId: string, events: PREvent[]): Promise<void>;
   friendsToday(uid: string, now: Date): Promise<FriendStatus[]>;
+
+  getUserById(uid: string): Promise<BotUser | null>;
+  setAnnounce(uid: string, channelId: string | null, on: boolean): Promise<void>;
+  /** Marks a set as announced; false if it already was (so each PR posts once). */
+  claimAnnouncement(uid: string, setId: string): Promise<boolean>;
+
+  dueReminders(now: Date, windowMinutes: number): Promise<DueReminder[]>;
+  markReminderSent(reminderId: string, localDate: string): Promise<void>;
+  /** Turns the reminder off and records why, so Settings can explain it. */
+  markReminderFailed(reminderId: string, error: string): Promise<void>;
+  snoozeReminder(uid: string, reminderId: string, until: Date): Promise<boolean>;
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Row = Record<string, any>;
+
+const USER_COLS = "id, display_name, unit, timezone, announce_channel_id, announce_prs";
+const toBotUser = (r: Row): BotUser => ({
+  id: r.id, displayName: r.display_name, unit: r.unit, timezone: r.timezone,
+  announceChannelId: r.announce_channel_id ?? null, announcePrs: !!r.announce_prs,
+});
 
 export function serviceClient(): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -57,8 +86,48 @@ export class SupabaseBotData implements BotData {
   }
 
   async findUser(discordId: string) {
-    const r = check(await this.sb.from("users").select("id, display_name, unit, timezone").eq("discord_id", discordId).maybeSingle(), "findUser") as Row | null;
-    return r ? { id: r.id, displayName: r.display_name, unit: r.unit, timezone: r.timezone } : null;
+    const r = check(await this.sb.from("users").select(USER_COLS).eq("discord_id", discordId).maybeSingle(), "findUser") as Row | null;
+    return r ? toBotUser(r) : null;
+  }
+
+  async getUserById(uid: string) {
+    const r = check(await this.sb.from("users").select(USER_COLS).eq("id", uid).maybeSingle(), "getUserById") as Row | null;
+    return r ? toBotUser(r) : null;
+  }
+
+  async setAnnounce(uid: string, channelId: string | null, on: boolean) {
+    const row: Row = { announce_prs: on };
+    if (channelId) row.announce_channel_id = channelId;
+    check(await this.sb.from("users").update(row).eq("id", uid), "setAnnounce");
+  }
+
+  async claimAnnouncement(uid: string, setId: string) {
+    const rows = check(
+      await this.sb.from("sets").update({ announced_at: new Date().toISOString() }).eq("user_id", uid).eq("id", setId).is("announced_at", null).select("id"),
+      "claimAnnouncement",
+    );
+    return rows.length > 0;
+  }
+
+  async dueReminders(now: Date, windowMinutes: number): Promise<DueReminder[]> {
+    const rows = check(await this.sb.rpc("due_reminders", { p_now: now.toISOString(), p_window: `${windowMinutes} minutes` }), "dueReminders") as Row[];
+    return rows.map((r) => ({ reminderId: r.reminder_id, userId: r.user_id, discordId: r.discord_id, localDate: r.local_date, snoozed: r.snoozed }));
+  }
+
+  async markReminderSent(reminderId: string, localDate: string) {
+    check(await this.sb.from("reminders").update({ last_sent_on: localDate, snoozed_until: null, last_error: null }).eq("id", reminderId), "markReminderSent");
+  }
+
+  async markReminderFailed(reminderId: string, error: string) {
+    check(await this.sb.from("reminders").update({ enabled: false, snoozed_until: null, last_error: error }).eq("id", reminderId), "markReminderFailed");
+  }
+
+  async snoozeReminder(uid: string, reminderId: string, until: Date) {
+    const rows = check(
+      await this.sb.from("reminders").update({ snoozed_until: until.toISOString() }).eq("user_id", uid).eq("id", reminderId).select("id"),
+      "snoozeReminder",
+    );
+    return rows.length > 0;
   }
 
   async getActiveSplit(uid: string) {

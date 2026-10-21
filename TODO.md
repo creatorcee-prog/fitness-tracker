@@ -17,12 +17,17 @@ Slash commands through `/api/discord` in the web app (no separate bot server).
 - [x] `/rest 2m`: live countdown message
 - [x] SQL: server-only `*_for(user)` versions of today/finish/skip for the bot
 
-## Next: Discord bot, round 2 (needs scheduled jobs)
+## Done: Discord bot, round 2 (built; needs live testing)
 
-- [ ] Reminders (Supabase Cron, user's local time, skip if already trained)
-- [ ] Daily check-in DM with **Start / Rest day / Skip** buttons
-- [ ] Opt-in PR announcements in a server channel
+- [x] Reminders (Supabase Cron → `/api/cron/reminders`, user's local time, skip if already trained / rest day)
+- [x] Daily check-in DM with **Start workout / Rest day / Skip / Snooze** buttons
+- [x] Failed DMs switch the reminder off with an explanation in Settings
+- [x] Opt-in PR announcements in a server channel (`/announce on|off`, web + Discord PRs, once per set)
+
+## Next
+
 - [ ] `/goal` (after goals exist in the app)
+- [ ] Web push reminders (needs Home Screen install on iPhone)
 
 ## Later: bot ideas
 

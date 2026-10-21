@@ -80,7 +80,17 @@ Setup:
 4. Discord Developer Portal → General Information → **Interactions Endpoint URL** = `https://<app>/api/discord`, then save. Discord verifies it, and that verification also registers the commands. (Manual fallback: `https://<app>/api/discord?register=1`.)
 5. Installation: enable Guild Install (scopes `applications.commands`, `bot`) and User Install (`applications.commands`), then use the install link.
 
-Commands: `/today` `/log` `/undo` `/done` `/skip` `/swap` `/lift` `/streak` `/friends` `/plates` `/rest`, with [Same again] / [Undo] buttons on `/log` and [Skip] on `/today`. Replies in servers are visible only to you (`bot.ephemeralInGuilds`).
+Commands: `/today` `/log` `/undo` `/done` `/skip` `/swap` `/lift` `/streak` `/friends` `/plates` `/rest` `/announce`, with [Same again] / [Undo] buttons on `/log` and [Skip] on `/today`. Replies in servers are visible only to you (`bot.ephemeralInGuilds`).
+
+### Reminders, daily check-in and PR announcements
+
+- **Reminders** (Settings → Reminders): a DM at your time with today's split day and **Start workout / Rest day / Skip / Snooze** buttons. Not sent if you already trained that day, or on weekly rest days (`reminders.*` in config). If Discord refuses the DM, that reminder switches off and Settings explains why.
+- **PR announcements**: run `/announce on` in a server channel and tick "Post my PRs" in Settings. PRs from the web app *and* Discord are posted there, once per set. The server re-checks every PR, so it can't be faked.
+
+Setup:
+1. Run `supabase/migrations/0004_reminders.sql`.
+2. In Vercel, add `CRON_SECRET` (Secret, any long random string) and redeploy.
+3. Copy `supabase/cron.sql.example`, put in your app URL and `CRON_SECRET`, and run it in the SQL editor. It schedules a call to `/api/cron/reminders` every minute via `pg_cron` + `pg_net`.
 
 ## To-do
 

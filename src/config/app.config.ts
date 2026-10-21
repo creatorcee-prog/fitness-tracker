@@ -160,6 +160,16 @@ export const defaultConfig = {
     weeklyTarget: 3,
   },
 
+  reminders: {
+    /** A reminder is sent at most this long after its time (covers missed cron ticks, never hours late). */
+    windowMinutes: 120,
+    snoozeMinutes: 60,
+    /** Don't remind if a workout was already started today. */
+    skipIfTrainedToday: true,
+    /** Send on weekly-split rest days too. */
+    onRestDays: false,
+  },
+
   bot: {
     /** In servers, replies with personal data are visible only to the person who ran the command. */
     ephemeralInGuilds: true,

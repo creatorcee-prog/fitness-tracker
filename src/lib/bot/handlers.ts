@@ -30,6 +30,11 @@ export interface BotContext {
   now: Date;
   discordUserId: string;
   appUrl: string;
+  /** Server channel the command was used in (for /announce). */
+  channelId?: string;
+  guildId?: string;
+  /** Posts to a server channel with the bot token; absent in tests unless faked. */
+  post?: (channelId: string, reply: BotReply) => Promise<void>;
 }
 
 export type Options = Record<string, string | number | boolean | undefined>;
@@ -38,6 +43,12 @@ const PR_LABEL: Record<PRType, string> = { weight: "Heaviest", reps_at_weight: "
 
 /** Commands that work without a linked account and need no database. */
 export const ACCOUNTLESS = new Set(["plates", "rest"]);
+
+/** "🏆 Cee just hit a Bench Press e1RM PR: 190 × 5 lb!" */
+export function announcementText(name: string, exercise: string, prs: PRType[], s: SetEntry, unit: Unit): string {
+  const kinds = prs.filter((p) => p !== "session_volume").map((p) => PR_LABEL[p].replace(" PR", ""));
+  return `🏆 **${name}** just hit a **${exercise}** PR (${kinds.join(", ")}): ${num(s.weightKg, unit)} × ${s.reps} ${unit}!`;
+}
 
 class UserError extends Error {}
 
@@ -135,7 +146,14 @@ async function logParsed(
 
   let content = `✅ **${ex.name}** ${created.map((s) => `${num(s.weightKg, u.unit)} × ${s.reps}`).join(", ")} ${u.unit}`;
   if (target) content += ` · set ${working}/${target}`;
-  if (prs.size) content += `\n🏆 ${[...prs].map((p) => PR_LABEL[p]).join(", ")}!`;
+  if (prs.size) {
+    content += `\n🏆 ${[...prs].map((p) => PR_LABEL[p]).join(", ")}!`;
+    // Opt-in public announcement, once per PR set.
+    const prSet = [...created].reverse().find((s) => prsForSet(events, s.id).length);
+    if (prSet && u.announcePrs && u.announceChannelId && ctx.post && (await ctx.data.claimAnnouncement(u.id, prSet.id))) {
+      await ctx.post(u.announceChannelId, { content: announcementText(u.displayName, ex.name, prsForSet(events, prSet.id), prSet, u.unit) }).catch((e) => console.error("[bot] announce", e));
+    }
+  }
   if (started) content += `\n-# Started ${started}. Finish with \`/done\`.`;
   const rest = restSecondsFor(ctx, ex);
   if (ctx.cfg.bot.restCountdownAfterLog && ctx.cfg.restTimer.enabled && rest > 0) {
@@ -311,6 +329,53 @@ async function plates(ctx: BotContext, weight: number, unitOpt?: string): Promis
   return { content };
 }
 
+async function announce(ctx: BotContext, mode: string): Promise<BotReply> {
+  const u = await requireUser(ctx);
+  if (mode === "off") {
+    await ctx.data.setAnnounce(u.id, null, false);
+    return { content: "🔕 PR announcements are off." };
+  }
+  if (!ctx.guildId || !ctx.channelId) return { content: "Run `/announce on` inside a server channel where your PRs should be posted." };
+  if (!ctx.post) return { content: "Announcements aren't available right now." };
+  try {
+    await ctx.post(ctx.channelId, { content: `✅ PRs from **${u.displayName}** will be posted here. (\`/announce off\` to stop)` });
+  } catch {
+    return { content: "I can't post in this channel. A server admin needs to add the bot to this server (not just your account) with **View Channel** and **Send Messages**." };
+  }
+  await ctx.data.setAnnounce(u.id, ctx.channelId, true);
+  return { content: "📣 Done. Your PRs from the app and Discord will be announced in this channel." };
+}
+
+// ------------------------------------------------------------------ daily check-in
+
+export function checkInButtons(reminderId: string, rotation: boolean): Button[] {
+  return [
+    { label: "Start workout", id: "ci:start", style: "primary" },
+    { label: "Rest day", id: "ci:rest", style: "secondary" },
+    ...(rotation ? [{ label: "Skip", id: "ci:skip", style: "secondary" as const }] : []),
+    { label: "Snooze", id: `ci:snooze:${reminderId}`, style: "secondary" },
+  ];
+}
+
+async function checkInStart(ctx: BotContext): Promise<BotReply> {
+  const u = await requireUser(ctx);
+  const open = await ctx.data.getOpenSession(u.id);
+  if (open) return { content: "🏋️ You already have a workout going. Log with `/log`." };
+  const t = await ctx.data.getToday(u.id, ctx.now);
+  const day = t.kind === "day" ? t.day : null;
+  await ctx.data.startSession(u.id, day?.id ?? null, ctx.now);
+  const hint = day?.exercises[0] ? (await ctx.data.listExercises(u.id)).find((e) => e.id === day.exercises[0].exerciseId)?.name : null;
+  return { content: `🏋️ Started **${day?.name ?? "a workout"}**. Log with \`/log ${hint ? hint.toLowerCase() + " " : ""}135x8\`, finish with \`/done\`.` };
+}
+
+async function checkInSnooze(ctx: BotContext, reminderId: string): Promise<BotReply> {
+  const u = await requireUser(ctx);
+  const mins = ctx.cfg.reminders.snoozeMinutes;
+  const until = new Date(ctx.now.getTime() + mins * 60_000);
+  const ok = await ctx.data.snoozeReminder(u.id, reminderId, until);
+  return { content: ok ? `⏰ Snoozed. I'll ask again <t:${unix(until)}:R>.` : "That reminder no longer exists." };
+}
+
 async function rest(ctx: BotContext, time?: string): Promise<BotReply> {
   const secs = time ? parseDuration(time) : ctx.cfg.restTimer.defaultSeconds;
   if (secs == null || secs <= 0) return { content: "Try `/rest 2m`, `/rest 90` or `/rest 1:30`." };
@@ -344,6 +409,7 @@ export function handleCommand(ctx: BotContext, name: string, opts: Options): Pro
       case "friends": return friends(ctx);
       case "plates": return plates(ctx, Number(opts.weight), opts.unit as string | undefined);
       case "rest": return rest(ctx, opts.time as string | undefined);
+      case "announce": return announce(ctx, String(opts.mode ?? "on"));
       default: return { content: `Unknown command /${name}` };
     }
   });
@@ -358,6 +424,13 @@ export function handleComponent(ctx: BotContext, customId: string): Promise<BotR
   return guard(async () => {
     const [kind, id] = customId.split(":");
     if (kind === "skip") return skip(ctx);
+    if (kind === "ci") {
+      const [, action, rid] = customId.split(":");
+      if (action === "start") return checkInStart(ctx);
+      if (action === "rest") return { content: "💤 Rest day. Enjoy it, see you next session." };
+      if (action === "skip") return skip(ctx);
+      if (action === "snooze") return checkInSnooze(ctx, rid ?? "");
+    }
     const u = await requireUser(ctx);
     const s = id ? await ctx.data.getSet(u.id, id) : null; // scoped to this user: nobody else's sets
     if (kind === "undo") return s ? removeSet(ctx, u, s) : { content: "Already removed." };

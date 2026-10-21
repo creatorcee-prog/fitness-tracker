@@ -2,7 +2,7 @@ import { after, NextResponse, type NextRequest } from "next/server";
 import { resolveConfig } from "@/config/runtime";
 import { serviceClient, SupabaseBotData } from "@/lib/bot/data";
 import {
-  editOriginal, EPHEMERAL, followUp, InteractionType, listCommands, registerCommands, ResponseType, toMessage, verifyDiscordRequest,
+  editOriginal, EPHEMERAL, followUp, InteractionType, listCommands, postToChannel, registerCommands, ResponseType, toMessage, verifyDiscordRequest,
 } from "@/lib/bot/discord";
 import { ACCOUNTLESS, componentMode, handleAutocomplete, handleCommand, handleComponent, type BotContext, type Options } from "@/lib/bot/handlers";
 
@@ -25,6 +25,9 @@ function context(req: NextRequest, i: any): BotContext {
     now: new Date(),
     discordUserId: i.member?.user?.id ?? i.user?.id,
     appUrl: process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin,
+    channelId: i.channel_id ?? i.channel?.id,
+    guildId: i.guild_id,
+    post: process.env.DISCORD_BOT_TOKEN ? (channelId, reply) => postToChannel(process.env.DISCORD_BOT_TOKEN!, channelId, reply) : undefined,
   };
 }
 

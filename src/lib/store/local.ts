@@ -1,6 +1,6 @@
 import type { AppConfig } from "@/config/app.config";
 import { advance, getToday, type Today } from "@/lib/domain/split";
-import type { Exercise, FriendRequest, FriendStatus, PREvent, Profile, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
+import type { AccountPrefs, Exercise, FriendRequest, FriendStatus, PREvent, Reminder, Profile, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
 import { SEED_EXERCISES, seedSplit } from "./seed";
 import type { NewSet, Store } from "./types";
 
@@ -16,6 +16,8 @@ interface DB {
   localFriends: { id: string; name: string }[];
   removedDemoFriends: string[];
   shareStatus: boolean;
+  reminders: Reminder[];
+  announcePRs: boolean;
 }
 
 /** UUIDs everywhere so ids are valid in both backends. */
@@ -40,6 +42,8 @@ function freshDb(cfg: AppConfig): DB {
     localFriends: [],
     removedDemoFriends: [],
     shareStatus: true,
+    reminders: [],
+    announcePRs: false,
   };
 }
 
@@ -291,6 +295,41 @@ export class LocalStore implements Store {
   async getShareStatus() {
     return this.read("getShareStatus", (db) => db.shareStatus);
   }
+
+  // Reminders and announcements are stored so the Settings UI can be debugged
+  // locally, but only the Supabase backend + Discord bot actually send them.
+  async listReminders() {
+    return this.read("listReminders", (db) => db.reminders);
+  }
+
+  async saveReminder(r: Reminder) {
+    return this.mutate("saveReminder", (db) => {
+      const i = db.reminders.findIndex((x) => x.id === r.id);
+      if (i >= 0) db.reminders[i] = r;
+      else db.reminders.push(r);
+      return r;
+    });
+  }
+
+  async deleteReminder(id: string) {
+    this.mutate("deleteReminder", (db) => (db.reminders = db.reminders.filter((r) => r.id !== id)));
+  }
+
+  async getAnnounceSettings() {
+    return this.read("getAnnounceSettings", (db) => ({ enabled: db.announcePRs, channelSet: false }));
+  }
+
+  async setAnnouncePRs(on: boolean) {
+    this.mutate("setAnnouncePRs", (db) => (db.announcePRs = on));
+  }
+
+  async announcePRs() {}
+
+  async getPrefs(): Promise<AccountPrefs | null> {
+    return null;
+  }
+
+  async savePrefs() {}
 
   subscribe(cb: () => void) {
     const onStorage = (e: StorageEvent) => {
