@@ -54,6 +54,14 @@ Slash commands through `/api/discord` in the web app (no separate bot server).
 - [x] Guided sets optional (off by default)
 - [ ] Live test: Google provider + manual linking in Supabase; a real James import
 
+## Done: import UX
+
+- [x] One box for anything (incl. copied spreadsheet cells); readers first, James automatically if needed
+- [x] Questions instead of guesses, remembered per user, common answers as hints (3+ users)
+- [x] Editable import preview; "Import these" from chat
+- [x] Photo/screenshot import (test feature, GROQ_VISION_MODEL)
+- [ ] Test photo import accuracy with real photos (notebook, Notes screenshot, spreadsheet screenshot)
+
 ## Next
 
 - [ ] Web push reminders (needs Home Screen install on iPhone)

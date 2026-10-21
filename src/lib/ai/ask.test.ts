@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { defaultConfig } from "@/config/app.config";
 import { FakeData } from "@/lib/bot/testing";
 import { toKg } from "@/lib/domain/units";
-import { aiEnvFromProcess, handleAsk, systemPrompt, type AiEnv, type AskDeps } from "./ask";
+import { aiEnvFromProcess, checkAiCaps, handleAsk, systemPrompt, type AiEnv, type AskDeps } from "./ask";
 import { buildTrainingContext, estimateTokens } from "./context";
 
 const NOW = new Date("2026-10-21T17:00:00Z");
@@ -80,6 +80,17 @@ describe("/ask", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("gives developer accounts their own limit and keeps their use out of the shared cap", async () => {
+    const e = env({ devUserIds: ["u1"], devDailyLimit: 50, dailyUserLimit: 2, dailyGlobalLimit: 3 });
+    for (let i = 0; i < 10; i++) await data.recordAiUsage("u1", "2026-10-21", 1, 1); // dev used 10 today
+    expect((await handleAsk(deps(fakeFetch([ok("Sure.")]), e), "How's my bench?")).outcome).toBe("answered"); // past 2, under 50
+    expect(await checkAiCaps(data, e, "u2", "2026-10-21")).toMatchObject({ blocked: null, limit: 2 }); // dev's 11 don't count against others
+    await data.recordAiUsage("u3", "2026-10-21", 1, 1);
+    await data.recordAiUsage("u3", "2026-10-21", 1, 1);
+    await data.recordAiUsage("u4", "2026-10-21", 1, 1);
+    expect((await checkAiCaps(data, e, "u2", "2026-10-21")).blocked).toBe("global-cap"); // 3 from regular users
+    expect((await checkAiCaps(data, e, "u1", "2026-10-21")).blocked).toBeNull(); // the dev isn't blocked by it
+  });
   it("stops at the global daily cap", async () => {
     for (let i = 0; i < 70; i++) await data.recordAiUsage(`other-${i}`, "2026-10-21", 1, 1);
     expect((await handleAsk(deps(fakeFetch([ok("x")])), "Anything?")).outcome).toBe("global-cap");

@@ -5,7 +5,7 @@ import type { Category } from "@/config/app.config";
 import { useApp } from "@/components/AppProvider";
 import { useToast } from "@/components/UndoToast";
 import type { Exercise, Split, SplitState } from "@/lib/domain/types";
-import { toKg } from "@/lib/domain/units";
+import { formatWeight, toKg } from "@/lib/domain/units";
 import { uid } from "@/lib/store/local";
 import { starterSplitFor } from "@/lib/store/seed";
 
@@ -120,25 +120,30 @@ export default function SplitPage() {
                 <button className="btn sm danger" onClick={() => upd({ days: e.days.filter((_, j) => j !== i) })} aria-label="Remove day">✕</button>
               </div>
               <ul className="setlist">
-                {d.exercises.length > 0 && (
-                  <li className="muted small split-cols" aria-hidden>
-                    <span style={{ flex: 1 }}>Exercise</span>
-                    <span style={{ width: 52, textAlign: "center" }}>Sets</span>
-                    <span style={{ width: 70, textAlign: "center" }}>Reps</span>
-                    <span style={{ width: 76 }} />
-                  </li>
-                )}
-                {d.exercises.map((x, k) => (
-                  <li key={k}>
-                    <select style={{ flex: 1, minWidth: 0 }} value={x.exerciseId} onChange={(v) => updDay(i, { exercises: d.exercises.map((y, m) => (m === k ? { ...y, exerciseId: v.target.value } : y)) })}>
-                      {exercises.map((ex) => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
-                    </select>
-                    <input style={{ width: 52 }} type="number" min={1} value={x.targetSets} onChange={(v) => updDay(i, { exercises: d.exercises.map((y, m) => (m === k ? { ...y, targetSets: Number(v.target.value) || 1 } : y)) })} aria-label="Sets" />
-                    <input style={{ width: 70 }} placeholder="e.g. 6-8" value={x.repRange} onChange={(v) => updDay(i, { exercises: d.exercises.map((y, m) => (m === k ? { ...y, repRange: v.target.value } : y)) })} aria-label="Rep range" />
-                    <button className="btn sm ghost" title="Move up" aria-label="Move exercise up" onClick={() => updDay(i, { exercises: move(d.exercises, k, -1) })}>↑</button>
-                    <button className="btn sm ghost" title="Remove" aria-label="Remove exercise" onClick={() => updDay(i, { exercises: d.exercises.filter((_, m) => m !== k) })}>✕</button>
-                  </li>
-                ))}
+                {d.exercises.map((x, k) => {
+                  const set = (patch: Partial<typeof x>) => updDay(i, { exercises: d.exercises.map((y, m) => (m === k ? { ...y, ...patch } : y)) });
+                  return (
+                    <li key={k} className="split-ex">
+                      {/* Line 1: the lift, full width so long names stay readable on a phone. */}
+                      <select className="split-ex-name" value={x.exerciseId} onChange={(v) => set({ exerciseId: v.target.value })} aria-label="Exercise">
+                        {exercises.map((ex) => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
+                      </select>
+                      {/* Line 2: labelled targets and row controls. */}
+                      <div className="split-ex-row">
+                        <label className="split-ex-field">Sets<input type="number" min={1} value={x.targetSets} onChange={(v) => set({ targetSets: Number(v.target.value) || 1 })} /></label>
+                        <label className="split-ex-field">Reps<input placeholder="e.g. 6-8" value={x.repRange} onChange={(v) => set({ repRange: v.target.value })} /></label>
+                        <span style={{ flex: 1 }} />
+                        <button className="btn sm ghost" title="Move up" aria-label="Move exercise up" onClick={() => updDay(i, { exercises: move(d.exercises, k, -1) })}>↑</button>
+                        <button className="btn sm ghost" title="Remove" aria-label="Remove exercise" onClick={() => updDay(i, { exercises: d.exercises.filter((_, m) => m !== k) })}>✕</button>
+                      </div>
+                      {(x.note || x.startWeightKg) && (
+                        <span className="muted small">
+                          {[x.startWeightKg ? `Start ${formatWeight(x.startWeightKg, profile.unit, cfg.units.displayDecimals)}` : null, x.note].filter(Boolean).join(" · ")}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
               <button className="btn sm" style={{ marginTop: 8 }} disabled={!exercises.length} onClick={() => updDay(i, { exercises: [...d.exercises, { exerciseId: exercises[0].id, order: d.exercises.length, targetSets: cfg.logging.defaultTargetSets, repRange: cfg.logging.defaultRepRange }] })}>+ Exercise</button>
             </div>

@@ -41,3 +41,24 @@ function loadImage(file: File): Promise<HTMLImageElement> {
     img.src = url;
   });
 }
+
+/**
+ * Shrinks a photo for James to read (Import): keeps the whole picture (no crop),
+ * longest side up to `maxSide` so handwriting stays legible, JPEG, under `maxChars`.
+ */
+export async function shrinkPhoto(file: File, maxSide = 1600, maxChars = 1_400_000): Promise<string> {
+  if (!file.type.startsWith("image/")) throw new Error("That isn't an image.");
+  const img = await loadImage(file);
+  for (let side = maxSide; side >= 800; side -= 400) {
+    const scale = Math.min(1, side / Math.max(img.width, img.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(img.width * scale);
+    canvas.height = Math.round(img.height * scale);
+    canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+    for (let q = 0.85; q >= 0.55; q -= 0.15) {
+      const url = canvas.toDataURL("image/jpeg", q);
+      if (url.length <= maxChars) return url;
+    }
+  }
+  throw new Error("That photo is too large to send. Try a screenshot or a closer crop.");
+}

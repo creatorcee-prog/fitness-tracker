@@ -28,6 +28,7 @@ interface DB {
   nutritionTargets: NutritionTargets;
   media: ProfileMedia;
   bodyweight: BodyweightEntry[];
+  importMemory: Record<string, string>;
 }
 
 /** UUIDs everywhere so ids are valid in both backends. */
@@ -60,6 +61,7 @@ function freshDb(cfg: AppConfig): DB {
     nutritionTargets: { calories: null, protein: null },
     media: { avatar: null, banner: null },
     bodyweight: [],
+    importMemory: {},
   };
 }
 
@@ -377,6 +379,15 @@ export class LocalStore implements Store {
 
   async getShareStatus() {
     return this.read("getShareStatus", (db) => db.shareStatus);
+  }
+
+  async importMemory(keys: string[]) {
+    // Local mode has only you: no "most people" hints.
+    return { mine: Object.fromEntries(keys.filter((k) => k in this.db.importMemory).map((k) => [k, this.db.importMemory[k]])), popular: {} };
+  }
+
+  async rememberImportAnswers(answers: Record<string, string>) {
+    this.mutate("rememberImportAnswers", (db) => (db.importMemory = { ...db.importMemory, ...answers }));
   }
 
   async listBodyweight() {

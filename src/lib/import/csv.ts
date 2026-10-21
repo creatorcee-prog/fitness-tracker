@@ -1,10 +1,12 @@
 import type { Unit } from "@/config/app.config";
 import type { ImportedData, ImportedSession } from "./types";
 
-/** Splits CSV text into rows (quotes, escaped quotes, commas or semicolons). */
+/** Splits CSV text into rows (quotes, escaped quotes; commas, semicolons or tabs). */
 export function parseCsv(text: string): string[][] {
   const firstLine = text.split(/\r?\n/, 1)[0] ?? "";
-  const delim = (firstLine.match(/;/g)?.length ?? 0) > (firstLine.match(/,/g)?.length ?? 0) ? ";" : ",";
+  // Tabs = cells copied from Google Sheets / Excel / Numbers; semicolons = some European CSV exports.
+  const count = (c: string) => firstLine.split(c).length - 1;
+  const delim = count("\t") > 0 && count("\t") >= count(",") ? "\t" : count(";") > count(",") ? ";" : ",";
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = "";
@@ -105,4 +107,87 @@ export function readWorkoutCsv(text: string, unit: Unit): ImportedData {
     });
   });
   return { format: format ?? "strong-csv", sessions: [...sessions.values()].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)), program: null, goals: [], skipped };
+}
+
+// ------------------------------------------------------------------ program tables
+
+const WEEKDAY: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+/** Common gym shorthand for day focus. Unknown codes are kept as written (rename them in the preview). */
+const FOCUS: Record<string, string> = {
+  ch: "Chest", bk: "Back", lg: "Legs", sh: "Shoulders", ar: "Arms", ps: "Push", pl: "Pull", ul: "Upper", ll: "Lower",
+  ub: "Upper", lb: "Lower", fb: "Full Body", ab: "Abs", co: "Core", cd: "Cardio",
+};
+/** Looks like a code ("RE", "PPL2") rather than a name: asked about instead of guessed. */
+const isCode = (s: string) => /^[A-Za-z]{1,4}\d?$/.test(s) && s === s.toUpperCase();
+
+/**
+ * A plan laid out as a table, one row per exercise: a day column (MON, Day 1,
+ * Push…) and an exercise column, plus any of weight, sets, reps, focus/name,
+ * section, detail/notes. No dates, so it's a program, not history.
+ */
+export function isProgramCsv(text: string): boolean {
+  const head = parseCsv(text.split(/\r?\n/, 1)[0] ?? "")[0]?.map((h) => h.trim().toLowerCase()) ?? [];
+  return head.some((h) => /^(day|weekday|day of week)$/.test(h)) && head.some((h) => /^(exercise|exercise name|lift|movement)$/.test(h)) && !head.some((h) => /date|start_time/.test(h));
+}
+
+/** "40lbs", "100 kg", "135" → weight; "30s", "1:30", "2 min" → a time note. */
+export function parseLoad(raw: string, unit: Unit): { weight: number | null; unit: Unit; note: string | null } {
+  const s = raw.trim();
+  if (!s) return { weight: null, unit, note: null };
+  const w = s.match(/^(\d+(?:\.\d+)?)\s*(kg|kgs|lb|lbs)?$/i);
+  if (w) return { weight: Number(w[1]), unit: w[2] ? (w[2].toLowerCase().startsWith("kg") ? "kg" : "lb") : unit, note: null };
+  return { weight: null, unit, note: s }; // a time ("30s") or anything else: keep it as written
+}
+
+export function readProgramCsv(text: string, unit: Unit, defaults: { sets: number; reps: string }): ImportedData {
+  const rows = parseCsv(text);
+  const head = (rows.shift() ?? []).map((h) => h.trim().toLowerCase());
+  const col = (re: RegExp) => head.findIndex((h) => re.test(h));
+  const iDay = col(/^(day|weekday|day of week)$/), iEx = col(/^(exercise|exercise name|lift|movement)$/);
+  const iFocus = col(/^(focus|name|workout|title|muscle|muscles|split)$/), iW = col(/^(weight|load|kg|lbs?)$/);
+  const iSets = col(/^sets?$/), iReps = col(/^(reps?|rep range)$/), iDetail = col(/^(detail|details|notes?|comment|comments)$/);
+  const skipped: string[] = [];
+  const days: NonNullable<ImportedData["program"]>["days"] = [];
+
+  rows.forEach((r, n) => {
+    const dayRaw = (r[iDay] ?? "").trim();
+    const name = (r[iEx] ?? "").trim();
+    if (!dayRaw || !name) return void skipped.push(`Row ${n + 2}: no day or exercise`);
+    const wd = WEEKDAY[dayRaw.slice(0, 3).toLowerCase()];
+    const focusRaw = (r[iFocus] ?? "").replace(/[/\\|]+\s*$/, "").trim();
+    const known = FOCUS[focusRaw.toLowerCase()];
+    const focus = known ?? focusRaw;
+    const key = dayRaw.toLowerCase();
+    let day = days.find((d) => (d as { key?: string }).key === key);
+    if (!day) {
+      const dayName = focus || (wd !== undefined ? dayRaw.slice(0, 1).toUpperCase() + dayRaw.slice(1, 3).toLowerCase() : dayRaw);
+      day = Object.assign({ name: dayName, weekday: wd ?? null, exercises: [], code: !known && isCode(focusRaw) ? focusRaw : null }, { key });
+      days.push(day);
+    }
+    const load = parseLoad(r[iW] ?? "", unit);
+    const detail = (r[iDetail] ?? "").trim();
+    // A detail like "3x10" is sets × reps; anything else ("x2" = a pair of dumbbells) is kept as a note.
+    const sr = detail.match(/^(\d{1,2})\s*[x×]\s*(\d{1,3}(?:\s*-\s*\d{1,3})?)$/);
+    const sets = Number(r[iSets]) || (sr ? Number(sr[1]) : 0);
+    const reps = (r[iReps] ?? "").replace(/\s/g, "") || (sr ? sr[2].replace(/\s/g, "") : "");
+    // "x2" is ambiguous (a pair of dumbbells? 2 sets?): kept aside and asked about. Other details are notes.
+    const unclear = !sr && /^[x×]\s*\d{1,2}$/i.test(detail) ? detail.replace(/\s/g, "").toLowerCase().replace("×", "x") : null;
+    const note = [load.note, sr || unclear ? null : detail].filter(Boolean).join(" · ") || null;
+    day.exercises.push({
+      name, sets: sets > 0 && sets <= 10 ? sets : defaults.sets, reps: /^\d{1,3}(-\d{1,3})?$/.test(reps) ? reps : defaults.reps,
+      stated: sets > 0 && !!reps, setsStated: sets > 0, weight: load.weight, unit: load.unit, note, detail: unclear,
+    });
+  });
+
+  // Same label on different weekdays (two "Recovery" days) → add the weekday so they stay distinct.
+  const dupes = new Set(days.map((d) => d.name).filter((n, i, all) => all.indexOf(n) !== i));
+  for (const d of days) {
+    if (d.weekday != null && dupes.has(d.name)) d.name = `${d.name} (${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.weekday]})`;
+    delete (d as { key?: string }).key;
+  }
+  const weekly = days.length > 0 && days.every((d) => d.weekday != null) && new Set(days.map((d) => d.weekday)).size === days.length;
+  return {
+    format: "program-csv", sessions: [], goals: [], skipped,
+    program: days.length ? { name: "Imported program", mode: weekly ? "weekly" : "rotation", days: days.map((d) => ({ ...d, weekday: weekly ? d.weekday : null })), source: "stated" } : null,
+  };
 }

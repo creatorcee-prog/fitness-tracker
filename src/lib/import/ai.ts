@@ -1,5 +1,5 @@
 import type { AppConfig } from "@/config/app.config";
-import { chat, HttpError, type AiEnv } from "@/lib/ai/ask";
+import { chat, checkAiCaps, HttpError, type AiEnv, type ContentPart } from "@/lib/ai/ask";
 import type { BotData } from "@/lib/bot/data";
 import type { ImportedData } from "./types";
 import { validateImported } from "./validate";
@@ -28,8 +28,9 @@ export function importPrompt(cfg: AppConfig, unit: string, today: string): strin
 
 Return ONLY a JSON object:
 {"sessions":[{"date":"YYYY-MM-DD","day":"Push"|null,"sets":[{"e":"Bench Press","w":185,"u":"lb","r":5,"n":3,"rpe":null,"wu":false}]}],
- "program":null|{"name":"PPL","mode":"rotation"|"weekly","days":[{"name":"Push","weekday":null,"exercises":[{"e":"Bench Press","sets":4,"reps":"6-8"}]}]},
+ "program":null|{"name":"PPL","mode":"rotation"|"weekly","days":[{"name":"Push","weekday":null,"exercises":[{"e":"Bench Press","sets":4,"reps":"6-8","w":185,"u":"lb","note":null}]}]},
  "goals":[{"goal":"lift_e1rm","lift":"Bench Press","target":225,"deadline":"YYYY-MM-DD"|null}|{"goal":"lift_reps","lift":"Pull-up","weight":0,"target":12}|{"goal":"sessions_per_week","target":4}],
+ "terms":[{"term":"RE","options":["Rest","Recovery"]}],
  "unclear":["lines you could not interpret, copied verbatim"]}
 
 Rules:
@@ -37,41 +38,61 @@ Rules:
 - One sets entry = n identical sets: w weight (0 for bodyweight), u "lb" or "kg" (default ${unit}), r reps, n how many sets. Warm-ups: "wu":true.
 - "day" is the workout's own label if it has one (Push, Legs, Upper A, Day 2), else null.
 - Dates without a year: use the most recent such date on or before ${today}. Weekday names alone: leave the session out and add the line to "unclear".
-- "program": only if the text lays out a plan/split (days with sets x reps targets). Otherwise null. weekday 0=Sunday..6=Saturday, only when stated.
+- "program": if the text lays out a plan/split (a list of days with their exercises, with or without dates). Otherwise null. weekday 0=Sunday..6=Saturday, only when stated (then mode "weekly").
+  sets/reps: only if stated, else null (never guess). "w": a working weight if listed. "note": anything else about the lift as written (e.g. "30s").
+  An ambiguous multiplier after a weight like "x2" (pair of dumbbells? 2 sets?): put it in "detail":"x2", not in sets or note.
+  Day names: use the plan's own label; expand obvious gym abbreviations (CH=Chest, BK=Back, LG=Legs, SH=Shoulders, AR=Arms).
+- "terms": any code or abbreviation you're NOT sure about (a day label like "RE", an unfamiliar lift short-form): keep it as written where it appears and list it here with 2-4 likely meanings. Asking is better than guessing.
 - "goals": only goals the text states. Otherwise [].
-- Put anything you couldn't place in "unclear". Don't explain; output JSON only.`;
+- Put anything you couldn't place in "unclear". Don't explain; output JSON only.
+- Photos/screenshots: transcribe only what you can actually read. If a number or word is unclear (handwriting, glare, cut off), do NOT guess: put that line, as best you can read it, in "unclear" with a "?" where it's unreadable.`;
 }
 
 export type ImportOutcome =
   | { ok: true; data: ImportedData; tokensIn: number; tokensOut: number; model: string }
-  | { ok: false; outcome: "disabled" | "too-long" | "empty" | "user-cap" | "global-cap" | "busy" | "error" | "bad-output"; message: string };
+  | { ok: false; outcome: "disabled" | "too-long" | "empty" | "user-cap" | "global-cap" | "busy" | "error" | "bad-output" | "bad-image"; message: string };
+
+/** A photo as the browser sends it: a JPEG/PNG/WebP data URL, already shrunk. ~1.5 MB of text max each. */
+export const MAX_IMAGE_CHARS = 1_500_000;
+const IMAGE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
 
 export async function readWithJames(
   deps: { data: BotData; cfg: AppConfig; env: AiEnv; importEnv: ImportEnv; now: Date; userId: string; fetch: typeof fetch },
   text: string,
+  images: string[] = [],
 ): Promise<ImportOutcome> {
   const { data, cfg, env, importEnv, now } = deps;
   const input = text.trim();
-  if (!env.enabled || !env.apiKey) return { ok: false, outcome: "disabled", message: `${cfg.brand.botName} is switched off right now. The CSV and plain-text readers still work.` };
-  if (!input) return { ok: false, outcome: "empty", message: "Paste some workouts first." };
+  const bot = cfg.brand.botName;
+  if (!env.enabled || !env.apiKey) return { ok: false, outcome: "disabled", message: `${bot} is switched off right now. The CSV and plain-text readers still work.` };
+  if (images.length) {
+    if (!env.visionModel) return { ok: false, outcome: "disabled", message: "Reading photos is turned off right now. Paste the text instead." };
+    if (images.length > env.visionMaxImages) return { ok: false, outcome: "bad-image", message: `Up to ${env.visionMaxImages} photos at a time.` };
+    if (images.some((u) => !IMAGE.test(u) || u.length > MAX_IMAGE_CHARS)) return { ok: false, outcome: "bad-image", message: "One of those images couldn't be used. Try a JPEG or PNG screenshot." };
+  }
+  if (!input && !images.length) return { ok: false, outcome: "empty", message: "Paste some workouts or add a photo first." };
   if (input.length > importEnv.maxChars) {
     return { ok: false, outcome: "too-long", message: `That's ${input.length.toLocaleString()} characters; ${cfg.brand.botName} reads up to ${importEnv.maxChars.toLocaleString()} at a time on the free tier. Import it in parts (e.g. a month at a time), or use “Read it” for logs in a standard format.` };
   }
   const user = await data.getUserById(deps.userId);
   if (!user) return { ok: false, outcome: "error", message: "Couldn't find your account." };
   const day = now.toISOString().slice(0, 10);
-  const used = await data.aiUsageToday(user.id, day);
-  if (used.user >= env.dailyUserLimit) return { ok: false, outcome: "user-cap", message: `You've used today's ${env.dailyUserLimit} ${cfg.brand.botName} requests. They reset at midnight UTC.` };
-  if (used.global >= env.dailyGlobalLimit) return { ok: false, outcome: "global-cap", message: "Today's free-tier limit is used up for everyone. Try again tomorrow." };
+  const caps = await checkAiCaps(data, env, user.id, day);
+  if (caps.blocked === "user-cap") return { ok: false, outcome: "user-cap", message: `You've used today's ${caps.limit} ${cfg.brand.botName} requests. They reset at midnight UTC.` };
+  if (caps.blocked === "global-cap") return { ok: false, outcome: "global-cap", message: "Today's free-tier limit is used up for everyone. Try again tomorrow." };
 
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: user.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  const userContent: string | ContentPart[] = images.length
+    ? [{ type: "text", text: input ? `Notes that came with the photos:\n${input}` : "Transcribe the workouts or plan in these photos." }, ...images.map((url): ContentPart => ({ type: "image_url", image_url: { url } }))]
+    : input;
   const messages = [
     { role: "system" as const, content: importPrompt(cfg, user.unit, today) },
-    { role: "user" as const, content: input },
+    { role: "user" as const, content: userContent },
   ];
   // Transcribing, not chatting: low temperature, no repetition penalty (logs repeat on purpose).
   const ienv = { ...env, temperature: 0, frequencyPenalty: 0, topP: 1 };
-  const models = [env.model, ...(env.fallbackModel && env.fallbackModel !== env.model ? [env.fallbackModel] : [])];
+  // Photos need the image model (no text-only fallback can read them).
+  const models = images.length ? [env.visionModel] : [env.model, ...(env.fallbackModel && env.fallbackModel !== env.model ? [env.fallbackModel] : [])];
   for (const model of models) {
     try {
       const r = await chat({ env: ienv, fetch: deps.fetch }, model, messages, importEnv.maxOutputTokens, { response_format: { type: "json_object" } });
@@ -83,10 +104,13 @@ export async function readWithJames(
       } catch {
         return { ok: false, outcome: "bad-output", message: `${cfg.brand.botName} couldn't finish reading that${r.tokensOut >= importEnv.maxOutputTokens - 50 ? " (it was too long to answer in one go: try a smaller part)" : ""}. Nothing was saved.` };
       }
-      return { ok: true, data: validateImported(parsed, user.unit), tokensIn: r.tokensIn, tokensOut: r.tokensOut, model };
+      return { ok: true, data: validateImported(parsed, user.unit, { sets: cfg.import.defaultSets, reps: cfg.import.defaultReps }), tokensIn: r.tokensIn, tokensOut: r.tokensOut, model };
     } catch (e) {
       if (e instanceof HttpError && e.status === 429) continue;
       console.error("[import]", e);
+      if (images.length && e instanceof HttpError && (e.status === 404 || /model/i.test(e.message))) {
+        return { ok: false, outcome: "error", message: `The photo model (${env.visionModel}) isn't available right now. The app owner can change GROQ_VISION_MODEL. Pasting the text still works.` };
+      }
       return { ok: false, outcome: "error", message: `${cfg.brand.botName} couldn't read it right now. Please try again in a bit.` };
     }
   }

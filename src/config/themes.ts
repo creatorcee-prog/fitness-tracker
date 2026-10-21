@@ -19,6 +19,39 @@ const APPLE = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe
 const ROUNDED = '"Outfit", -apple-system, BlinkMacSystemFont, "SF Pro Rounded", system-ui, sans-serif';
 
 export const THEME_PRESETS: Record<string, ThemePreset> = {
+  ember: {
+    label: "Ember (warm coral)",
+    style: "playful",
+    vars: {
+      bg: "#0e0c0d", surface: "#1a1718", "surface-2": "#252022", text: "#f6f1ef", muted: "#a89f9b", border: "#2e2729",
+      accent: "#ff7a45", "accent-text": "#1c0b03", highlight: "#b8325a", "highlight-text": "#ffffff",
+      "ring-a": "#ffb347", "ring-b": "#ff4f8b", pr: "#ffd166", good: "#6ee7a8", bad: "#ff6b6b",
+      "seg-thumb": "#ff7a45", "seg-thumb-text": "#1c0b03", font: ROUNDED, radius: "22px",
+      "bg-glow": "radial-gradient(900px 520px at 0% -10%, #ff7a4526, transparent 60%), radial-gradient(800px 520px at 110% 0%, #b8325a2e, transparent 60%)",
+    },
+  },
+  nebula: {
+    label: "Nebula (violet + cyan)",
+    style: "playful",
+    vars: {
+      bg: "#0b0a14", surface: "#16142a", "surface-2": "#201d3a", text: "#f2f0fb", muted: "#a7a3c4", border: "#2a2648",
+      accent: "#a78bfa", "accent-text": "#140d2b", highlight: "#5b3fd6", "highlight-text": "#ffffff",
+      "ring-a": "#22d3ee", "ring-b": "#c084fc", pr: "#fbbf24", good: "#34d399", bad: "#fb7185",
+      "seg-thumb": "#a78bfa", "seg-thumb-text": "#140d2b", font: ROUNDED, radius: "22px",
+      "bg-glow": "radial-gradient(900px 560px at 0% -10%, #5b3fd640, transparent 60%), radial-gradient(800px 520px at 110% 10%, #22d3ee22, transparent 60%)",
+    },
+  },
+  volt: {
+    label: "Volt (lime + teal)",
+    style: "playful",
+    vars: {
+      bg: "#0c0e10", surface: "#16191c", "surface-2": "#1f2327", text: "#f2f4f5", muted: "#97a2aa", border: "#272b30",
+      accent: "#c8f560", "accent-text": "#11160a", highlight: "#0e6f68", "highlight-text": "#ffffff",
+      "ring-a": "#c8f560", "ring-b": "#2dd4bf", pr: "#ffb84d", good: "#4ade80", bad: "#f87171",
+      "seg-thumb": "#c8f560", "seg-thumb-text": "#11160a", font: ROUNDED, radius: "22px",
+      "bg-glow": "radial-gradient(900px 520px at 0% -10%, #c8f56018, transparent 60%), radial-gradient(800px 520px at 110% 0%, #2dd4bf1f, transparent 60%)",
+    },
+  },
   midnight: {
     label: "Midnight Lime",
     style: "playful",

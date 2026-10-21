@@ -88,7 +88,10 @@ export function buildImport(data: ImportedData, program: ImportedProgram | null,
       id: splitId, name: program.name, mode: program.mode, isActive: true,
       days: program.days.map((d, position) => ({
         id: newId(), splitId, position, name: d.name, weekday: program.mode === "weekly" ? d.weekday : null,
-        exercises: d.exercises.map((x, order) => ({ exerciseId: resolve(x.name).id, order, targetSets: x.sets, repRange: x.reps })),
+        exercises: d.exercises.map((x, order) => ({
+          exerciseId: resolve(x.name).id, order, targetSets: x.sets, repRange: x.reps,
+          startWeightKg: x.weight != null && x.weight > 0 ? toKg(x.weight, x.unit ?? "lb") : null, note: x.note ?? null,
+        })),
       })),
     });
   }

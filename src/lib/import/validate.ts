@@ -10,7 +10,7 @@ import type { GoalAction, ImportedData, ImportedProgram, ImportedSession } from 
 export const MAX_SESSIONS = 400;
 const REPS = /^\d{1,3}(-\d{1,3})?$/;
 
-export function validateImported(raw: unknown, unit: Unit): ImportedData {
+export function validateImported(raw: unknown, unit: Unit, defaults = { sets: 3, reps: "8-12" }): ImportedData {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const skipped: string[] = Array.isArray(r.unclear) ? r.unclear.filter((x): x is string => typeof x === "string").slice(0, 50).map((x) => x.slice(0, 200)) : [];
   const sessions: ImportedSession[] = [];
@@ -54,8 +54,13 @@ export function validateImported(raw: unknown, unit: Unit): ImportedData {
         const e = x as Record<string, unknown>;
         const ename = typeof e?.e === "string" ? e.e.trim().slice(0, 60) : "";
         const sets = typeof e?.sets === "number" && Number.isInteger(e.sets) && e.sets >= 1 && e.sets <= 10 ? e.sets : null;
-        const reps = typeof e?.reps === "string" && REPS.test(e.reps.replace(/\s|–/g, (c) => (c === "–" ? "-" : ""))) ? e.reps.replace(/\s|–/g, (c) => (c === "–" ? "-" : "")) : typeof e?.reps === "number" && e.reps >= 1 && e.reps <= 100 ? String(e.reps) : null;
-        return ename && sets && reps ? [{ name: ename, sets, reps }] : [];
+        const repsText = typeof e?.reps === "string" ? e.reps.replace(/\s|–/g, (c) => (c === "–" ? "-" : "")) : null;
+        const reps = repsText && REPS.test(repsText) ? repsText : typeof e?.reps === "number" && e.reps >= 1 && e.reps <= 100 ? String(e.reps) : null;
+        const w = typeof e?.w === "number" && e.w > 0 && e.w <= 1500 ? e.w : null;
+        const note = typeof e?.note === "string" && e.note.trim() ? e.note.trim().slice(0, 80) : null;
+        const detail = typeof e?.detail === "string" && /^[x×]\s*\d{1,2}$/i.test(e.detail.trim()) ? e.detail.replace(/\s/g, "").toLowerCase().replace("×", "x") : null;
+        // Sets/reps the plan doesn't state get defaults; the preview marks them.
+        return ename ? [{ name: ename, sets: sets ?? defaults.sets, reps: reps ?? defaults.reps, stated: sets !== null && reps !== null, setsStated: sets !== null, weight: w, unit: (e.u === "kg" || e.u === "lb" ? e.u : unit) as Unit, note, detail }] : [];
       });
       return exercises.length ? [{ name, weekday, exercises }] : [];
     });
@@ -68,5 +73,14 @@ export function validateImported(raw: unknown, unit: Unit): ImportedData {
     return v && v.type === "add_goal" ? [v as GoalAction] : [];
   });
 
-  return { format: "ai", sessions, program, goals, skipped };
+  const terms = (Array.isArray(r.terms) ? r.terms : []).slice(0, 8).flatMap((t) => {
+    const o = t as Record<string, unknown>;
+    const term = typeof o?.term === "string" ? o.term.trim().slice(0, 30) : "";
+    const options = (Array.isArray(o?.options) ? o.options : []).filter((x): x is string => typeof x === "string" && !!x.trim()).map((x) => x.trim().slice(0, 40)).slice(0, 4);
+    return term ? [{ term, options }] : [];
+  });
+  // A flagged term used as a day name gets the same question as an unexpanded code.
+  if (program) for (const d of program.days) if (terms.some((t) => t.term.toLowerCase() === d.name.toLowerCase())) d.code = d.name;
+
+  return { format: "ai", sessions, program, goals, skipped, terms };
 }
