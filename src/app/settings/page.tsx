@@ -5,6 +5,8 @@ import { defaultConfig, type Unit, type WidgetConfig } from "@/config/app.config
 import { deepMerge } from "@/config/runtime";
 import { contrastRatio, THEME_PRESETS } from "@/config/themes";
 import { useApp } from "@/components/AppProvider";
+import { withNewWidgets } from "@/components/Dashboard";
+import { NutritionTargetsCard } from "@/components/NutritionTargetsCard";
 import { RemindersCard } from "@/components/RemindersCard";
 import { useToast } from "@/components/UndoToast";
 import { generateDemoHistory } from "@/lib/service";
@@ -12,7 +14,7 @@ import { supabaseOf } from "@/lib/store";
 
 const WIDGET_LABEL: Record<WidgetConfig["id"], string> = {
   today: "Today's split day", week: "Sessions this week", streak: "Weekly streak", lastPr: "Latest PR",
-  friends: "Friends lifting today", topLift: "Top e1RM", volume: "Weekly volume",
+  friends: "Friends lifting today", topLift: "Top e1RM", volume: "Weekly volume", calories: "Calories today",
 };
 const NAMED_COLORS = ["surface", "hero", "lime"];
 const CONTRAST_PAIRS: [string, string][] = [["text", "bg"], ["text", "surface"], ["accent-text", "accent"], ["highlight-text", "highlight"]];
@@ -38,7 +40,7 @@ export default function SettingsPage() {
   };
 
   // Arrays are replaced wholesale by deepMerge, so widget edits write the full list.
-  const widgets = cfg.dashboard.widgets;
+  const widgets = withNewWidgets(cfg.dashboard.widgets);
   const setWidgets = (w: WidgetConfig[]) => patch({ dashboard: { widgets: w } });
   const updWidget = (i: number, p: Partial<WidgetConfig>) => setWidgets(widgets.map((w, j) => (j === i ? { ...w, ...p } : w)));
   const moveWidget = (i: number, d: number) => {
@@ -92,6 +94,8 @@ export default function SettingsPage() {
         </div>
         <label className="field">Timezone (decides "today" in weekly mode)<input value={tz} onChange={(e) => setTz(e.target.value)} onBlur={() => saveProfile({ timezone: tz })} /></label>
       </div>
+
+      <NutritionTargetsCard />
 
       <RemindersCard />
 

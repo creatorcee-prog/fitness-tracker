@@ -15,7 +15,7 @@ export type SplitMode = "rotation" | "weekly";
 export type DataBackend = "local" | "supabase" | "local-sync";
 export type Category = "upper" | "lower" | "core" | "cardio" | "other";
 
-export type WidgetId = "today" | "week" | "streak" | "lastPr" | "friends" | "topLift" | "volume";
+export type WidgetId = "today" | "week" | "streak" | "lastPr" | "friends" | "topLift" | "volume" | "calories";
 export interface WidgetConfig {
   id: WidgetId;
   enabled: boolean;
@@ -170,6 +170,7 @@ export const defaultConfig = {
       { id: "streak", enabled: true, size: 1, color: "surface" },
       { id: "lastPr", enabled: true, size: 1, color: "surface" },
       { id: "friends", enabled: true, size: 1, color: "surface" },
+      { id: "calories", enabled: true, size: 2, color: "surface" },
       { id: "topLift", enabled: false, size: 1, color: "surface" },
       { id: "volume", enabled: false, size: 1, color: "surface" },
     ] as WidgetConfig[],
@@ -185,6 +186,13 @@ export const defaultConfig = {
     skipIfTrainedToday: true,
     /** Send on weekly-split rest days too. */
     onRestDays: false,
+  },
+
+  nutrition: {
+    /** Used until you set your own target in Settings. */
+    defaultCalorieTarget: 2500,
+    /** Quick-add buttons on the calories card (kcal). */
+    quickAdd: [100, 250, 500, 750],
   },
 
   bot: {

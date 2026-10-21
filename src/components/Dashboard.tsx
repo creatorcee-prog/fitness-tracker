@@ -9,7 +9,9 @@ import type { Today } from "@/lib/domain/split";
 import { finishedBetween, volumeKg, weekStart, weeklyStreak } from "@/lib/domain/stats";
 import type { Exercise, FriendStatus, PREvent, Session, SetEntry } from "@/lib/domain/types";
 import { formatWeight } from "@/lib/domain/units";
+import { defaultConfig } from "@/config/app.config";
 import { useApp } from "./AppProvider";
+import { CaloriesCard } from "./CaloriesCard";
 import { Ring } from "./Ring";
 
 interface Data {
@@ -21,6 +23,12 @@ interface Data {
 }
 
 const PR_LABEL: Record<string, string> = { weight: "Heaviest", reps_at_weight: "Rep PR", e1rm: "e1RM PR", session_volume: "Volume PR" };
+
+/** Saved layouts predate newer widgets: append any missing ones with their default settings. */
+export function withNewWidgets(saved: WidgetConfig[]): WidgetConfig[] {
+  const have = new Set(saved.map((w) => w.id));
+  return [...saved, ...defaultConfig.dashboard.widgets.filter((w) => !have.has(w.id))];
+}
 
 /** Named colors map to theme tokens; anything else is used as a raw CSS color. */
 function tileStyle(w: WidgetConfig): { className: string; style?: React.CSSProperties } {
@@ -54,7 +62,7 @@ export function Dashboard({ today, onFocusWorkout }: { today: Today | null; onFo
   }, [store, cfg, version, now]);
 
   if (!cfg.dashboard.enabled) return null;
-  const widgets = cfg.dashboard.widgets.filter((w) => w.enabled);
+  const widgets = withNewWidgets(cfg.dashboard.widgets).filter((w) => w.enabled);
   const t = now();
   const ws = weekStart(t, cfg.split.weekStartsOn);
   const target = cfg.dashboard.weeklyTarget;
@@ -144,6 +152,8 @@ export function Dashboard({ today, onFocusWorkout }: { today: Today | null; onFo
           </>
         );
       }
+      case "calories":
+        return <CaloriesCard />;
       case "volume": {
         const thisWeek = data ? volumeKg(data.sets.filter((s) => Date.parse(s.createdAt) >= ws.getTime())) : 0;
         const lastStart = ws.getTime() - 7 * 86_400_000;

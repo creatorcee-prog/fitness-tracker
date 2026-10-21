@@ -5,7 +5,7 @@ import { e1rm } from "@/lib/domain/e1rm";
 import { replayPRs } from "@/lib/domain/prs";
 import type { Today } from "@/lib/domain/split";
 import { planImport, type ExportData } from "@/lib/importPlan";
-import type { AccountPrefs, Exercise, FriendRequest, FriendStatus, PREvent, Reminder, Profile, Session, SetEntry, Split, SplitDay } from "@/lib/domain/types";
+import type { AccountPrefs, Exercise, FriendProfile, FriendRequest, FriendStatus, NutritionEntry, NutritionTargets, PREvent, Reminder, Profile, Session, SetEntry, Split, SplitDay } from "@/lib/domain/types";
 import type { NewSet, Store } from "./types";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -277,9 +277,54 @@ export class SupabaseStore implements Store {
   async friendsToday(now: Date): Promise<FriendStatus[]> {
     const rows = check(await this.sb.rpc("friends_today", { p_now: now.toISOString() }), "friendsToday") as Row[];
     return rows.map((r) => ({
-      friendId: r.friend_id, displayName: r.display_name, kind: r.kind, dayName: r.day_name,
+      friendId: r.friend_id, displayName: r.display_name, nickname: r.nickname ?? null, kind: r.kind, dayName: r.day_name,
       setsToday: r.sets_today, lastSessionAt: r.last_session_at,
     }));
+  }
+
+  async getFriendProfile(friendId: string, now: Date): Promise<FriendProfile | null> {
+    const p = check(await this.sb.rpc("friend_profile", { p_friend: friendId, p_now: now.toISOString() }), "getFriendProfile") as Row | null;
+    if (!p) return null;
+    if (!p.shared) return { id: p.id, displayName: p.display_name, nickname: p.nickname ?? null, shared: false };
+    return {
+      id: p.id, displayName: p.display_name, nickname: p.nickname ?? null, shared: true, unit: p.unit,
+      today: { kind: p.today?.kind, dayName: p.today?.day_name ?? null, setsToday: p.today?.sets_today ?? null },
+      lastSessionAt: p.last_session_at, sessionsThisWeek: Number(p.sessions_this_week ?? 0), sessions30d: Number(p.sessions_30d ?? 0),
+      splitName: p.split_name ?? null,
+      recentPrs: (p.recent_prs ?? []).map((x: Row) => ({ exercise: x.exercise, type: x.type, weightKg: Number(x.weight), reps: x.reps, valueKg: Number(x.value), achievedAt: x.achieved_at })),
+      topLifts: (p.top_lifts ?? []).map((x: Row) => ({ exercise: x.exercise, e1rmKg: Number(x.e1rm) })),
+    };
+  }
+
+  async setNickname(friendId: string, nickname: string | null) {
+    const n = nickname?.trim();
+    if (n) check(await this.sb.from("friend_nicknames").upsert({ friend_id: friendId, nickname: n.slice(0, 40) }), "setNickname");
+    else check(await this.sb.from("friend_nicknames").delete().eq("friend_id", friendId), "setNickname");
+  }
+
+  async listNutrition(from: string, to: string) {
+    const rows = check(await this.sb.from("nutrition_entries").select("*").gte("date", from).lte("date", to).order("created_at"), "listNutrition");
+    return rows.map((r: Row): NutritionEntry => ({ id: r.id, date: r.date, calories: r.calories, proteinG: r.protein_g == null ? null : Number(r.protein_g), note: r.note, createdAt: r.created_at }));
+  }
+
+  async addNutrition(e: Omit<NutritionEntry, "id" | "createdAt">) {
+    const r = check(await this.sb.from("nutrition_entries").insert({ date: e.date, calories: e.calories, protein_g: e.proteinG, note: e.note }).select().single(), "addNutrition");
+    return { id: r.id, date: r.date, calories: r.calories, proteinG: r.protein_g == null ? null : Number(r.protein_g), note: r.note, createdAt: r.created_at };
+  }
+
+  async deleteNutrition(id: string) {
+    check(await this.sb.from("nutrition_entries").delete().eq("id", id), "deleteNutrition");
+  }
+
+  async getNutritionTargets(): Promise<NutritionTargets> {
+    const id = await this.userId();
+    const r = check(await this.sb.from("users").select("calorie_target, protein_target").eq("id", id).single(), "getNutritionTargets");
+    return { calories: r.calorie_target ?? null, protein: r.protein_target ?? null };
+  }
+
+  async setNutritionTargets(t: NutritionTargets) {
+    const id = await this.userId();
+    check(await this.sb.from("users").update({ calorie_target: t.calories, protein_target: t.protein }).eq("id", id), "setNutritionTargets");
   }
 
   async setShareStatus(share: boolean) {

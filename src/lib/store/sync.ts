@@ -1,6 +1,6 @@
 import type { AppConfig } from "@/config/app.config";
 import type { Today } from "@/lib/domain/split";
-import type { AccountPrefs, Exercise, PREvent, Profile, Reminder, SetEntry, Split } from "@/lib/domain/types";
+import type { AccountPrefs, Exercise, NutritionEntry, NutritionTargets, PREvent, Profile, Reminder, SetEntry, Split } from "@/lib/domain/types";
 import { LocalStore, uid } from "./local";
 import type { NewSet, Store } from "./types";
 
@@ -375,6 +375,27 @@ export class SyncStore implements Store {
   }
   getShareStatus() {
     return this.online_(() => this.remote.getShareStatus());
+  }
+  getFriendProfile(friendId: string, now: Date) {
+    return this.online_(() => this.remote.getFriendProfile(friendId, now));
+  }
+  setNickname(friendId: string, nickname: string | null) {
+    return this.online_(() => this.remote.setNickname(friendId, nickname));
+  }
+  listNutrition(from: string, to: string) {
+    return this.online_(() => this.remote.listNutrition(from, to));
+  }
+  addNutrition(e: Omit<NutritionEntry, "id" | "createdAt">) {
+    return this.online_(() => this.remote.addNutrition(e));
+  }
+  deleteNutrition(id: string) {
+    return this.online_(() => this.remote.deleteNutrition(id));
+  }
+  getNutritionTargets() {
+    return this.online_(() => this.remote.getNutritionTargets());
+  }
+  setNutritionTargets(t: NutritionTargets) {
+    return this.online_(() => this.remote.setNutritionTargets(t));
   }
   listReminders(): Promise<Reminder[]> {
     return this.online_(() => this.remote.listReminders());

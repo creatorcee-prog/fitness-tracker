@@ -1,5 +1,5 @@
 import type { Today } from "@/lib/domain/split";
-import type { AccountPrefs, AnnounceSettings, Exercise, FriendRequest, FriendStatus, PREvent, Reminder, Profile, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
+import type { AccountPrefs, AnnounceSettings, Exercise, FriendProfile, FriendRequest, FriendStatus, NutritionEntry, NutritionTargets, PREvent, Reminder, Profile, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
 
 /** A set to insert. Pass `id` to choose it (offline sync replays inserts with the same id). */
 export type NewSet = Omit<SetEntry, "id" | "createdAt"> & { id?: string; createdAt?: string };
@@ -60,6 +60,17 @@ export interface Store {
   /** Each accepted friend's split day today and whether they've lifted. */
   friendsToday(now: Date): Promise<FriendStatus[]>;
   setShareStatus(share: boolean): Promise<void>;
+  /** A friend's profile (null if not an accepted friend). */
+  getFriendProfile(friendId: string, now: Date): Promise<FriendProfile | null>;
+  /** Your private label for a friend; null/empty clears it. */
+  setNickname(friendId: string, nickname: string | null): Promise<void>;
+
+  /** Calorie intake, by local date (YYYY-MM-DD), inclusive range. */
+  listNutrition(from: string, to: string): Promise<NutritionEntry[]>;
+  addNutrition(e: Omit<NutritionEntry, "id" | "createdAt">): Promise<NutritionEntry>;
+  deleteNutrition(id: string): Promise<void>;
+  getNutritionTargets(): Promise<NutritionTargets>;
+  setNutritionTargets(t: NutritionTargets): Promise<void>;
   getShareStatus(): Promise<boolean>;
 
   /** Discord reminders / daily check-in (sent only on the Supabase backend). */

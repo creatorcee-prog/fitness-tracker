@@ -69,6 +69,13 @@ Debug tools:
 - A headless browser run on a phone-sized viewport covered logging, PR badges, rest timer, shorthand and undo, finish advancing the split, demo history, charts, friends with QR, theme switching and widgets, with no console errors.
 - **Not tested against a live Supabase project**, so the Discord OAuth round trip and Realtime have not been run.
 
+## Friends, profiles and calories
+
+- **Friends:** tap a friend to see their profile: today's day and whether they've logged, sessions this week, last workout, top lifts and recent PRs. If they turn sharing off, you only see their name. Profiles come from the `friend_profile()` SQL function, which returns this summary for accepted friends and never their raw sets.
+- **Nicknames:** give any friend a nickname. Only you see it, and it's used in the app and in Discord `/friends`.
+- **Calories:** the Calories card on Today logs intake with quick-add buttons and optional protein. It shows progress against your target (Settings → Nutrition) and the last 7 days.
+- **Setup:** run `supabase/migrations/0005_profiles_nutrition.sql`.
+
 ## Offline logging
 
 On the Supabase backend, the app keeps a copy of your workout data on the device (`src/lib/store/sync.ts`).

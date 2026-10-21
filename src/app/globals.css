@@ -171,11 +171,12 @@ label.row { flex-wrap: nowrap; }
 .toast {
   position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav-offset) + 12px + var(--dock-h)); z-index: 30;
   display: flex; gap: 12px; align-items: center; width: max-content; max-width: calc(100vw - 32px); padding: 11px 16px; border-radius: 999px;
-  background: color-mix(in srgb, var(--text) 92%, transparent); color: var(--bg); font-weight: 550; font-size: 0.92rem;
+  /* Same dark capsule in every theme so text and Undo always read clearly. */
+  background: rgb(28 28 30 / 0.94); color: #ffffff; font-weight: 550; font-size: 0.92rem; border: 1px solid rgb(255 255 255 / 0.08);
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 10px 30px rgb(0 0 0 / 0.3);
   animation: toast-in 0.25s var(--ease);
 }
-.toast button { background: transparent; border: 0; color: var(--accent); font-weight: 750; cursor: pointer; font: inherit; }
+.toast button { background: transparent; border: 0; color: #64d2ff; font: inherit; font-weight: 750; cursor: pointer; }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 8px); } }
 
 /* ---------------------------------------------------------------- data */

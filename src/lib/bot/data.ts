@@ -227,7 +227,7 @@ export class SupabaseBotData implements BotData {
   async friendsToday(uid: string, now: Date): Promise<FriendStatus[]> {
     const rows = check(await this.sb.rpc("friends_today_for", { p_user: uid, p_now: now.toISOString() }), "friendsToday") as Row[];
     return rows.map((r) => ({
-      friendId: r.friend_id, displayName: r.display_name, kind: r.kind, dayName: r.day_name, setsToday: r.sets_today, lastSessionAt: r.last_session_at,
+      friendId: r.friend_id, displayName: r.display_name, nickname: r.nickname ?? null, kind: r.kind, dayName: r.day_name, setsToday: r.sets_today, lastSessionAt: r.last_session_at,
     }));
   }
 }

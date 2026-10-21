@@ -27,9 +27,10 @@ Slash commands through `/api/discord` in the web app (no separate bot server).
 ## Queued (requested)
 
 - [x] App Store polish pass: iOS typography and spacing, week strip on Today, stat cards with progress bars, iOS segmented controls, press feedback, theme swatches, new presets (Neon, Tactical, Aurora Glass, Ice) and a **Glass** option
-- [ ] Friend profiles: tap a friend to see their split, streak and recent PRs (respecting their sharing setting)
-- [ ] Custom nicknames for friends
-- [ ] Calorie intake: daily log, target, dashboard widget
+- [x] Friend profiles: tap a friend to see today, sessions this week, last workout, top lifts and recent PRs (only name if they don't share)
+- [x] Custom nicknames for friends (private to you; also used by Discord `/friends`)
+- [x] Calorie intake: daily log with quick-add, optional protein, targets in Settings, 7-day view on the Today card
+- [ ] Ideas: `/food 650` in Discord, food logging offline, weekly calorie average on Progress
 
 ## Next milestone (gated): AI `/ask` + plain-text `/log` with Confirm
 

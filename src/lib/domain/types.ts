@@ -91,6 +91,8 @@ export interface PREvent {
 export interface FriendStatus {
   friendId: ID;
   displayName: string;
+  /** Your private label for this friend (shown instead of their name). */
+  nickname?: string | null;
   /** "hidden" = friend turned off status sharing. */
   kind: "day" | "rest" | "no-split" | "hidden";
   dayName: string | null;
@@ -126,3 +128,34 @@ export interface AnnounceSettings {
 
 /** Settings that follow the account across devices (Supabase backend). */
 export type AccountPrefs = { theme?: unknown; dashboard?: unknown };
+
+export interface FriendProfile {
+  id: ID;
+  displayName: string;
+  nickname: string | null;
+  /** False when the friend turned off sharing: only the name is available. */
+  shared: boolean;
+  unit?: "lb" | "kg";
+  today?: { kind: FriendStatus["kind"]; dayName: string | null; setsToday: number | null };
+  lastSessionAt?: string | null;
+  sessionsThisWeek?: number;
+  sessions30d?: number;
+  splitName?: string | null;
+  recentPrs?: { exercise: string; type: "weight" | "e1rm"; weightKg: number; reps: number; valueKg: number; achievedAt: string }[];
+  topLifts?: { exercise: string; e1rmKg: number }[];
+}
+
+export interface NutritionEntry {
+  id: ID;
+  /** User's local date, YYYY-MM-DD. */
+  date: string;
+  calories: number;
+  proteinG: number | null;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface NutritionTargets {
+  calories: number | null;
+  protein: number | null;
+}

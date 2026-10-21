@@ -305,7 +305,8 @@ async function friends(ctx: BotContext): Promise<BotReply> {
   const u = await requireUser(ctx);
   const list = await ctx.data.friendsToday(u.id, ctx.now);
   if (!list.length) return { content: `No friends yet. Share your QR code from ${ctx.appUrl}/friends` };
-  const lines = list.map((f) => {
+  const lines = list.map((raw) => {
+    const f = { ...raw, displayName: raw.nickname || raw.displayName };
     const n = f.setsToday ?? 0;
     if (f.kind === "hidden") return `🙈 ${f.displayName}: status hidden`;
     if (f.kind === "rest") return n > 0 ? `✅ ${f.displayName}: rest day, trained anyway (${n} sets)` : `💤 ${f.displayName}: rest day`;

@@ -1,6 +1,6 @@
 import type { AppConfig } from "@/config/app.config";
 import { advance, getToday, type Today } from "@/lib/domain/split";
-import type { AccountPrefs, Exercise, FriendRequest, FriendStatus, PREvent, Reminder, Profile, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
+import type { AccountPrefs, Exercise, FriendProfile, FriendRequest, FriendStatus, NutritionEntry, NutritionTargets, PREvent, Reminder, Profile, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
 import { SEED_EXERCISES, seedSplit } from "./seed";
 import type { NewSet, Store } from "./types";
 
@@ -18,6 +18,9 @@ interface DB {
   shareStatus: boolean;
   reminders: Reminder[];
   announcePRs: boolean;
+  nicknames: Record<string, string>;
+  nutrition: NutritionEntry[];
+  nutritionTargets: NutritionTargets;
 }
 
 /** UUIDs everywhere so ids are valid in both backends. */
@@ -44,6 +47,9 @@ function freshDb(cfg: AppConfig): DB {
     shareStatus: true,
     reminders: [],
     announcePRs: false,
+    nicknames: {},
+    nutrition: [],
+    nutritionTargets: { calories: null, protein: null },
   };
 }
 
@@ -273,7 +279,11 @@ export class LocalStore implements Store {
   }
 
   async friendsToday(): Promise<FriendStatus[]> {
-    return this.read("friendsToday", (db) => [
+    return this.read("friendsToday", (db) => this.demoFriends(db).map((f) => ({ ...f, nickname: db.nicknames[f.friendId] ?? null })));
+  }
+
+  private demoFriends(db: DB): FriendStatus[] {
+    return [
       ...this.cfg.friends.demoFriends
         .map((f, i) => ({ id: `demo-${i}`, f }))
         .filter(({ id }) => !db.removedDemoFriends.includes(id))
@@ -286,7 +296,61 @@ export class LocalStore implements Store {
           lastSessionAt: null,
         })),
       ...db.localFriends.map((f): FriendStatus => ({ friendId: f.id, displayName: f.name, kind: "rest", dayName: null, setsToday: 0, lastSessionAt: null })),
-    ]);
+    ];
+  }
+
+  /** Demo profile built from the demo friend (local mode has no other users). */
+  async getFriendProfile(friendId: string, now: Date): Promise<FriendProfile | null> {
+    return this.read("getFriendProfile", (db) => {
+      const f = this.demoFriends(db).find((x) => x.friendId === friendId);
+      if (!f) return null;
+      const nickname = db.nicknames[friendId] ?? null;
+      if (f.kind === "hidden") return { id: f.friendId, displayName: f.displayName, nickname, shared: false };
+      const daysAgo = (d: number) => new Date(now.getTime() - d * 86_400_000).toISOString();
+      return {
+        id: f.friendId, displayName: f.displayName, nickname, shared: true, unit: "lb",
+        today: { kind: f.kind, dayName: f.dayName, setsToday: f.setsToday },
+        lastSessionAt: (f.setsToday ?? 0) > 0 ? now.toISOString() : daysAgo(2),
+        sessionsThisWeek: (f.setsToday ?? 0) > 0 ? 3 : 2, sessions30d: 12, splitName: "Push / Pull / Legs",
+        recentPrs: [
+          { exercise: "Bench Press", type: "e1rm", weightKg: 97.5, reps: 5, valueKg: 113.75, achievedAt: daysAgo(2) },
+          { exercise: "Back Squat", type: "weight", weightKg: 140, reps: 3, valueKg: 140, achievedAt: daysAgo(6) },
+        ],
+        topLifts: [{ exercise: "Deadlift", e1rmKg: 190 }, { exercise: "Back Squat", e1rmKg: 152 }, { exercise: "Bench Press", e1rmKg: 113.75 }],
+      };
+    });
+  }
+
+  async setNickname(friendId: string, nickname: string | null) {
+    this.mutate("setNickname", (db) => {
+      const n = nickname?.trim();
+      if (n) db.nicknames[friendId] = n.slice(0, 40);
+      else delete db.nicknames[friendId];
+    });
+  }
+
+  async listNutrition(from: string, to: string) {
+    return this.read("listNutrition", (db) => db.nutrition.filter((e) => e.date >= from && e.date <= to).sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
+  }
+
+  async addNutrition(e: Omit<NutritionEntry, "id" | "createdAt">) {
+    return this.mutate("addNutrition", (db) => {
+      const row: NutritionEntry = { ...e, id: uid(), createdAt: new Date().toISOString() };
+      db.nutrition.push(row);
+      return row;
+    });
+  }
+
+  async deleteNutrition(id: string) {
+    this.mutate("deleteNutrition", (db) => (db.nutrition = db.nutrition.filter((e) => e.id !== id)));
+  }
+
+  async getNutritionTargets() {
+    return this.read("getNutritionTargets", (db) => db.nutritionTargets);
+  }
+
+  async setNutritionTargets(t: NutritionTargets) {
+    this.mutate("setNutritionTargets", (db) => (db.nutritionTargets = t));
   }
 
   async setShareStatus(share: boolean) {
