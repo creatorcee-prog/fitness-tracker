@@ -31,9 +31,22 @@ export function toMessage(reply: BotReply, flags = 0) {
     content: reply.content.slice(0, 2000),
     flags,
     allowed_mentions: { parse: [] as string[] },
-    components: reply.buttons?.length
-      ? [{ type: 1, components: reply.buttons.slice(0, 5).map((b) => ({ type: 2, style: STYLE[b.style ?? "secondary"], label: b.label, custom_id: b.id.slice(0, 100) })) }]
-      : [],
+    components: [
+      ...(reply.select
+        ? [{
+            type: 1,
+            components: [{
+              type: 3, // string select menu
+              custom_id: reply.select.id.slice(0, 100),
+              placeholder: reply.select.placeholder,
+              options: reply.select.options.slice(0, 25).map((o) => ({ label: o.label.slice(0, 100), value: o.value.slice(0, 100), description: o.description?.slice(0, 100) })),
+            }],
+          }]
+        : []),
+      ...(reply.buttons?.length
+        ? [{ type: 1, components: reply.buttons.slice(0, 5).map((b) => ({ type: 2, style: STYLE[b.style ?? "secondary"], label: b.label, custom_id: b.id.slice(0, 100) })) }]
+        : []),
+    ],
   };
 }
 
@@ -92,8 +105,8 @@ export const COMMANDS = [
   { name: "today", description: "Today's split day, targets and last time's numbers" },
   {
     name: "log",
-    description: "Log sets, e.g. bench 185x5x3",
-    options: [{ type: STRING, name: "sets", description: "bench 185x5 · bench 185x5x3 · squat 225 5,5,4 · 185x5 (same lift as last)", required: true }],
+    description: "Log sets in plain text, then confirm. e.g. 4x8 bench 185",
+    options: [{ type: STRING, name: "sets", description: "4x8 bench 185 · bench 185 4x8 · squat 3x5 @ 225 · deadlift 405x3 · add kg for kilos", required: true, max_length: 200 }],
   },
   { name: "undo", description: "Remove your last logged set" },
   { name: "done", description: "Finish the workout and move your split to the next day" },
@@ -112,6 +125,14 @@ export const COMMANDS = [
   },
   { name: "rest", description: "Start a rest countdown", options: [{ type: STRING, name: "time", description: "e.g. 2m, 90, 1:30 (default from your settings)", required: false }] },
 ].map((c) => ({ ...c, ...EVERYWHERE }));
+
+// /ask: AI answers. The description carries the privacy notice (Discord max 100 chars).
+COMMANDS.push({
+  name: "ask",
+  description: "Ask James (AI coach). Your question + a training summary are sent to Groq.",
+  options: [{ type: STRING, name: "question", description: "e.g. How is my bench trending? What should I add next Push day?", required: true, max_length: 300 }],
+  ...EVERYWHERE,
+} as (typeof COMMANDS)[number]);
 
 // Announcements post in a server channel, so /announce only exists in servers.
 COMMANDS.push({

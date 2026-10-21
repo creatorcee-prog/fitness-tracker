@@ -16,6 +16,14 @@ export interface BotUser {
   announcePrs: boolean;
 }
 
+/** Active goal, as stored (the app has no goals UI yet; /ask reads any that exist). */
+export interface GoalRow {
+  type: string;
+  exerciseId: string | null;
+  targetValue: number;
+  deadline: string | null;
+}
+
 export interface DueReminder {
   reminderId: string;
   userId: string;
@@ -57,6 +65,13 @@ export interface BotData {
   /** Turns the reminder off and records why, so Settings can explain it. */
   markReminderFailed(reminderId: string, error: string): Promise<void>;
   snoozeReminder(uid: string, reminderId: string, until: Date): Promise<boolean>;
+
+  // AI /ask (read-only context + usage caps)
+  listGoals(uid: string): Promise<GoalRow[]>;
+  /** Bodyweight entries (kg), oldest first. */
+  listBodyweight(uid: string): Promise<{ date: string; weightKg: number }[]>;
+  aiUsageToday(uid: string, date: string): Promise<{ user: number; global: number }>;
+  recordAiUsage(uid: string, date: string, tokensIn: number, tokensOut: number): Promise<void>;
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -120,6 +135,25 @@ export class SupabaseBotData implements BotData {
 
   async markReminderFailed(reminderId: string, error: string) {
     check(await this.sb.from("reminders").update({ enabled: false, snoozed_until: null, last_error: error }).eq("id", reminderId), "markReminderFailed");
+  }
+
+  async listGoals(uid: string): Promise<GoalRow[]> {
+    const rows = check(await this.sb.from("goals").select("*").eq("user_id", uid), "listGoals");
+    return rows.map((r: Row) => ({ type: r.type, exerciseId: r.exercise_id, targetValue: Number(r.target_value), deadline: r.deadline }));
+  }
+
+  async listBodyweight(uid: string) {
+    const rows = check(await this.sb.from("bodyweight_entries").select("date, weight").eq("user_id", uid).order("date"), "listBodyweight");
+    return rows.map((r: Row) => ({ date: r.date, weightKg: Number(r.weight) }));
+  }
+
+  async aiUsageToday(uid: string, date: string) {
+    const rows = check(await this.sb.rpc("ai_usage_check", { p_user: uid, p_date: date }), "aiUsageToday") as Row[];
+    return { user: Number(rows?.[0]?.user_requests ?? 0), global: Number(rows?.[0]?.global_requests ?? 0) };
+  }
+
+  async recordAiUsage(uid: string, date: string, tokensIn: number, tokensOut: number) {
+    check(await this.sb.rpc("ai_usage_record", { p_user: uid, p_date: date, p_in: Math.round(tokensIn), p_out: Math.round(tokensOut) }), "recordAiUsage");
   }
 
   async snoozeReminder(uid: string, reminderId: string, until: Date) {

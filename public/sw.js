@@ -1,9 +1,9 @@
-/* Fitness Tracker service worker: lets the installed app open with no signal.
+/* Garage Gym service worker: lets the installed app open with no signal.
  * - Hashed build assets (/_next/static): cache first (they never change).
  * - Pages: network first, falling back to the cached copy when offline.
  * - API routes, Supabase, Discord and anything cross-origin: never touched.
  * Data itself is handled by the offline outbox in src/lib/store/sync.ts. */
-const CACHE = "ft-shell-v1";
+const CACHE = "ft-shell-v2";
 const SHELL = ["/", "/progress", "/friends", "/split", "/settings", "/manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {

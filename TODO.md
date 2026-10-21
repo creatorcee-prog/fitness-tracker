@@ -32,10 +32,12 @@ Slash commands through `/api/discord` in the web app (no separate bot server).
 - [x] Calorie intake: daily log with quick-add, optional protein, targets in Settings, 7-day view on the Today card
 - [ ] Ideas: `/food 650` in Discord, food logging offline, weekly calorie average on Progress
 
-## Next milestone (gated): AI `/ask` + plain-text `/log` with Confirm
+## Done: AI `/ask` + plain-text `/log` with Confirm (needs a Groq key to go live)
 
-Spec: free-text set logging with a Confirm/Cancel step, plus a read-only `/ask` coach on Groq's free tier (`GROQ_MODEL`, `GROQ_FALLBACK_MODEL`, `AI_DAILY_USER_LIMIT=10`, `AI_DAILY_GLOBAL_LIMIT=70`, `AI_ENABLED`), with an `ai_usage` table, deferred ephemeral replies and a privacy note.
-**Gate:** start only after set logging, PR detection and split sync are confirmed end to end in both the web app and Discord (live test of PR #2 setup).
+- [x] Plain-text `/log` parser + Confirm/Cancel + lift picker menu
+- [x] `/ask` read-only coach (Groq, deferred ephemeral reply, fallback model on 429, daily caps, `ai_usage`, kill switch)
+- [x] Privacy page
+- [ ] Live test with a real `GROQ_API_KEY`; record real tokens per `/ask` (logged as `[ask] outcome=… in=… out=…` in Vercel logs)
 
 ## Next
 

@@ -1,4 +1,4 @@
-# Fitness Tracker
+# Garage Gym
 
 Phase 1 (lifting core) of the build plan: fast set logging, automatic PR detection, PR-marked graphs and a split that always knows what day it is. It also includes friends, a customizable dashboard and themes.
 
@@ -75,6 +75,7 @@ Debug tools:
 - **Nicknames:** give any friend a nickname. Only you see it, and it's used in the app and in Discord `/friends`.
 - **Calories:** the Calories card on Today logs intake with quick-add buttons and optional protein. It shows progress against your target (Settings → Nutrition) and the last 7 days.
 - **Setup:** run `supabase/migrations/0005_profiles_nutrition.sql`.
+- **Live updates:** run `supabase/migrations/0006_realtime_sets.sql` so sets logged from Discord show up in an open app without refreshing. The app also reloads whenever you switch back to it.
 
 ## Offline logging
 
@@ -108,7 +109,28 @@ Commands: `/today` `/log` `/undo` `/done` `/skip` `/swap` `/lift` `/streak` `/fr
 Setup:
 1. Run `supabase/migrations/0004_reminders.sql`.
 2. In Vercel, add `CRON_SECRET` (Secret, any long random string) and redeploy.
-3. Copy `supabase/cron.sql.example`, put in your app URL and `CRON_SECRET`, and run it in the SQL editor. It schedules a call to `/api/cron/reminders` every minute via `pg_cron` + `pg_net`.
+3. Turn on the `pg_cron` and `pg_net` extensions (Database → Extensions).
+4. Copy `supabase/cron.sql.example`, put in your app URL and `CRON_SECRET`, and run it in the SQL editor. It schedules a call to `/api/cron/reminders` every minute. If you use the Integrations → Cron UI instead, set the timeout to about 15 s; pg_net's default of about 2 s is shorter than a cold Vercel start.
+
+## AI coach: `/ask` (read-only) and plain-text `/log`
+
+- **`/log`** takes plain text (`4x8 bench 185`, `bench 185 4x8`, `squat 3x5 @ 225`, `deadlift 405x3`, `bench 100kg 3x5`). It replies with what it understood and **Confirm / Cancel** buttons. Nothing is saved until Confirm. An unknown lift name gets a menu of best guesses. Parsing is `src/lib/domain/freetext.ts`, no AI.
+- **`/ask question:`** gets a short answer from James (`src/lib/ai/`). Discord gets an immediate private "thinking…", then the answer arrives after the response is sent.
+  - **What the model sees:** a training summary built on the server, under 2,500 tokens: today's split day, the last 5 sessions' top sets, recent PRs, goals and bodyweight trend. Your name and Discord ID aren't included. Each `/ask` stands alone.
+  - **Read-only:** the model has no tools and never writes to the database. Text that looks like a set is pointed to `/log` without calling the model.
+  - **Provider:** Groq's OpenAI-compatible API. `GROQ_MODEL` defaults to `openai/gpt-oss-120b` with low reasoning effort. `GROQ_FALLBACK_MODEL` is used on a 429.
+  - **Limits:** `AI_DAILY_USER_LIMIT` (10) and `AI_DAILY_GLOBAL_LIMIT` (70) apply per UTC day. Usage is recorded in `ai_usage` from the API's `usage` field. Over a cap, or after a 429 with no fallback, you get a friendly "try again later".
+  - **Off switch:** `AI_ENABLED=false`, or no `GROQ_API_KEY`.
+- **Setup:**
+  1. Run `supabase/migrations/0007_ai_usage.sql`.
+  2. Add `GROQ_API_KEY` to Vercel as a Secret, then redeploy.
+  3. Save the Interactions Endpoint URL again (or open `/api/discord?register=1`) to register `/ask`.
+  4. `GET /api/discord` shows the AI settings. It never shows the key.
+- **Measured prompt size:** about 710 input tokens per `/ask` (system prompt about 207, training summary about 480, plus the question), using the o200k tokenizer on a 12-week PPL history. Output is capped at 500 tokens, reasoning included. That keeps 70 requests a day at about 85k tokens or less, under Groq's free 200K/day.
+- **Sampling:** temperature 0.5, top_p 0.9, frequency_penalty 0.25 (`AI_TEMPERATURE`, `AI_TOP_P`, `AI_FREQUENCY_PENALTY`). If the model rejects one of these, the request is retried once without them.
+- **In-app chat:** the floating **Ask James** button opens a chat panel. It calls `/api/ask` with your Supabase session, and uses the same prompt, caps (shared with Discord) and usage tracking. The app can see your conversation, so the last `AI_CHAT_HISTORY_TURNS` exchanges (default 2) are included for follow-ups. That adds about 300–400 tokens; set it to 0 to turn it off. The chat is kept in the browser tab only. Hide the button with `ai.chatButton: false` in config.
+- **No chat history in Discord:** each `/ask` stands alone. Slash commands don't see earlier messages, and the bot doesn't read channel messages (no Message Content intent). Check the current limits at https://console.groq.com/docs/rate-limits; they change.
+- **Privacy:** `/privacy`, linked from Settings, explains what is sent to Groq.
 
 ## To-do
 

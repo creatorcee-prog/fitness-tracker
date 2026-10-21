@@ -24,6 +24,15 @@ export interface WidgetConfig {
 }
 
 export const defaultConfig = {
+  brand: {
+    /** Shown in the browser tab, home-screen install, login screen and share text. */
+    appName: "Garage Gym",
+    /** Home-screen label (keep it short). */
+    shortName: "Garage Gym",
+    /** The Discord bot's persona. Its actual Discord name is set in the Developer Portal. */
+    botName: "James",
+  },
+
   data: {
     /**
      * "local" keeps everything in this browser; "supabase" uses the hosted database.
@@ -193,6 +202,11 @@ export const defaultConfig = {
     defaultCalorieTarget: 2500,
     /** Quick-add buttons on the calories card (kcal). */
     quickAdd: [100, 250, 500, 750],
+  },
+
+  ai: {
+    /** Floating "Ask James" chat button in the app (needs the Supabase backend + GROQ_API_KEY). */
+    chatButton: true,
   },
 
   bot: {

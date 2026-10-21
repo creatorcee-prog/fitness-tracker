@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { defaultConfig, type Unit, type WidgetConfig } from "@/config/app.config";
 import { deepMerge } from "@/config/runtime";
@@ -240,7 +241,7 @@ export default function SettingsPage() {
           {supabaseOf(store) && <button className="btn" onClick={async () => { await supabaseOf(store)!.sb.auth.signOut(); location.reload(); }}>Sign out</button>}
         </div>
       </div>
-      <p className="muted small">Auto-progression suggestions are conservative and not medical advice.</p>
+      <p className="muted small">Auto-progression suggestions are conservative and not medical advice. <Link href="/privacy">Privacy</Link></p>
       {toast.node}
     </div>
   );
