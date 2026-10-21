@@ -123,6 +123,10 @@ export default function SettingsPage() {
           <input type="checkbox" checked={cfg.logging.guided} onChange={(e) => patch({ logging: { guided: e.target.checked } }, `Guided sets ${e.target.checked ? "on" : "off"}`)} />
           <span><strong>Guided sets</strong><br /><span className="muted">Suggests your next weight (adds a little when you hit every rep last time), says why, and moves to the next exercise when one is done. Off: starts from last time&apos;s numbers and stays on the exercise you pick.</span></span>
         </label>
+        <label className="row small"><input type="checkbox" checked={cfg.restTimer.autoStart} onChange={(e) => patch({ restTimer: { autoStart: e.target.checked } })} /> Start the rest timer after each set</label>
+        <label className="row small"><input type="checkbox" checked={cfg.restTimer.beep} onChange={(e) => patch({ restTimer: { beep: e.target.checked } })} /> Sound when rest is over</label>
+        <label className="row small"><input type="checkbox" checked={cfg.restTimer.vibrate} onChange={(e) => patch({ restTimer: { vibrate: e.target.checked } })} /> Vibrate when rest is over <span className="muted">(Android only: iPhones don&apos;t let web apps vibrate)</span></label>
+        <p className="muted small" style={{ margin: 0 }}>On iPhone the sound follows the silent switch, so the timer also flashes when it ends.</p>
       </div>
 
       <NutritionTargetsCard />

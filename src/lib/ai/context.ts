@@ -4,7 +4,7 @@ import { goalProgress } from "@/lib/domain/goals";
 import { describeGoal, progressText } from "@/lib/domain/goalText";
 import { replayPRs } from "@/lib/domain/prs";
 import { localDate } from "@/lib/domain/split";
-import { finishedBetween, weekStart, weeklyStreak } from "@/lib/domain/stats";
+import { finishedBetween, weekStart, freezeRules, weeklyStreak } from "@/lib/domain/stats";
 import type { SetEntry } from "@/lib/domain/types";
 import { fromKg } from "@/lib/domain/units";
 import type { BotData, BotUser } from "@/lib/bot/data";
@@ -59,7 +59,7 @@ export async function buildTrainingContext(data: BotData, user: BotUser, cfg: Ap
   // Consistency
   const target = cfg.dashboard.weeklyTarget;
   const thisWeek = finishedBetween(sessions, weekStart(now, cfg.split.weekStartsOn), new Date(now.getTime() + 1)).length;
-  lines.push(`Sessions this week: ${thisWeek}/${target} target. Weekly streak: ${weeklyStreak(sessions, now, cfg.split.weekStartsOn, target)} weeks. Total sessions logged: ${sessions.filter((s) => s.finishedAt).length}.`);
+  lines.push(`Sessions this week: ${thisWeek}/${target} target. Weekly streak: ${weeklyStreak(sessions, now, cfg.split.weekStartsOn, target, freezeRules(cfg))} weeks. Total sessions logged: ${sessions.filter((s) => s.finishedAt).length}.`);
 
   // Recent sessions: top set per lift
   const bySession = new Map<string, SetEntry[]>();

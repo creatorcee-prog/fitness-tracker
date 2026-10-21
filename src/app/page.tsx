@@ -19,7 +19,7 @@ import { parseShorthand } from "@/lib/domain/shorthand";
 import { nextPosition, type Today } from "@/lib/domain/split";
 import type { Exercise, PREvent, PRType, Session, SetEntry, Split, SplitDay } from "@/lib/domain/types";
 import { formatWeight, fromKg, roundTo, toKg } from "@/lib/domain/units";
-import { finishedBetween, weekStart, weeklyStreak } from "@/lib/domain/stats";
+import { finishedBetween, weekStart, freezeRules, weeklyStreak } from "@/lib/domain/stats";
 import { lastSessionSets, logSet, rebuildPRs, stepKg } from "@/lib/service";
 
 /** Whole days since the last finished workout (null if none yet). */
@@ -92,7 +92,7 @@ export default function TodayPage() {
     const t = now();
     const gap = daysSinceLastWorkout(allSessions, t);
     const target = cfg.dashboard.weeklyTarget;
-    const streak = weeklyStreak(allSessions, t, cfg.split.weekStartsOn, target);
+    const streak = weeklyStreak(allSessions, t, cfg.split.weekStartsOn, target, freezeRules(cfg));
     const thisWeek = finishedBetween(allSessions, weekStart(t, cfg.split.weekStartsOn), new Date(t.getTime() + 1)).length;
     const milestoneKey = `ft:mascot-streak:${streak}`;
     let seenMilestone = true;

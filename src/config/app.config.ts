@@ -215,6 +215,13 @@ export const defaultConfig = {
     defaultReps: "8-12",
   },
 
+  streak: {
+    /** Earn a streak freeze every N weeks on target (0 = no freezes). A missed week uses one instead of resetting. */
+    freezeEveryWeeks: 4,
+    /** Most freezes saved at once. */
+    maxFreezes: 2,
+  },
+
   reminders: {
     /** A reminder is sent at most this long after its time (covers missed cron ticks, never hours late). */
     windowMinutes: 120,

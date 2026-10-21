@@ -367,3 +367,7 @@ label.row:has(> input[type="checkbox"]) { min-height: 44px; cursor: pointer; }
 #advanced { scroll-margin-top: 12px; }
 #advanced > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 6px; list-style: none; }
 #advanced > summary::-webkit-details-marker { display: none; }
+/* Rest over: a visible cue too, since iPhone web apps can't vibrate and the sound obeys the silent switch. */
+.timer.done { animation: rest-done 0.9s ease-in-out 3; border-radius: var(--radius-sm); }
+@keyframes rest-done { 50% { background: color-mix(in srgb, var(--good) 28%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .timer.done { animation: none; background: color-mix(in srgb, var(--good) 22%, transparent); } }
