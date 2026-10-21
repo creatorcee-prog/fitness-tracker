@@ -58,8 +58,9 @@ export function validateImported(raw: unknown, unit: Unit, defaults = { sets: 3,
         const reps = repsText && REPS.test(repsText) ? repsText : typeof e?.reps === "number" && e.reps >= 1 && e.reps <= 100 ? String(e.reps) : null;
         const w = typeof e?.w === "number" && e.w > 0 && e.w <= 1500 ? e.w : null;
         const note = typeof e?.note === "string" && e.note.trim() ? e.note.trim().slice(0, 80) : null;
+        const detail = typeof e?.detail === "string" && /^[x×]\s*\d{1,2}$/i.test(e.detail.trim()) ? e.detail.replace(/\s/g, "").toLowerCase().replace("×", "x") : null;
         // Sets/reps the plan doesn't state get defaults; the preview marks them.
-        return ename ? [{ name: ename, sets: sets ?? defaults.sets, reps: reps ?? defaults.reps, stated: sets !== null && reps !== null, weight: w, unit: (e.u === "kg" || e.u === "lb" ? e.u : unit) as Unit, note }] : [];
+        return ename ? [{ name: ename, sets: sets ?? defaults.sets, reps: reps ?? defaults.reps, stated: sets !== null && reps !== null, setsStated: sets !== null, weight: w, unit: (e.u === "kg" || e.u === "lb" ? e.u : unit) as Unit, note, detail }] : [];
       });
       return exercises.length ? [{ name, weekday, exercises }] : [];
     });
@@ -72,5 +73,14 @@ export function validateImported(raw: unknown, unit: Unit, defaults = { sets: 3,
     return v && v.type === "add_goal" ? [v as GoalAction] : [];
   });
 
-  return { format: "ai", sessions, program, goals, skipped };
+  const terms = (Array.isArray(r.terms) ? r.terms : []).slice(0, 8).flatMap((t) => {
+    const o = t as Record<string, unknown>;
+    const term = typeof o?.term === "string" ? o.term.trim().slice(0, 30) : "";
+    const options = (Array.isArray(o?.options) ? o.options : []).filter((x): x is string => typeof x === "string" && !!x.trim()).map((x) => x.trim().slice(0, 40)).slice(0, 4);
+    return term ? [{ term, options }] : [];
+  });
+  // A flagged term used as a day name gets the same question as an unexpanded code.
+  if (program) for (const d of program.days) if (terms.some((t) => t.term.toLowerCase() === d.name.toLowerCase())) d.code = d.name;
+
+  return { format: "ai", sessions, program, goals, skipped, terms };
 }

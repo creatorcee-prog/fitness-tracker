@@ -145,14 +145,15 @@ Setup:
 
 Progress → **Bodyweight**, or `/bodyweight 182` in Discord (`/bodyweight` alone shows the trend). One entry per day; logging again replaces it. The headline numbers are the **7-day average** and a fitted **rate per week** over the last 4 weeks, not today vs yesterday (single weigh-ins swing with water and food). **Strength ÷ bodyweight** shows each lift's best est. 1RM over the last 6 weeks divided by your latest weight. No migration needed (`bodyweight_entries` exists since 0001). After deploying, open `/api/discord?register=1` to add `/bodyweight` and `/help`.
 
-## Import old workouts
+## Import
 
-Settings → **Import old workouts** (`/import`). Paste or choose a file:
-- **Program tables** (a spreadsheet of your split: a day column and an exercise column, plus any of weight, sets, reps, focus, notes) become your split: weekdays kept, focus codes like CH/BK/LG expanded (rename any day in the preview), listed weights saved as each lift's **starting weight** (used until you log it), extras like "30s" or "x2" kept as notes. Sets/reps not in the file default to `import.defaultSets` × `import.defaultReps` (3 × 8-12) and are marked. Run `supabase/migrations/0010_split_start_weights.sql` to keep start weights and notes (without it the split still saves, without them).
-- **Strong / Hevy CSV exports** and **notes** ("Oct 14 - Push" then "Bench press 185x5x3", "OHP: 115 8,8,7", "Pull-ups 3x8", "Goal: bench 225 by 2027-03-01") are read in the browser: free, exact, no AI (`src/lib/import/csv.ts`, `text.ts`).
-- **Have James read it** sends messier text (up to `AI_IMPORT_MAX_CHARS`, 8,000 by default) to the model, which only transcribes into JSON. The result is validated (`validate.ts`) and counts as one of the day's James requests. On Groq's free tier a long log may need to go in parts.
-- The **preview** shows the workouts as read, which lifts match yours (exact name, alias, initials or name prefix only; anything else becomes a new lift with the name as written), the split, goals, and every line that wasn't imported.
-- **Split:** if the text writes out a program, that's used as written. Otherwise it's rebuilt from the workouts (`infer.ts`): your day names in your order, the lifts on each day, the usual number of sets and the rep range you actually did (last 4 sessions per day), weekly if each day kept to a weekday.
+Settings → **Import** (`/import`), or **Import these** when you paste workout notes into the chat. One box takes anything: notes, a plan, cells copied from Google Sheets/Excel/Numbers (tab-separated), Strong/Hevy exports, or a CSV.
+
+- **Readers first, James second.** `src/lib/import/read.ts` tries the built-in readers (free, exact): Strong/Hevy CSV, program tables (a day column and an exercise column, any delimiter), and dated notes. Only when they can't make sense of it (nothing read, or more than 30% left over) does the page send it to James (`/api/import`, up to `AI_IMPORT_MAX_CHARS`). The user is told when James read it, and can ask James to re-read anything the readers got wrong.
+- **Questions instead of guesses** (`questions.ts`): a day code it can't expand ("RE"), an ambiguous "x2", or missing sets/reps become questions with quick answers. James is told to flag unclear terms the same way rather than guess.
+- **Memory:** answers are saved per account (`import_memory`) and applied automatically next time (changeable). `import_hints()` shows the most common answer across users, only when 3+ people gave it, never anyone's workouts. Migration `0011_import_memory.sql`; without it, it just asks every time.
+- **Editable preview:** every day and lift (name, sets, reps, start weight, remove) can be edited before saving. Sessions, lift matching, goals and every line not imported are listed.
+- **Splits:** a written-out plan is kept as written (weekdays, start weights, notes like "30s"); otherwise the split is rebuilt from the workouts (`infer.ts`). Run `0010_split_start_weights.sql` to keep start weights and notes.
 - Nothing is saved until **Import**. Importing twice is safe (same date and time are skipped). PRs are rebuilt.
 
 ## Sign-in, photos and guided sets

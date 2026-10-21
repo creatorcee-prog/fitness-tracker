@@ -80,6 +80,11 @@ export interface Store {
   setNutritionTargets(t: NutritionTargets): Promise<void>;
   getShareStatus(): Promise<boolean>;
 
+  /** Import questions: your earlier answers, plus the most common answer across users (only when 3+ people gave it). */
+  importMemory(keys: string[]): Promise<{ mine: Record<string, string>; popular: Record<string, { value: string; users: number }> }>;
+  /** Remember import answers for next time (and, anonymously aggregated, as hints for others). */
+  rememberImportAnswers(answers: Record<string, string>): Promise<void>;
+
   /** Bodyweight, one entry per local date (kg), oldest first. */
   listBodyweight(): Promise<BodyweightEntry[]>;
   /** Log (or replace) the weight for a date. */

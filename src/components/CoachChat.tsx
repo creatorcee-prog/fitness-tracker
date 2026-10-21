@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { IMPORT_DRAFT_KEY } from "@/lib/import/read";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { deepMerge } from "@/config/runtime";
 import { applyAction, describeAction, validateAction, type AccountAction } from "@/lib/ai/actions";
@@ -62,6 +63,7 @@ export function CoachChat() {
   // Undo functions for applied proposals (not saved with the chat).
   const undos = useRef(new Map<string, () => Promise<void>>());
   const path = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -169,7 +171,7 @@ export function CoachChat() {
   const mood: Mood = busy ? "neutral" : lastCoach?.mood ?? (msgs.length ? "neutral" : "happy");
   const limit = cfg.ai.maxQuestionChars;
   // Pasted workout notes belong on the Import page (it reads far more, and saves them).
-  const looksLikeLog = input.length > 120 && input.split("\n").filter((l) => /\d/.test(l) && parseFreeText(l).ok).length >= 3;
+  const looksLikeLog = input.length > 60 && input.split("\n").filter((l) => /\d/.test(l) && parseFreeText(l).ok).length >= 3;
 
   const suggestions = ["How's my bench trending?", "What should I aim for next session?", "Am I training consistently enough?", "Set me a realistic bench goal"];
 
@@ -241,7 +243,28 @@ export function CoachChat() {
           </form>
           {(input.length > limit * 0.8 || looksLikeLog) && (
             <div className="muted" style={{ fontSize: "0.72rem", padding: "0 14px 4px" }}>
-              {looksLikeLog && <>Workout notes? <Link href="/import" onClick={() => setOpen(false)}>Import them</Link> instead: {bot} reads up to 8,000 characters there and saves them. </>}
+              {looksLikeLog && (
+                <>
+                  Workout notes? I can&apos;t save them from chat.{" "}
+                  <button
+                    className="btn sm primary"
+                    style={{ padding: "2px 10px", minHeight: 0 }}
+                    onClick={() => {
+                      // Hand the text to the Import page so nothing needs pasting twice.
+                      try {
+                        sessionStorage.setItem(IMPORT_DRAFT_KEY, input);
+                      } catch {
+                        /* ignore */
+                      }
+                      setInput("");
+                      setOpen(false);
+                      router.push("/import");
+                    }}
+                  >
+                    Import these
+                  </button>{" "}
+                </>
+              )}
               {input.length > limit * 0.8 && `${input.length.toLocaleString()} / ${limit.toLocaleString()}`}
             </div>
           )}

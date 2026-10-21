@@ -10,6 +10,8 @@ import { readWithJames } from "./ai";
 import { buildImport, guessCategory } from "./build";
 import { detectCsv, isProgramCsv, parseCsv, readProgramCsv, readWorkoutCsv } from "./csv";
 import { inferProgram } from "./infer";
+import { applyAnswer, questionsFor } from "./questions";
+import { readAnything } from "./read";
 import { findDate, parseGoalLine, readWorkoutText } from "./text";
 import type { ImportedSession } from "./types";
 import { validateImported } from "./validate";
@@ -187,6 +189,12 @@ describe("James import", () => {
     expect(d.goals).toEqual([{ type: "add_goal", goal: "lift_e1rm", lift: "Bench", target: 225 }]);
     expect(d.skipped.length).toBe(4); // unclear + bad weight + n=99 + no date
   });
+  it("keeps terms James isn't sure about, and turns them into questions", () => {
+    const d = validateImported({ sessions: [], program: { name: "Mine", mode: "rotation", days: [{ name: "RE", exercises: [{ e: "Face pull", sets: null, reps: null, w: 40, detail: "x2" }] }] }, terms: [{ term: "RE", options: ["Rest", "Recovery"] }], goals: [] }, "lb");
+    expect(d.program!.days[0]).toMatchObject({ name: "RE", code: "RE" });
+    expect(d.program!.days[0].exercises[0]).toMatchObject({ detail: "x2", stated: false, weight: 40 });
+    expect(questionsFor(d, d.program).map((q) => q.key)).toEqual(["term:re", "detail:x2", "setsreps"]);
+  });
   it("calls the model in JSON mode within the caps and records usage", async () => {
     const data = new FakeData();
     const bodies: Record<string, unknown>[] = [];
@@ -221,12 +229,13 @@ describe("program tables (a split spreadsheet)", () => {
     expect(d.sessions).toEqual([]);
     expect(p.mode).toBe("weekly");
     expect(p.days.map((x) => [x.name, x.weekday, x.exercises.length])).toEqual([
-      ["Recovery (Sun)", 0, 5], ["Chest", 1, 10], ["Back", 2, 10], ["Legs", 3, 12], ["Recovery (Thu)", 4, 5], ["Shoulders", 5, 8], ["Arms", 6, 12],
+      ["RE (Sun)", 0, 5], ["Chest", 1, 10], ["Back", 2, 10], ["Legs", 3, 12], ["RE (Thu)", 4, 5], ["Shoulders", 5, 8], ["Arms", 6, 12],
     ]);
     const mon = p.days[1].exercises;
     expect(mon[0]).toMatchObject({ name: "Dead-hang", weight: null, note: "30s", sets: 3, reps: "8-12", stated: false });
     expect(mon[1]).toMatchObject({ name: "Machine Shoulder Press", weight: 90, unit: "lb", note: null });
-    expect(p.days[0].exercises[1]).toMatchObject({ name: "DB Shoulder Press", weight: 40, note: "x2" });
+    expect(p.days[0].code).toBe("RE"); // not guessed: asked about
+    expect(p.days[0].exercises[1]).toMatchObject({ name: "DB Shoulder Press", weight: 40, note: null, detail: "x2" });
     expect(p.days[2].exercises.find((x) => x.name === "Bent Over Row")).toMatchObject({ weight: null, note: null });
     expect(p.days[5].exercises.map((x) => x.name)).toContain("Lifty Arm Thingy");
   });
@@ -234,6 +243,32 @@ describe("program tables (a split spreadsheet)", () => {
     const d = readProgramCsv("Day,Exercise,Weight,Detail\nMon,Bench,185,4x6-8\nWed,Squat,100kg,", "lb", defaults);
     expect(d.program!.days[0].exercises[0]).toMatchObject({ sets: 4, reps: "6-8", stated: true, weight: 185, note: null });
     expect(d.program!.days[1].exercises[0]).toMatchObject({ weight: 100, unit: "kg", stated: false });
+  });
+  it("asks instead of guessing, and applies the answers", () => {
+    const d = readProgramCsv(CSV, "lb", defaults);
+    const qs = questionsFor(d, d.program);
+    expect(qs.map((q) => q.key)).toEqual(["term:re", "detail:x2", "setsreps"]);
+    expect(qs[0].prompt).toContain("Sun, Thu");
+    let p = applyAnswer(d.program!, "term:re", "Rear delts");
+    expect(p.days.map((x) => x.name)).toEqual(["Rear delts (Sun)", "Chest", "Back", "Legs", "Rear delts (Thu)", "Shoulders", "Arms"]);
+    p = applyAnswer(p, "detail:x2", "sets");
+    p = applyAnswer(p, "setsreps", "4x6-10");
+    const sun = p.days[0].exercises;
+    expect(sun[1]).toMatchObject({ name: "DB Shoulder Press", sets: 2, reps: "6-10", detail: null }); // x2 = 2 sets, reps from the default answer
+    expect(sun[2]).toMatchObject({ sets: 4, reps: "6-10" });
+    const pair = applyAnswer(d.program!, "detail:x2", "pair");
+    expect(pair.days[0].exercises[1]).toMatchObject({ sets: 3, note: "2 dumbbells (per hand)" });
+    expect(d.program!.days[0].name).toBe("RE (Sun)"); // answers never mutate the original
+  });
+  it("reads copied spreadsheet cells (tab-separated)", () => {
+    const tsv = CSV.split("\n").map((l) => l.split(",").join("\t")).join("\n");
+    expect(isProgramCsv(tsv)).toBe(true);
+    expect(readProgramCsv(tsv, "lb", defaults).program!.days).toHaveLength(7);
+  });
+  it("remembers answers locally", async () => {
+    const store = new LocalStore(cfg, new Mem());
+    await store.rememberImportAnswers({ "term:re": "Recovery" });
+    expect(await store.importMemory(["term:re", "setsreps"])).toEqual({ mine: { "term:re": "Recovery" }, popular: {} });
   });
   it("saves start weights and notes into the split", async () => {
     const store = new LocalStore(cfg, new Mem());
@@ -244,5 +279,15 @@ describe("program tables (a split spreadsheet)", () => {
     const chest = split.days.find((x) => x.name === "Chest")!;
     expect(chest.exercises[0]).toMatchObject({ note: "30s", startWeightKg: null });
     expect(fromKg(chest.exercises[1].startWeightKg!, "lb")).toBeCloseTo(90, 5);
+  });
+});
+
+describe("readAnything", () => {
+  it("picks the right reader and only hands off to James when the result is thin", () => {
+    const d = { sets: 3, reps: "8-12" };
+    expect(readAnything(STRONG, "lb", NOW, d)).toMatchObject({ data: { format: "strong-csv" }, needsJames: false });
+    expect(readAnything(readFileSync(join(__dirname, "fixtures/program-table.csv"), "utf8"), "lb", NOW, d)).toMatchObject({ data: { format: "program-csv" }, needsJames: false });
+    expect(readAnything("Oct 14 - Push\nBench 185x5x3", "lb", NOW, d).needsJames).toBe(false);
+    expect(readAnything("monday i did chest, worked up to two plates on bench for a few\ntuesday back, rows felt heavy\nwednesday off\nthursday legs", "lb", NOW, d).needsJames).toBe(true);
   });
 });

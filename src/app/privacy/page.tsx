@@ -24,7 +24,14 @@ export default function PrivacyPage() {
       <div className="card stack">
         <h2>AI answers (/ask and the in-app chat)</h2>
         <p>
-          When you ask {bot} something, in Discord with <code>/ask</code> or with the chat button in the app, your question and a short training summary (recent sessions&apos; top sets, PRs, goals, bodyweight trend, today&apos;s split day) are sent to Groq to generate the answer. In the app chat, your last couple of questions and answers are included too, so follow-ups make sense. Your name and Discord ID are not included. The AI can&apos;t change your data. Nothing is sent to Groq unless you ask {bot} something. The chat itself is only kept in your browser tab.
+          When you ask {bot} something, in Discord with <code>/ask</code> or with the chat button in the app, your question and a short training summary (recent sessions&apos; top sets, PRs, goals, bodyweight trend, today&apos;s split day) are sent to Groq to generate the answer. In the app chat, your last couple of questions and answers are included too, so follow-ups make sense. Your name and Discord ID are not included. In the app chat {bot} can suggest changes, but nothing changes unless you tap Apply. Nothing is sent to Groq unless you ask {bot} something. The chat itself is only kept in your browser tab.
+        </p>
+      </div>
+      <div className="card stack">
+        <h2>Importing workouts</h2>
+        <p>
+          The Import page reads your text or file in your browser first. Only if it can&apos;t, the text is sent to Groq for {bot} to read; you&apos;re told when that happens, and nothing is saved until you press Import.
+          Your answers to import questions (for example that “RE” means Rear delts) are saved to your account so you aren&apos;t asked again. They&apos;re also counted together with other people&apos;s answers to suggest common meanings, shown only when at least 3 people gave the same answer. Only the short answer is used, never your workouts.
         </p>
       </div>
       <div className="card stack">

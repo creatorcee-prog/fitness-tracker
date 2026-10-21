@@ -334,3 +334,10 @@ label.row { flex-wrap: nowrap; }
 .split-ex-field { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--muted); font-weight: 600; }
 .split-ex-field input { width: 64px; text-align: center; }
 .split-ex-field:nth-child(2) input { width: 80px; }
+/* Import preview: one collapsible card per day, editable rows inside */
+.import-day { border-radius: var(--radius-sm); background: var(--surface-2); padding: 10px 12px; }
+.import-day > summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; cursor: pointer; list-style: none; }
+.import-day > summary::-webkit-details-marker { display: none; }
+.import-ex { display: grid; gap: 6px; padding: 8px; border-radius: var(--radius-sm); background: var(--surface); }
+.import-ex .split-ex-field input { width: 56px; }
+.chip.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }

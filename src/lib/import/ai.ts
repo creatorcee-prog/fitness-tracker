@@ -30,6 +30,7 @@ Return ONLY a JSON object:
 {"sessions":[{"date":"YYYY-MM-DD","day":"Push"|null,"sets":[{"e":"Bench Press","w":185,"u":"lb","r":5,"n":3,"rpe":null,"wu":false}]}],
  "program":null|{"name":"PPL","mode":"rotation"|"weekly","days":[{"name":"Push","weekday":null,"exercises":[{"e":"Bench Press","sets":4,"reps":"6-8","w":185,"u":"lb","note":null}]}]},
  "goals":[{"goal":"lift_e1rm","lift":"Bench Press","target":225,"deadline":"YYYY-MM-DD"|null}|{"goal":"lift_reps","lift":"Pull-up","weight":0,"target":12}|{"goal":"sessions_per_week","target":4}],
+ "terms":[{"term":"RE","options":["Rest","Recovery"]}],
  "unclear":["lines you could not interpret, copied verbatim"]}
 
 Rules:
@@ -38,8 +39,10 @@ Rules:
 - "day" is the workout's own label if it has one (Push, Legs, Upper A, Day 2), else null.
 - Dates without a year: use the most recent such date on or before ${today}. Weekday names alone: leave the session out and add the line to "unclear".
 - "program": if the text lays out a plan/split (a list of days with their exercises, with or without dates). Otherwise null. weekday 0=Sunday..6=Saturday, only when stated (then mode "weekly").
-  sets/reps: only if stated, else null (never guess). "w": a working weight if listed. "note": anything else about the lift as written (e.g. "30s", "x2").
-  Day names: use the plan's own label; expand obvious gym abbreviations (CH=Chest, BK=Back, LG=Legs, SH=Shoulders, AR=Arms) and keep anything unclear as written.
+  sets/reps: only if stated, else null (never guess). "w": a working weight if listed. "note": anything else about the lift as written (e.g. "30s").
+  An ambiguous multiplier after a weight like "x2" (pair of dumbbells? 2 sets?): put it in "detail":"x2", not in sets or note.
+  Day names: use the plan's own label; expand obvious gym abbreviations (CH=Chest, BK=Back, LG=Legs, SH=Shoulders, AR=Arms).
+- "terms": any code or abbreviation you're NOT sure about (a day label like "RE", an unfamiliar lift short-form): keep it as written where it appears and list it here with 2-4 likely meanings. Asking is better than guessing.
 - "goals": only goals the text states. Otherwise [].
 - Put anything you couldn't place in "unclear". Don't explain; output JSON only.`;
 }

@@ -379,6 +379,26 @@ export class SupabaseStore implements Store {
     return check(await this.sb.from("users").select("share_status").eq("id", id).single(), "getShareStatus").share_status as boolean;
   }
 
+  async importMemory(keys: string[]) {
+    if (!keys.length) return { mine: {}, popular: {} };
+    // Optional feature (migration 0011): without it, just ask every time.
+    const [mine, hints] = await Promise.all([
+      this.sb.from("import_memory").select("key, value").in("key", keys),
+      this.sb.rpc("import_hints", { p_keys: keys }),
+    ]);
+    return {
+      mine: Object.fromEntries(((mine.data ?? []) as Row[]).map((r) => [r.key, r.value])),
+      popular: Object.fromEntries(((hints.data ?? []) as Row[]).map((r) => [r.key, { value: r.value, users: r.users }])),
+    };
+  }
+
+  async rememberImportAnswers(answers: Record<string, string>) {
+    const rows = Object.entries(answers).map(([key, value]) => ({ key: key.slice(0, 60), value: value.trim().slice(0, 40), updated_at: new Date().toISOString() })).filter((r) => r.value);
+    if (!rows.length) return;
+    const { error } = await this.sb.from("import_memory").upsert(rows, { onConflict: "user_id,key" });
+    if (error) console.warn("[import] couldn't remember answers (run migration 0011?)", error.message);
+  }
+
   async listBodyweight() {
     const rows = check(await this.sb.from("bodyweight_entries").select("date, weight").order("date"), "listBodyweight");
     return rows.map((r: Row) => ({ date: r.date, weightKg: Number(r.weight) }));
