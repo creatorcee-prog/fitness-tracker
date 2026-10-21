@@ -327,3 +327,10 @@ label.row { flex-wrap: nowrap; }
 .coach-input textarea { flex: 1; resize: none; border-radius: 22px; min-height: 44px; max-height: 150px; line-height: 1.35; padding: 11px 16px; overflow-y: auto; font: inherit; }
 .coach-input .btn { height: 44px; flex: none; }
 .setlist li.split-cols { background: none; padding-top: 0; padding-bottom: 0; font-weight: 600; }
+/* Split editor: one card per exercise, name on its own line */
+.setlist li.split-ex { display: grid; gap: 8px; align-items: stretch; }
+.split-ex-name { width: 100%; min-width: 0; font-weight: 650; }
+.split-ex-row { display: flex; align-items: center; gap: 8px; }
+.split-ex-field { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--muted); font-weight: 600; }
+.split-ex-field input { width: 64px; text-align: center; }
+.split-ex-field:nth-child(2) input { width: 80px; }
