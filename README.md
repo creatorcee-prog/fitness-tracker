@@ -69,11 +69,19 @@ Debug tools:
 - A headless browser run on a phone-sized viewport covered logging, PR badges, rest timer, shorthand and undo, finish advancing the split, demo history, charts, friends with QR, theme switching and widgets, with no console errors.
 - **Not tested against a live Supabase project**, so the Discord OAuth round trip and Realtime have not been run.
 
-## Not built yet (per the plan's roadmap)
+## Discord bot
 
-v1: Discord bot (the `/log` matcher and SQL functions are ready for it), reminders, goals, mascot, offline queue (IndexedDB), bodyweight log. v2: game mode, walk planner, stall detection. The schema for these tables already exists in `0001_init.sql`.
+Slash commands are served by `src/app/api/discord/route.ts` (no separate bot process). Logic lives in `src/lib/bot/`; the server-only SQL functions are in `supabase/migrations/0003_bot.sql`.
 
-Known gaps:
-- Dashboard widget layout and theme are saved per browser (config overrides), not per account yet.
-- `saveSplit` on Supabase runs several requests rather than one transaction.
-- There is no service worker yet, so the app is installable but has no offline support.
+Setup:
+1. Run `0003_bot.sql` in the Supabase SQL editor.
+2. In Vercel, set `DISCORD_APPLICATION_ID`, `DISCORD_PUBLIC_KEY` (Config) and `DISCORD_BOT_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY` (Secret), then redeploy.
+3. Open `https://<app>/api/discord`: every value under `configured` should be `true`.
+4. Discord Developer Portal → General Information → **Interactions Endpoint URL** = `https://<app>/api/discord`, then save. Discord verifies it, and that verification also registers the commands. (Manual fallback: `https://<app>/api/discord?register=1`.)
+5. Installation: enable Guild Install (scopes `applications.commands`, `bot`) and User Install (`applications.commands`), then use the install link.
+
+Commands: `/today` `/log` `/undo` `/done` `/skip` `/swap` `/lift` `/streak` `/friends` `/plates` `/rest`, with [Same again] / [Undo] buttons on `/log` and [Skip] on `/today`. Replies in servers are visible only to you (`bot.ephemeralInGuilds`).
+
+## To-do
+
+See [TODO.md](TODO.md) for what's in progress (Discord bot), what's next and the idea backlog.
