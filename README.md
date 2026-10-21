@@ -69,6 +69,17 @@ Debug tools:
 - A headless browser run on a phone-sized viewport covered logging, PR badges, rest timer, shorthand and undo, finish advancing the split, demo history, charts, friends with QR, theme switching and widgets, with no console errors.
 - **Not tested against a live Supabase project**, so the Discord OAuth round trip and Realtime have not been run.
 
+## Offline logging
+
+On the Supabase backend, the app keeps a copy of your workout data on the device (`src/lib/store/sync.ts`).
+
+- **Online:** everything behaves as normal.
+- **No signal:** starting a workout, logging, undo, finishing, skipping and swapping save on the phone. They sync in order when the connection returns. A banner shows what's waiting.
+- **Opening the app with no signal:** a service worker (`public/sw.js`) lets the installed app open.
+- **Needs a connection:** split editing, friends and reminders. They say so when you're offline.
+- **Turning it off:** set `data.offline` (and `data.serviceWorker`) to `false`.
+- **Debugging:** set `data.backend` to `"local-sync"` to run the same sync layer against a fake server in the browser, then toggle DevTools → Network → Offline.
+
 ## Discord bot
 
 Slash commands are served by `src/app/api/discord/route.ts` (no separate bot process). Logic lives in `src/lib/bot/`; the server-only SQL functions are in `supabase/migrations/0003_bot.sql`.

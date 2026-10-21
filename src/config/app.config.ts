@@ -12,7 +12,7 @@
 export type Unit = "lb" | "kg";
 export type E1rmFormula = "epley" | "brzycki" | "lombardi" | "oconner";
 export type SplitMode = "rotation" | "weekly";
-export type DataBackend = "local" | "supabase";
+export type DataBackend = "local" | "supabase" | "local-sync";
 export type Category = "upper" | "lower" | "core" | "cardio" | "other";
 
 export type WidgetId = "today" | "week" | "streak" | "lastPr" | "friends" | "topLift" | "volume";
@@ -25,10 +25,21 @@ export interface WidgetConfig {
 
 export const defaultConfig = {
   data: {
-    /** "local" keeps everything in this browser; "supabase" uses the hosted database. */
+    /**
+     * "local" keeps everything in this browser; "supabase" uses the hosted database.
+     * "local-sync" (debugging) runs the offline-sync layer against a fake server in
+     * this browser that fails whenever the browser is offline (DevTools → Offline).
+     */
     backend: "local" as DataBackend,
     /** localStorage key prefix used by the local backend. */
     localStorageKey: "ft:data:v1",
+    /**
+     * Supabase backend only: keep a copy of your workout data on the device so
+     * sets can be logged with no signal and synced later. false = always online.
+     */
+    offline: true,
+    /** Register the service worker so the app itself opens without a connection. */
+    serviceWorker: true,
   },
 
   units: {

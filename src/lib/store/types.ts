@@ -1,7 +1,8 @@
 import type { Today } from "@/lib/domain/split";
 import type { AccountPrefs, AnnounceSettings, Exercise, FriendRequest, FriendStatus, PREvent, Reminder, Profile, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
 
-export type NewSet = Omit<SetEntry, "id" | "createdAt"> & { createdAt?: string };
+/** A set to insert. Pass `id` to choose it (offline sync replays inserts with the same id). */
+export type NewSet = Omit<SetEntry, "id" | "createdAt"> & { id?: string; createdAt?: string };
 
 /**
  * Everything the UI needs from persistence. Two implementations:
@@ -30,7 +31,8 @@ export interface Store {
   setNextPosition(position: number): Promise<void>;
 
   getOpenSession(): Promise<Session | null>;
-  startSession(splitDayId: string | null, now: Date): Promise<Session>;
+  /** `id` is optional so offline sync can replay the insert with the same id. */
+  startSession(splitDayId: string | null, now: Date, id?: string): Promise<Session>;
   /** Finishes the session AND advances the split in one step. */
   finishSession(sessionId: string, now: Date): Promise<void>;
   /** Undo for finishSession: clears finished_at and puts the split pointer back. */

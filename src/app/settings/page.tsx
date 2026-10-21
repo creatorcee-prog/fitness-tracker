@@ -8,7 +8,7 @@ import { useApp } from "@/components/AppProvider";
 import { RemindersCard } from "@/components/RemindersCard";
 import { useToast } from "@/components/UndoToast";
 import { generateDemoHistory } from "@/lib/service";
-import { SupabaseStore } from "@/lib/store/supabase";
+import { supabaseOf } from "@/lib/store";
 
 const WIDGET_LABEL: Record<WidgetConfig["id"], string> = {
   today: "Today's split day", week: "Sessions this week", streak: "Weekly streak", lastPr: "Latest PR",
@@ -214,7 +214,7 @@ export default function SettingsPage() {
           </label>
           <button className="btn" onClick={async () => { try { const n = await generateDemoHistory(store, cfg, now(), 12, profile.unit); toast.show({ text: `Generated ${n} demo sessions` }); refresh(); } catch (e) { toast.show({ text: String(e) }); } }}>Generate demo history</button>
           <button className="btn danger" onClick={async () => { const backup = await store.exportAll(); await store.resetAll(); toast.show({ text: "All data reset", undo: store.kind === "local" ? async () => { await store.importAll(backup); refresh(); } : undefined }); refresh(); }}>Reset all data</button>
-          {store instanceof SupabaseStore && <button className="btn" onClick={async () => { await store.sb.auth.signOut(); location.reload(); }}>Sign out</button>}
+          {supabaseOf(store) && <button className="btn" onClick={async () => { await supabaseOf(store)!.sb.auth.signOut(); location.reload(); }}>Sign out</button>}
         </div>
       </div>
       <p className="muted small">Auto-progression suggestions are conservative and not medical advice.</p>

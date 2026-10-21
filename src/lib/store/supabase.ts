@@ -171,8 +171,9 @@ export class SupabaseStore implements Store {
     return r ? toSession(r) : null;
   }
 
-  async startSession(splitDayId: string | null, now: Date) {
-    const r = check(await this.sb.from("sessions").insert({ split_day_id: splitDayId, started_at: now.toISOString(), source: "web" }).select().single(), "startSession");
+  async startSession(splitDayId: string | null, now: Date, id?: string) {
+    const row = { ...(id ? { id } : {}), split_day_id: splitDayId, started_at: now.toISOString(), source: "web" };
+    const r = check(await this.sb.from("sessions").insert(row).select().single(), "startSession");
     return toSession(r);
   }
 

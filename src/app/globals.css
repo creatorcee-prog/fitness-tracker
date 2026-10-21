@@ -149,3 +149,9 @@ label.row { flex-wrap: nowrap; }
 [data-style="pro"] .nav a.on { background: transparent; color: var(--accent); }
 [data-style="pro"] .nav .lbl { position: static; width: auto; height: auto; overflow: visible; clip: auto; font-size: 0.68rem; font-weight: 500; }
 [data-style="pro"] .dock { border-radius: 0; border-width: 1px 0 0; box-shadow: 0 -4px 16px rgb(0 0 0 / 0.08); }
+
+/* Offline / sync status */
+.sync-banner { position: sticky; top: 0; z-index: 25; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 16px; font-size: 0.85rem; background: color-mix(in srgb, var(--accent) 16%, var(--surface)); border-bottom: 1px solid var(--border); }
+.sync-banner.off { background: color-mix(in srgb, var(--pr) 20%, var(--surface)); }
+.sync-banner .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; }
+.sync-banner.off .dot { background: var(--pr); }

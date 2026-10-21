@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { AppProvider } from "@/components/AppProvider";
 import { DebugPanel } from "@/components/DebugPanel";
 import { NavBar } from "@/components/NavBar";
+import { SyncBanner } from "@/components/SyncBanner";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <AppProvider>
+          <SyncBanner />
           {children}
           <NavBar />
           <DebugPanel />

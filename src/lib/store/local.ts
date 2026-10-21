@@ -52,13 +52,14 @@ export class LocalStore implements Store {
   readonly kind = "local" as const;
   private db: DB;
 
-  constructor(private cfg: AppConfig) {
+  /** `storage` is injectable so the offline mirror (and tests) can use their own. */
+  constructor(private cfg: AppConfig, private storage: Pick<Storage, "getItem" | "setItem"> = window.localStorage) {
     this.db = this.load();
   }
 
   private load(): DB {
     try {
-      const raw = window.localStorage.getItem(this.cfg.data.localStorageKey);
+      const raw = this.storage.getItem(this.cfg.data.localStorageKey);
       if (raw) return { ...freshDb(this.cfg), ...JSON.parse(raw) };
     } catch {
       /* fall through to a fresh db */
@@ -68,7 +69,7 @@ export class LocalStore implements Store {
 
   private save() {
     try {
-      window.localStorage.setItem(this.cfg.data.localStorageKey, JSON.stringify(this.db));
+      this.storage.setItem(this.cfg.data.localStorageKey, JSON.stringify(this.db));
     } catch (e) {
       console.error("[local store] save failed", e);
     }
@@ -165,9 +166,9 @@ export class LocalStore implements Store {
     return this.read("getOpenSession", (db) => db.sessions.find((s) => !s.finishedAt) ?? null);
   }
 
-  async startSession(splitDayId: string | null, now: Date) {
+  async startSession(splitDayId: string | null, now: Date, id?: string) {
     return this.mutate("startSession", (db) => {
-      const s: Session = { id: uid(), splitDayId, startedAt: now.toISOString(), finishedAt: null, source: "web" };
+      const s: Session = { id: id ?? uid(), splitDayId, startedAt: now.toISOString(), finishedAt: null, source: "web" };
       db.sessions.push(s);
       return s;
     });
@@ -214,7 +215,7 @@ export class LocalStore implements Store {
 
   async addSet(s: NewSet) {
     return this.mutate("addSet", (db) => {
-      const row: SetEntry = { ...s, id: uid(), createdAt: s.createdAt ?? new Date().toISOString() };
+      const row: SetEntry = { ...s, id: s.id ?? uid(), createdAt: s.createdAt ?? new Date().toISOString() };
       db.sets.push(row);
       return row;
     });
@@ -335,6 +336,7 @@ export class LocalStore implements Store {
     const onStorage = (e: StorageEvent) => {
       if (e.key === this.cfg.data.localStorageKey) cb();
     };
+    if (typeof window === "undefined") return () => {};
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }

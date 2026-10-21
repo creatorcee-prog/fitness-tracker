@@ -24,6 +24,18 @@ Slash commands through `/api/discord` in the web app (no separate bot server).
 - [x] Failed DMs switch the reminder off with an explanation in Settings
 - [x] Opt-in PR announcements in a server channel (`/announce on|off`, web + Discord PRs, once per set)
 
+## Queued (requested)
+
+- [ ] App Store polish pass: iOS typography and spacing, week strip on Today, stat cards with progress bars, iOS segmented controls and grouped Settings, new presets (Neon, Ice, Tactical) and a **Glass** option
+- [ ] Friend profiles: tap a friend to see their split, streak and recent PRs (respecting their sharing setting)
+- [ ] Custom nicknames for friends
+- [ ] Calorie intake: daily log, target, dashboard widget
+
+## Next milestone (gated): AI `/ask` + plain-text `/log` with Confirm
+
+Spec: free-text set logging with a Confirm/Cancel step, plus a read-only `/ask` coach on Groq's free tier (`GROQ_MODEL`, `GROQ_FALLBACK_MODEL`, `AI_DAILY_USER_LIMIT=10`, `AI_DAILY_GLOBAL_LIMIT=70`, `AI_ENABLED`), with an `ai_usage` table, deferred ephemeral replies and a privacy note.
+**Gate:** start only after set logging, PR detection and split sync are confirmed end to end in both the web app and Discord (live test of PR #2 setup).
+
 ## Next
 
 - [ ] `/goal` (after goals exist in the app)
@@ -50,5 +62,5 @@ Slash commands through `/api/discord` in the web app (no separate bot server).
 
 - [x] Dashboard widget layout and theme are saved to the account (Supabase)
 - [ ] `saveSplit` on Supabase runs several requests instead of one transaction
-- [ ] No service worker yet (installable, but no offline support)
+- [x] Offline logging (device mirror + outbox) and a service worker so the app opens offline
 - [x] Import of local-mode JSON exports into Supabase

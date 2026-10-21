@@ -5,8 +5,7 @@ import type { AppConfig } from "@/config/app.config";
 import { THEME_PRESETS } from "@/config/themes";
 import { now as cfgNow, readLocalOverrides, resolveConfig, writeLocalOverrides } from "@/config/runtime";
 import type { Profile } from "@/lib/domain/types";
-import { createStore, type Store } from "@/lib/store";
-import { SupabaseStore } from "@/lib/store/supabase";
+import { createStore, supabaseOf, type Store } from "@/lib/store";
 import { LoginScreen } from "./LoginScreen";
 
 interface Ctx {
@@ -67,6 +66,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(() => setVersion((v) => v + 1), []);
 
+  // Service worker: lets the installed app open with no connection (see public/sw.js).
+  useEffect(() => {
+    if (!cfg || !("serviceWorker" in navigator)) return;
+    if (cfg.data.serviceWorker && process.env.NODE_ENV === "production") {
+      navigator.serviceWorker.register("/sw.js").catch((e) => console.warn("[sw] register failed", e));
+    } else {
+      void navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister()));
+    }
+  }, [cfg]);
+
   // Theme + dashboard follow the account (Supabase): loaded once per visit, saved (debounced) on change.
   const storeRef = useRef<Store | null>(null);
   storeRef.current = store;
@@ -77,8 +86,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!store) return;
     let cancelled = false;
     (async () => {
-      if (store instanceof SupabaseStore) {
-        const { data } = await store.sb.auth.getSession();
+      const sb = supabaseOf(store);
+      if (sb) {
+        const { data } = await sb.sb.auth.getSession();
         if (!data.session) {
           setNeedsLogin(true);
           return;
@@ -120,7 +130,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   if (error) return <div className="page"><h1>Something broke</h1><pre className="code">{error}</pre><p>Check your .env and Settings → Config. Clear overrides: <button className="btn" onClick={() => { writeLocalOverrides(null); location.reload(); }}>Reset config</button></p></div>;
-  if (needsLogin && store instanceof SupabaseStore) return <LoginScreen store={store} />;
+  const sbStore = store ? supabaseOf(store) : null;
+  if (needsLogin && sbStore) return <LoginScreen store={sbStore} />;
   if (!cfg || !store || !profile) return <div className="page muted">Loading…</div>;
 
   const value: Ctx = { cfg, store, profile, version, refresh, now: () => cfgNow(cfg), overrides, setOverrides, setProfile };
