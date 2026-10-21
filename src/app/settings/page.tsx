@@ -93,7 +93,13 @@ export default function SettingsPage() {
             {(["lb", "kg"] as Unit[]).map((u) => <button key={u} className={profile.unit === u ? "on" : ""} onClick={() => saveProfile({ unit: u })}>{u}</button>)}
           </div>
         </div>
-        <label className="field">Timezone (decides "today" in weekly mode)<input value={tz} onChange={(e) => setTz(e.target.value)} onBlur={() => saveProfile({ timezone: tz })} /></label>
+        <label className="field">Timezone (used for reminders and "today")<input value={tz} onChange={(e) => setTz(e.target.value)} onBlur={() => saveProfile({ timezone: tz })} /></label>
+        {(() => {
+          const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          return deviceTz && deviceTz !== profile.timezone ? (
+            <button className="chip" style={{ justifySelf: "start" }} onClick={() => { setTz(deviceTz); void saveProfile({ timezone: deviceTz }); }}>Use this device&apos;s timezone ({deviceTz})</button>
+          ) : null;
+        })()}
       </div>
 
       <NutritionTargetsCard />
