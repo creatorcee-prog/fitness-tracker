@@ -99,7 +99,7 @@ Setup:
 4. Discord Developer Portal → General Information → **Interactions Endpoint URL** = `https://<app>/api/discord`, then save. Discord verifies it, and that verification also registers the commands. (Manual fallback: `https://<app>/api/discord?register=1`.)
 5. Installation: enable Guild Install (scopes `applications.commands`, `bot`) and User Install (`applications.commands`), then use the install link.
 
-Commands: `/today` `/log` `/undo` `/done` `/skip` `/swap` `/lift` `/streak` `/friends` `/plates` `/rest` `/announce` `/goal`, with [Same again] / [Undo] buttons on `/log` and [Skip] on `/today`. Replies in servers are visible only to you (`bot.ephemeralInGuilds`).
+Commands: `/today` `/log` `/undo` `/done` `/skip` `/swap` `/lift` `/streak` `/friends` `/plates` `/rest` `/announce` `/goal` `/bodyweight` `/help`, with [Same again] / [Undo] buttons on `/log` and [Skip] on `/today`. Replies in servers are visible only to you (`bot.ephemeralInGuilds`).
 
 ### Reminders, daily check-in and PR announcements
 
@@ -139,6 +139,10 @@ Setup:
 - **James** talks on the Today screen: greetings by time of day, session start, PRs, goals reached, streak milestones, and a nudge after `mascot.missedDays` days off. Lines are scripted, not AI (`src/lib/mascot/lines.ts`); add your own freely. One line at a time, and a PR or goal line isn't replaced by small talk for `mascot.holdMs`. Turn him off in Settings or with `mascot.enabled: false`.
 - **Art:** `src/components/JamesSilhouette.tsx` is a placeholder silhouette with mood eyebrows. Swap in real art later with the same props. `public/james.png` (512×512) is the same art for the Discord bot avatar (Developer Portal → Bot → Icon).
 - **Setup:** run `supabase/migrations/0008_goals.sql`, then open `/api/discord?register=1` to register `/goal`.
+
+## Bodyweight
+
+Progress → **Bodyweight**, or `/bodyweight 182` in Discord (`/bodyweight` alone shows the trend). One entry per day; logging again replaces it. The headline numbers are the **7-day average** and a fitted **rate per week** over the last 4 weeks, not today vs yesterday (single weigh-ins swing with water and food). **Strength ÷ bodyweight** shows each lift's best est. 1RM over the last 6 weeks divided by your latest weight. No migration needed (`bodyweight_entries` exists since 0001). After deploying, open `/api/discord?register=1` to add `/bodyweight` and `/help`.
 
 ## Import old workouts
 

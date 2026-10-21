@@ -1,3 +1,4 @@
+import type { BodyweightEntry } from "@/lib/domain/bodyweight";
 import type { Goal } from "@/lib/domain/goals";
 import type { Today } from "@/lib/domain/split";
 import type { AccountPrefs, AnnounceSettings, Exercise, FriendProfile, FriendRequest, FriendStatus, NutritionEntry, NutritionTargets, PREvent, Reminder, Profile, ProfileMedia, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
@@ -78,6 +79,12 @@ export interface Store {
   getNutritionTargets(): Promise<NutritionTargets>;
   setNutritionTargets(t: NutritionTargets): Promise<void>;
   getShareStatus(): Promise<boolean>;
+
+  /** Bodyweight, one entry per local date (kg), oldest first. */
+  listBodyweight(): Promise<BodyweightEntry[]>;
+  /** Log (or replace) the weight for a date. */
+  logBodyweight(e: BodyweightEntry): Promise<void>;
+  deleteBodyweight(date: string): Promise<void>;
 
   /** Goals (progress is computed from sets, never stored). */
   listGoals(): Promise<Goal[]>;

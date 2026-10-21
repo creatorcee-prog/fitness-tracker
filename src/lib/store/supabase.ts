@@ -366,6 +366,19 @@ export class SupabaseStore implements Store {
     return check(await this.sb.from("users").select("share_status").eq("id", id).single(), "getShareStatus").share_status as boolean;
   }
 
+  async listBodyweight() {
+    const rows = check(await this.sb.from("bodyweight_entries").select("date, weight").order("date"), "listBodyweight");
+    return rows.map((r: Row) => ({ date: r.date, weightKg: Number(r.weight) }));
+  }
+
+  async logBodyweight(e: { date: string; weightKg: number }) {
+    check(await this.sb.from("bodyweight_entries").upsert({ date: e.date, weight: e.weightKg }, { onConflict: "user_id,date" }), "logBodyweight");
+  }
+
+  async deleteBodyweight(date: string) {
+    check(await this.sb.from("bodyweight_entries").delete().eq("date", date), "deleteBodyweight");
+  }
+
   async listGoals() {
     return check(await this.sb.from("goals").select("*").order("created_at"), "listGoals").map(toGoal);
   }

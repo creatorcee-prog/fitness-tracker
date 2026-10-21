@@ -1,13 +1,14 @@
 import type { AppConfig, Unit } from "@/config/app.config";
 import { percentageGains } from "@/lib/domain/gain";
 import { FREETEXT_HELP, parseFreeText } from "@/lib/domain/freetext";
+import { bodyweightTrend } from "@/lib/domain/bodyweight";
 import { goalProgress } from "@/lib/domain/goals";
 import { describeGoal, outlookText, progressText } from "@/lib/domain/goalText";
 import { matchExercise } from "@/lib/domain/match";
 import { platesPerSide } from "@/lib/domain/plates";
 import { prefillFor } from "@/lib/domain/progression";
 import { currentRecords, prsForSet, replayPRs } from "@/lib/domain/prs";
-import { nextPosition } from "@/lib/domain/split";
+import { localDate, nextPosition } from "@/lib/domain/split";
 import { finishedBetween, volumeKg, weekStart, weeklyStreak } from "@/lib/domain/stats";
 import type { Exercise, PREvent, PRType, SetEntry, Split, SplitDay } from "@/lib/domain/types";
 import { formatWeight, fromKg, toKg } from "@/lib/domain/units";
@@ -46,7 +47,7 @@ export type Options = Record<string, string | number | boolean | undefined>;
 const PR_LABEL: Record<PRType, string> = { weight: "Heaviest", reps_at_weight: "Rep PR", e1rm: "e1RM PR", session_volume: "Volume PR" };
 
 /** Commands that work without a linked account and need no database. */
-export const ACCOUNTLESS = new Set(["plates", "rest"]);
+export const ACCOUNTLESS = new Set(["plates", "rest", "help"]);
 
 /** "🏆 Cee just hit a Bench Press e1RM PR: 190 × 5 lb!" */
 export function announcementText(name: string, exercise: string, prs: PRType[], s: SetEntry, unit: Unit): string {
@@ -437,6 +438,43 @@ async function goals(ctx: BotContext): Promise<BotReply> {
   return { content: `🎯 **Your goals**\n${lines.join("\n")}\n-# Projections use your last 8 weeks and are estimates.` };
 }
 
+const signed = (n: number, unit: Unit) => `${n >= 0 ? "+" : "−"}${Math.abs(Number(fromKg(n, unit).toFixed(1)))} ${unit}`;
+
+async function bodyweight(ctx: BotContext, weight: number | undefined, unitOpt?: string): Promise<BotReply> {
+  const u = await requireUser(ctx);
+  const today = localDate(ctx.now, u.timezone);
+  if (weight !== undefined) {
+    const unit: Unit = unitOpt === "kg" || unitOpt === "lb" ? unitOpt : u.unit;
+    const kg = toKg(weight, unit);
+    // Sanity range: 25–300 kg (55–660 lb). A typo like 1800 shouldn't wreck the chart.
+    if (!(kg >= 25 && kg <= 300)) return { content: `That doesn't look like a bodyweight. Try \`/bodyweight 182\` (in ${unit}).` };
+    await ctx.data.logBodyweight(u.id, today, kg);
+  }
+  const entries = await ctx.data.listBodyweight(u.id);
+  if (!entries.length) return { content: `⚖️ No bodyweight logged yet. Try \`/bodyweight 182\`. The chart is on ${ctx.appUrl}/progress` };
+  const tr = bodyweightTrend(entries, today);
+  const lines = [weight !== undefined ? `⚖️ Logged **${wt(ctx, tr.latest!.weightKg, u.unit)}** for today.` : `⚖️ Latest: **${wt(ctx, tr.latest!.weightKg, u.unit)}** (${tr.latest!.date})`];
+  if (tr.avg7 != null) lines.push(`7-day average: ${wt(ctx, tr.avg7, u.unit)}${tr.change28 != null ? ` (${signed(tr.change28, u.unit)} vs 4 weeks ago)` : ""}`);
+  if (tr.perWeek != null) lines.push(`Trend: ${signed(tr.perWeek, u.unit)} per week`);
+  lines.push("-# Daily weight swings with water and food; the average is the number to watch.");
+  return { content: lines.join("\n") };
+}
+
+function help(ctx: BotContext): BotReply {
+  const bot = ctx.cfg.brand.botName;
+  return {
+    content: [
+      `👋 **${bot} · ${ctx.cfg.brand.appName}**`,
+      `**Log a set:** \`/log\` with plain text. ${FREETEXT_HELP} You'll get Confirm / Cancel first. Short names work too: \`ohp\`, \`rdl\`, initials like \`bp\`.`,
+      "**Your day:** `/today` · `/done` to finish · `/skip` · `/swap` · `/undo` the last set",
+      "**Progress:** `/lift` · `/streak` · `/goal` · `/bodyweight 182` · `/friends`",
+      "**Tools:** `/plates 225` · `/rest 2m` · `/announce on` (post PRs in this channel)",
+      `**Ask me:** \`/ask\` reads your logged data and answers (AI, not medical advice). In the app, the Ask ${bot} chat can also propose changes for you to approve.`,
+      `**Account:** sign in at ${ctx.appUrl} with Discord (or link Discord in Settings if you use Google) so I know it's you.`,
+    ].join("\n"),
+  };
+}
+
 async function plates(ctx: BotContext, weight: number, unitOpt?: string): Promise<BotReply> {
   const u = unitOpt ? null : await ctx.data.findUser(ctx.discordUserId).catch(() => null);
   const unit: Unit = unitOpt === "kg" || unitOpt === "lb" ? unitOpt : u?.unit ?? ctx.cfg.units.default;
@@ -531,6 +569,8 @@ export function handleCommand(ctx: BotContext, name: string, opts: Options): Pro
       case "rest": return rest(ctx, opts.time as string | undefined);
       case "announce": return announce(ctx, String(opts.mode ?? "on"));
       case "goal": return goals(ctx);
+      case "bodyweight": return bodyweight(ctx, opts.weight === undefined ? undefined : Number(opts.weight), opts.unit as string | undefined);
+      case "help": return help(ctx);
       default: return { content: `Unknown command /${name}` };
     }
   });

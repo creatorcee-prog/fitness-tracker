@@ -280,7 +280,7 @@ describe("discord plumbing", () => {
     expect(m.components[0].components[0]).toMatchObject({ type: 2, label: "Undo", custom_id: "undo:x" });
   });
   it("registers commands for server and user installs", () => {
-    expect(COMMANDS.map((c) => c.name)).toEqual(["today", "log", "undo", "done", "skip", "swap", "lift", "streak", "friends", "goal", "plates", "rest", "ask", "announce"]);
+    expect(COMMANDS.map((c) => c.name)).toEqual(["today", "log", "undo", "done", "skip", "swap", "lift", "streak", "friends", "goal", "bodyweight", "help", "plates", "rest", "ask", "announce"]);
     expect(COMMANDS.find((c) => c.name === "announce")!.contexts).toEqual([0]);
     for (const c of COMMANDS) {
       expect(c.integration_types).toEqual([0, 1]);
@@ -409,3 +409,27 @@ describe("reminders / check-in", () => {
 
 // Sanity: kg conversion used by the fake matches the app.
 it("lb→kg round trip", () => expect(toKg(185, "lb")).toBeCloseTo(83.9146, 3));
+
+describe("/bodyweight and /help", () => {
+  it("logs today's weight (replacing an earlier entry) and shows the trend", async () => {
+    for (let i = 1; i <= 20; i++) data.bodyweight.push({ date: new Date(Date.UTC(2026, 9, 21 - i * 1)).toISOString().slice(0, 10), weightKg: toKg(190 - i * 0.25, "lb") });
+    const r = await run("bodyweight", { weight: 186 });
+    expect(r.content).toContain("Logged **186 lb**");
+    expect(r.content).toMatch(/Trend: \+\d/);
+    await run("bodyweight", { weight: 185 });
+    expect(data.bodyweight.filter((b) => b.date === "2026-10-21")).toHaveLength(1);
+    expect((await run("bodyweight")).content).toContain("Latest: **185 lb**");
+  });
+  it("accepts kg and rejects typos", async () => {
+    expect((await run("bodyweight", { weight: 82, unit: "kg" })).content).toContain("Logged **180.8 lb**");
+    expect((await run("bodyweight", { weight: 1800 })).content).toContain("doesn't look like a bodyweight");
+  });
+  it("/help works without an account", async () => {
+    const r = await run("help", {}, "stranger");
+    expect(r.content).toContain("/log");
+    expect(r.content).toContain("/bodyweight 182");
+  });
+  it("registers both commands", () => {
+    expect(COMMANDS.map((c) => c.name)).toEqual(expect.arrayContaining(["bodyweight", "help"]));
+  });
+});

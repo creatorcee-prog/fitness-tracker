@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
+import { BodyweightCard } from "@/components/BodyweightCard";
 import { GoalsCard } from "@/components/GoalsCard";
 import { e1rm } from "@/lib/domain/e1rm";
 import { percentageGains } from "@/lib/domain/gain";
@@ -153,6 +154,7 @@ export default function ProgressPage() {
       <div className="page stack">
         <h1>Progress</h1>
         <GoalsCard />
+        <BodyweightCard />
         <p className="muted">Log a few sets and your graphs show up here. (Debugging? Settings → Generate demo history.)</p>
       </div>
     );
@@ -181,6 +183,8 @@ export default function ProgressPage() {
       <div className="card"><div ref={chartEl} className="chart" /></div>
 
       <GoalsCard />
+
+      <BodyweightCard />
 
       <div className="tile hero">
         <span className="small" style={{ opacity: 0.8 }}>Percentage gain (best e1RM, last {cfg.progress.currentWindowDays} days)</span>

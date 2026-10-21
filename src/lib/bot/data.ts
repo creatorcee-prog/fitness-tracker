@@ -68,6 +68,8 @@ export interface BotData {
   listGoals(uid: string): Promise<GoalRow[]>;
   /** Bodyweight entries (kg), oldest first. */
   listBodyweight(uid: string): Promise<{ date: string; weightKg: number }[]>;
+  /** Log (or replace) a day's bodyweight (kg). */
+  logBodyweight(uid: string, date: string, weightKg: number): Promise<void>;
   aiUsageToday(uid: string, date: string): Promise<{ user: number; global: number }>;
   recordAiUsage(uid: string, date: string, tokensIn: number, tokensOut: number): Promise<void>;
 }
@@ -142,6 +144,10 @@ export class SupabaseBotData implements BotData {
   async listBodyweight(uid: string) {
     const rows = check(await this.sb.from("bodyweight_entries").select("date, weight").eq("user_id", uid).order("date"), "listBodyweight");
     return rows.map((r: Row) => ({ date: r.date, weightKg: Number(r.weight) }));
+  }
+
+  async logBodyweight(uid: string, date: string, weightKg: number) {
+    check(await this.sb.from("bodyweight_entries").upsert({ user_id: uid, date, weight: weightKg }, { onConflict: "user_id,date" }), "logBodyweight");
   }
 
   async aiUsageToday(uid: string, date: string) {

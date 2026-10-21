@@ -377,6 +377,15 @@ export class SyncStore implements Store {
   getShareStatus() {
     return this.online_(() => this.remote.getShareStatus());
   }
+  listBodyweight() {
+    return this.online_(() => this.remote.listBodyweight());
+  }
+  logBodyweight(e: { date: string; weightKg: number }) {
+    return this.online_(() => this.remote.logBodyweight(e));
+  }
+  deleteBodyweight(date: string) {
+    return this.online_(() => this.remote.deleteBodyweight(date));
+  }
   getMyMedia() {
     return this.online_(() => this.remote.getMyMedia());
   }
