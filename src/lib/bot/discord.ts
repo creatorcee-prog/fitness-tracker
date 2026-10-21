@@ -126,6 +126,14 @@ export const COMMANDS = [
   { name: "rest", description: "Start a rest countdown", options: [{ type: STRING, name: "time", description: "e.g. 2m, 90, 1:30 (default from your settings)", required: false }] },
 ].map((c) => ({ ...c, ...EVERYWHERE }));
 
+// /ask: AI answers. The description carries the privacy notice (Discord max 100 chars).
+COMMANDS.push({
+  name: "ask",
+  description: "Ask James (AI coach). Your question + a training summary are sent to Groq.",
+  options: [{ type: STRING, name: "question", description: "e.g. How is my bench trending? What should I add next Push day?", required: true, max_length: 300 }],
+  ...EVERYWHERE,
+} as (typeof COMMANDS)[number]);
+
 // Announcements post in a server channel, so /announce only exists in servers.
 COMMANDS.push({
   name: "announce",

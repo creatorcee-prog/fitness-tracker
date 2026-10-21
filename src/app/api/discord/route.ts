@@ -4,9 +4,12 @@ import { serviceClient, SupabaseBotData } from "@/lib/bot/data";
 import {
   editOriginal, EPHEMERAL, followUp, InteractionType, listCommands, postToChannel, registerCommands, ResponseType, toMessage, verifyDiscordRequest,
 } from "@/lib/bot/discord";
+import { aiEnvFromProcess, handleAsk } from "@/lib/ai/ask";
 import { ACCOUNTLESS, componentMode, handleAutocomplete, handleCommand, handleComponent, type BotContext, type Options } from "@/lib/bot/handlers";
 
 export const runtime = "nodejs";
+// /ask finishes after the response is sent (after()); give it room for a slow model call.
+export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -65,6 +68,21 @@ export async function POST(req: NextRequest) {
   if (i.type === InteractionType.COMMAND) {
     const name = i.data.name as string;
     const opts = flatten(i.data.options);
+    if (name === "ask") {
+      // Always private: the answer includes personal training data.
+      after(async () => {
+        const r = await handleAsk(
+          { data: ctx.data, cfg: ctx.cfg, env: aiEnvFromProcess(), now: ctx.now, discordUserId: ctx.discordUserId, appUrl: ctx.appUrl, fetch },
+          String(opts.question ?? ""),
+        ).catch((e) => {
+          console.error("[ask]", e);
+          return { content: "⚠️ I couldn't answer right now. Please try again in a bit.", outcome: "error" as const };
+        });
+        console.log(`[ask] outcome=${r.outcome}${"model" in r && r.model ? ` model=${r.model} in=${r.tokensIn} out=${r.tokensOut}` : ""}`);
+        await editOriginal(app, i.token, { content: r.content }).catch((e) => console.error("[bot] edit", e));
+      });
+      return NextResponse.json({ type: ResponseType.DEFERRED_MESSAGE, data: { flags: EPHEMERAL } });
+    }
     if (ACCOUNTLESS.has(name)) {
       return NextResponse.json({ type: ResponseType.MESSAGE, data: toMessage(await handleCommand(ctx, name, opts), flags) });
     }
@@ -105,6 +123,8 @@ export async function GET(req: NextRequest) {
     SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
     NEXT_PUBLIC_SUPABASE_URL: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
   };
+  const ai = aiEnvFromProcess();
+  const aiStatus = { enabled: ai.enabled, GROQ_API_KEY: !!ai.apiKey, model: ai.model, fallbackModel: ai.fallbackModel, dailyUserLimit: ai.dailyUserLimit, dailyGlobalLimit: ai.dailyGlobalLimit };
   let commands: string[] | string = "not checked (missing app id or bot token)";
   if (appId && botToken) {
     try {
@@ -115,5 +135,5 @@ export async function GET(req: NextRequest) {
       commands = `error: ${e instanceof Error ? e.message : String(e)}`;
     }
   }
-  return NextResponse.json({ ok: Object.values(configured).every(Boolean), configured, commands });
+  return NextResponse.json({ ok: Object.values(configured).every(Boolean), configured, ai: aiStatus, commands });
 }
