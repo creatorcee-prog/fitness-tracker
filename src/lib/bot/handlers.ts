@@ -1,10 +1,10 @@
 import type { AppConfig, Unit } from "@/config/app.config";
 import { percentageGains } from "@/lib/domain/gain";
+import { FREETEXT_HELP, parseFreeText } from "@/lib/domain/freetext";
 import { matchExercise } from "@/lib/domain/match";
 import { platesPerSide } from "@/lib/domain/plates";
 import { prefillFor } from "@/lib/domain/progression";
 import { currentRecords, prsForSet, replayPRs } from "@/lib/domain/prs";
-import { parseShorthand } from "@/lib/domain/shorthand";
 import { nextPosition } from "@/lib/domain/split";
 import { finishedBetween, volumeKg, weekStart, weeklyStreak } from "@/lib/domain/stats";
 import type { Exercise, PREvent, PRType, SetEntry, Split, SplitDay } from "@/lib/domain/types";
@@ -22,6 +22,8 @@ export interface Button {
 export interface BotReply {
   content: string;
   buttons?: Button[];
+  /** A dropdown (Discord string select), e.g. "which lift did you mean?". */
+  select?: { id: string; placeholder: string; options: { label: string; value: string; description?: string }[] };
 }
 
 export interface BotContext {
@@ -169,24 +171,120 @@ async function logParsed(
   };
 }
 
+// ------------------------------------------------------------------ /log with Confirm
+
+type Entry = { weightKg: number; reps: number; rpe: number | null };
+
+/** Sets → "83.915*8*4,90*5*1" (kg*reps*count[*rpe]) so a button can carry them; nothing is stored until Confirm. */
+export function encodeEntries(entries: Entry[]): string {
+  const groups: { e: Entry; n: number }[] = [];
+  for (const e of entries) {
+    const last = groups[groups.length - 1];
+    if (last && last.e.weightKg === e.weightKg && last.e.reps === e.reps && last.e.rpe === e.rpe) last.n++;
+    else groups.push({ e, n: 1 });
+  }
+  return groups.map(({ e, n }) => [Number(e.weightKg.toFixed(3)), e.reps, n, ...(e.rpe != null ? [e.rpe] : [])].join("*")).join(",");
+}
+
+export function decodeEntries(s: string): Entry[] {
+  return s.split(",").flatMap((g) => {
+    const [w, r, n, rpe] = g.split("*").map(Number);
+    if (!(w >= 0) || !(r >= 1) || !(n >= 1) || n > 50) return [];
+    return Array.from({ length: n }, () => ({ weightKg: w, reps: r, rpe: Number.isFinite(rpe) ? rpe : null }));
+  });
+}
+
+function describeEntries(entries: Entry[], unit: Unit): string {
+  const groups = encodeEntries(entries).split(",").map((g) => {
+    const [w, r, n, rpe] = g.split("*").map(Number);
+    return `${n > 1 ? `${n} × ` : ""}${r} rep${r === 1 ? "" : "s"} @ ${num(w, unit)} ${unit}${Number.isFinite(rpe) ? ` (RPE ${rpe})` : ""}`;
+  });
+  return groups.join(", ");
+}
+
+function confirmReply(ex: Exercise, entries: Entry[], unit: Unit): BotReply {
+  const id = `lc:${ex.id}:${encodeEntries(entries)}`;
+  if (id.length > 100) return { content: "That's a lot of different sets for one message. Log them in two goes." };
+  return {
+    content: `📝 **${ex.name}**: ${describeEntries(entries, unit)}
+Save ${entries.length === 1 ? "this set" : `these ${entries.length} sets`}?`,
+    buttons: [
+      { label: "Confirm", id, style: "primary" },
+      { label: "Cancel", id: "lx", style: "secondary" },
+    ],
+  };
+}
+
+/** Best guesses first, so the menu usually has the right lift near the top (max 25 options). */
+function rankLifts(query: string | null, exercises: Exercise[], preferIds: string[] = []): Exercise[] {
+  const q = (query ?? "").toLowerCase();
+  const words = q.split(/\s+/).filter(Boolean);
+  const score = (e: Exercise) => {
+    const n = e.name.toLowerCase();
+    let sc = preferIds.includes(e.id) ? 5 : 0;
+    if (q && n.startsWith(q)) sc += 40;
+    if (q && n.includes(q)) sc += 20;
+    sc += words.filter((w) => n.includes(w)).length * 10;
+    if (q && n.split(/\s+/).some((w) => w[0] === q[0])) sc += 2;
+    return sc;
+  };
+  return [...exercises].sort((a, b) => score(b) - score(a) || a.name.localeCompare(b.name)).slice(0, 25);
+}
+
+function pickReply(entries: Entry[], unit: Unit, options: Exercise[], typed: string | null): BotReply {
+  const id = `lp:${encodeEntries(entries)}`;
+  if (id.length > 100) return { content: "That's a lot of different sets for one message. Log them in two goes." };
+  return {
+    content: `${typed ? `I don't have a lift called **${typed}**.` : "Which lift?"} Pick one for ${describeEntries(entries, unit)}:`,
+    select: { id, placeholder: "Choose a lift", options: options.map((e) => ({ label: e.name, value: e.id, description: e.category })) },
+    buttons: [{ label: "Cancel", id: "lx", style: "secondary" }],
+  };
+}
+
+const PARSE_HELP: Record<string, string> = {
+  "missing-weight": "I got the sets and reps but no weight.",
+  unclear: "I couldn't tell which number is the weight.",
+  "too-many-sets": "That's more than 20 sets in one go.",
+  "no-numbers": "I didn't see any numbers.",
+  empty: "Tell me what you lifted.",
+};
+
+/** /log: parse free text, then ask to Confirm. Nothing is saved here. */
 async function log(ctx: BotContext, text: string): Promise<BotReply> {
   const u = await requireUser(ctx);
-  const parsed = parseShorthand(text);
-  if (!parsed) throw new UserError('Couldn\'t read that. Try `bench 185x5`, `bench 185x5x3`, `squat 225 5,5,4` or `ohp 95x8 @8`.');
-  const exercises = await ctx.data.listExercises(u.id);
-  let ex: Exercise | null = null;
-  if (parsed.exercise) {
-    ex = matchExercise(parsed.exercise, exercises, ctx.cfg.logging.aliases);
-    if (!ex) throw new UserError(`No lift matches "${parsed.exercise}". Add it in the app, or check the spelling.`);
-  } else {
-    // No name: continue the lift you logged last in this workout.
-    const open = await ctx.data.getOpenSession(u.id);
-    const sets = open ? await ctx.data.listSets(u.id, { sessionId: open.id }) : [];
-    const lastEx = sets[sets.length - 1]?.exerciseId;
-    ex = exercises.find((e) => e.id === lastEx) ?? null;
-    if (!ex) throw new UserError("Which lift? e.g. `/log bench 185x5`");
-  }
+  const parsed = parseFreeText(text);
+  if (!parsed.ok) throw new UserError(`${PARSE_HELP[parsed.reason] ?? "Couldn't read that."} ${FREETEXT_HELP}`);
   const entries = parsed.sets.map((s) => ({ weightKg: toKg(s.weight, s.unit ?? u.unit), reps: s.reps, rpe: s.rpe }));
+  const exercises = await ctx.data.listExercises(u.id);
+
+  if (parsed.exercise) {
+    const ex = matchExercise(parsed.exercise, exercises, ctx.cfg.logging.aliases);
+    return ex ? confirmReply(ex, entries, u.unit) : pickReply(entries, u.unit, rankLifts(parsed.exercise, exercises), parsed.exercise);
+  }
+  // No name: default to the lift logged last in this workout, else ask (today's plan first).
+  const open = await ctx.data.getOpenSession(u.id);
+  const sets = open ? await ctx.data.listSets(u.id, { sessionId: open.id }) : [];
+  const last = exercises.find((e) => e.id === sets[sets.length - 1]?.exerciseId);
+  if (last) return confirmReply(last, entries, u.unit);
+  const t = await ctx.data.getToday(u.id, ctx.now);
+  const planned = t.kind === "day" ? t.day.exercises.map((x) => x.exerciseId) : [];
+  return pickReply(entries, u.unit, rankLifts(null, exercises, planned), null);
+}
+
+/** [Confirm] saves through the same path as every other log; the menu turns a pick into a Confirm. */
+async function confirmOrPick(ctx: BotContext, customId: string, values: string[]): Promise<BotReply> {
+  const u = await requireUser(ctx);
+  const parts = customId.split(":");
+  const exercises = await ctx.data.listExercises(u.id); // the user's own + library: an id from elsewhere won't match
+  if (parts[0] === "lp") {
+    const ex = exercises.find((e) => e.id === values[0]);
+    const entries = decodeEntries(parts[1] ?? "");
+    if (!ex || !entries.length) return { content: "That choice expired. Run `/log` again." };
+    return confirmReply(ex, entries, u.unit);
+  }
+  const ex = exercises.find((e) => e.id === parts[1]);
+  const entries = decodeEntries(parts[2] ?? "");
+  if (!ex || !entries.length) return { content: "That log expired. Run `/log` again." };
   return logParsed(ctx, u, ex, entries);
 }
 
@@ -418,13 +516,16 @@ export function handleCommand(ctx: BotContext, name: string, opts: Options): Pro
 
 /** Buttons. "again" posts a new message; "undo" and "skip" replace the message they're on. */
 export function componentMode(customId: string): "new" | "update" {
+  // "again" posts a new message; everything else (confirm, cancel, pick, undo, skip, check-in) replaces the one it's on.
   return customId.startsWith("again:") ? "new" : "update";
 }
 
-export function handleComponent(ctx: BotContext, customId: string): Promise<BotReply> {
+export function handleComponent(ctx: BotContext, customId: string, values: string[] = []): Promise<BotReply> {
   return guard(async () => {
     const [kind, id] = customId.split(":");
     if (kind === "skip") return skip(ctx);
+    if (kind === "lx") return { content: "❌ Cancelled. Nothing was saved." };
+    if (kind === "lc" || kind === "lp") return confirmOrPick(ctx, customId, values);
     if (kind === "ci") {
       const [, action, rid] = customId.split(":");
       if (action === "start") return checkInStart(ctx);

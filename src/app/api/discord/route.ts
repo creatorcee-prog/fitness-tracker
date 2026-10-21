@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     const id = String(i.data.custom_id);
     const mode = componentMode(id);
     after(async () => {
-      const reply = await handleComponent(ctx, id);
+      const reply = await handleComponent(ctx, id, (i.data.values as string[] | undefined) ?? []);
       const send = mode === "new" ? followUp(app, i.token, reply, flags) : editOriginal(app, i.token, reply);
       await send.catch((e) => console.error("[bot] component", e));
     });

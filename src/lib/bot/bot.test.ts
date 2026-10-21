@@ -10,7 +10,7 @@ import type { BotData, BotUser, DueReminder } from "./data";
 import { COMMANDS, DiscordError, toMessage, verifyDiscordRequest } from "./discord";
 import { runReminders } from "./reminders";
 import { formatDuration, parseDuration } from "./duration";
-import { handleAutocomplete, handleCommand, handleComponent, type BotContext } from "./handlers";
+import { decodeEntries, encodeEntries, handleAutocomplete, handleCommand, handleComponent, type BotContext } from "./handlers";
 
 /** In-memory BotData that follows the same rules as the SQL functions. */
 class FakeData implements BotData {
@@ -120,6 +120,17 @@ const run = async (name: string, opts: Record<string, string | number> = {}, who
   return handleCommand(ctx(who), name, opts);
 };
 
+/** /log then press [Confirm] (if the reply offers one), like a user would. */
+async function logWith(c: BotContext, sets: string) {
+  const r = await handleCommand(c, "log", { sets });
+  const confirm = r.buttons?.find((b) => b.id.startsWith("lc:"));
+  return confirm ? handleComponent(c, confirm.id) : r;
+}
+const logC = async (sets: string, who?: string) => {
+  clock += 60_000;
+  return logWith(ctx(who), sets);
+};
+
 beforeEach(() => {
   data = new FakeData();
   clock = Date.parse("2026-10-21T17:00:00Z");
@@ -149,7 +160,7 @@ describe("/today", () => {
 
 describe("/log", () => {
   it("starts today's workout and logs shorthand", async () => {
-    const r = await run("log", { sets: "bench 185x5x2" });
+    const r = await logC("bench 185x5x2");
     expect(r.content).toContain("Bench Press");
     expect(r.content).toContain("185 × 5, 185 × 5 lb");
     expect(r.content).toContain("set 2/3");
@@ -160,30 +171,79 @@ describe("/log", () => {
     expect(r.buttons?.map((b) => b.label)).toEqual(["Same again", "Undo last set"]);
   });
   it("uses aliases and remembers the last lift", async () => {
-    await run("log", { sets: "ohp 95x8" });
-    const r = await run("log", { sets: "95x7" });
+    await logC("ohp 95x8");
+    const r = await logC("95x7");
     expect(r.content).toContain("Overhead Press");
   });
   it("converts kg", async () => {
-    await run("log", { sets: "bench 100kg x5" });
+    await logC("bench 100kg x5");
     expect(data.sets[0].weightKg).toBe(100);
   });
   it("flags PRs", async () => {
-    await run("log", { sets: "bench 185x5" });
-    const r = await run("log", { sets: "bench 195x5" });
+    await logC("bench 185x5");
+    const r = await logC("bench 195x5");
     expect(r.content).toContain("Heaviest");
     expect(r.content).toContain("e1RM PR");
   });
   it("rejects unknown lifts and junk", async () => {
-    expect((await run("log", { sets: "zercher 135x5" })).content).toContain('No lift matches "zercher"');
-    expect((await run("log", { sets: "lots of reps" })).content).toContain("Couldn't read that");
-    expect((await run("log", { sets: "185x5" })).content).toContain("Which lift?");
+    const unknown = await logC("zercher 135x5");
+    expect(unknown.content).toContain("I don't have a lift called **zercher**");
+    expect(unknown.select?.options.length).toBeGreaterThan(0);
+    expect((await logC("lots of reps")).content).toContain("I didn't see any numbers");
+    const noName = await logC("185x5");
+    expect(noName.content).toContain("Which lift?");
+    expect(noName.select?.options[0].label).toBe("Bench Press"); // today's plan first
+    expect(data.sets).toHaveLength(0);
+  });
+});
+
+describe("/log confirm flow", () => {
+  it("shows the parsed result and saves nothing until Confirm", async () => {
+    const r = await run("log", { sets: "4x8 bench 185" });
+    expect(r.content).toContain("**Bench Press**: 4 × 8 reps @ 185 lb");
+    expect(r.buttons?.map((b) => b.label)).toEqual(["Confirm", "Cancel"]);
+    expect(data.sets).toHaveLength(0);
+    const saved = await handleComponent(ctx(), r.buttons![0].id);
+    expect(saved.content).toContain("✅ **Bench Press**");
+    expect(data.sets).toHaveLength(4);
+    expect(data.sets[0].weightKg).toBeCloseTo(toKg(185, "lb"), 2);
+  });
+  it("Cancel saves nothing", async () => {
+    const r = await run("log", { sets: "squat 3x5 @ 225" });
+    expect((await handleComponent(ctx(), r.buttons![1].id)).content).toContain("Nothing was saved");
+    expect(data.sets).toHaveLength(0);
+  });
+  it("picking from the menu leads to a Confirm", async () => {
+    const r = await run("log", { sets: "benchy 185 3x5" });
+    const pick = await handleComponent(ctx(), r.select!.id, ["ex-incline-db"]);
+    expect(pick.content).toContain("**Incline Dumbbell Press**: 3 × 5 reps @ 185 lb");
+    await handleComponent(ctx(), pick.buttons![0].id);
+    expect(data.sets.map((x) => x.exerciseId)).toEqual(["ex-incline-db", "ex-incline-db", "ex-incline-db"]);
+  });
+  it("kg suffix is respected for lb users", async () => {
+    const r = await run("log", { sets: "bench 100kg 3x5" });
+    expect(r.content).toContain("@ 220.5 lb");
+    await handleComponent(ctx(), r.buttons![0].id);
+    expect(data.sets[0].weightKg).toBe(100);
+  });
+  it("rejects tampered or expired buttons", async () => {
+    expect((await handleComponent(ctx(), "lc:not-a-lift:100*5*1")).content).toContain("expired");
+    expect((await handleComponent(ctx(), "lp:100*5*1", ["nope"])).content).toContain("expired");
+    expect(data.sets).toHaveLength(0);
+  });
+  it("round-trips set encoding", () => {
+    const e = [{ weightKg: 83.915, reps: 8, rpe: null }, { weightKg: 83.915, reps: 8, rpe: null }, { weightKg: 90, reps: 5, rpe: 8 }];
+    expect(encodeEntries(e)).toBe("83.915*8*2,90*5*1*8");
+    expect(decodeEntries(encodeEntries(e))).toEqual(e);
+  });
+  it("explains what was missing", async () => {
+    expect((await run("log", { sets: "squat 3 sets of 5" })).content).toContain("no weight");
   });
 });
 
 describe("buttons", () => {
   it("[Same again] repeats the set; [Undo] removes it", async () => {
-    const r = await run("log", { sets: "bench 185x5" });
+    const r = await logC("bench 185x5");
     clock += 60_000;
     const again = await handleComponent(ctx(), r.buttons![0].id);
     expect(again.content).toContain("set 2/3");
@@ -194,12 +254,12 @@ describe("buttons", () => {
     expect((await handleComponent(ctx(), again.buttons![1].id)).content).toBe("Already removed.");
   });
   it("[Same again] refuses after the workout is finished", async () => {
-    const r = await run("log", { sets: "bench 185x5" });
+    const r = await logC("bench 185x5");
     await run("done");
     expect((await handleComponent(ctx(), r.buttons![0].id)).content).toContain("workout is finished");
   });
   it("buttons only act for the account that pressed them", async () => {
-    const r = await run("log", { sets: "bench 185x5" });
+    const r = await logC("bench 185x5");
     expect((await handleComponent(ctx("stranger"), r.buttons![1].id)).content).toContain("Sign in");
     expect(data.sets).toHaveLength(1);
   });
@@ -210,12 +270,12 @@ describe("buttons", () => {
 
 describe("/undo, /done, /skip, /swap", () => {
   it("/undo removes the last set", async () => {
-    await run("log", { sets: "bench 185x5x2" });
+    await logC("bench 185x5x2");
     expect((await run("undo")).content).toContain("Removed **Bench Press** 185 × 5");
     expect(data.sets).toHaveLength(1);
   });
   it("/done finishes, summarises and advances", async () => {
-    await run("log", { sets: "bench 185x5x3" });
+    await logC("bench 185x5x3");
     const r = await run("done");
     expect(r.content).toContain("Push done");
     expect(r.content).toContain("3 sets");
@@ -224,7 +284,7 @@ describe("/undo, /done, /skip, /swap", () => {
     expect((await run("done")).content).toContain("No workout in progress");
   });
   it("/skip refuses during a workout", async () => {
-    await run("log", { sets: "bench 185x5" });
+    await logC("bench 185x5");
     expect((await run("skip")).content).toContain("Finish it with `/done`");
   });
   it("/swap moves the rotation pointer", async () => {
@@ -240,14 +300,14 @@ describe("/undo, /done, /skip, /swap", () => {
 
 describe("/lift, /streak, /friends, /plates, /rest", () => {
   it("/lift shows last session and records", async () => {
-    await run("log", { sets: "bench 185x5" });
+    await logC("bench 185x5");
     const r = await run("lift", { name: "bench" });
     expect(r.content).toContain("**Bench Press**");
     expect(r.content).toContain("185×5 lb");
     expect(r.content).toContain("Heaviest 185 lb × 5");
   });
   it("/streak counts this week", async () => {
-    await run("log", { sets: "bench 185x5" });
+    await logC("bench 185x5");
     await run("done");
     expect((await run("streak")).content).toContain("This week: 1/3");
   });
@@ -341,13 +401,13 @@ describe("PR announcements", () => {
     expect(data.users[0].announcePrs).toBe(false);
   });
   it("posts PRs once, only when opted in", async () => {
-    await handleCommand(withPost(), "log", { sets: "bench 185x5" }); // baseline, no PR
+    await logWith(withPost(), "bench 185x5"); // baseline, no PR
     clock += 60_000;
-    await handleCommand({ ...withPost(), now: new Date(clock) }, "log", { sets: "bench 195x5" });
+    await logWith({ ...withPost(), now: new Date(clock) }, "bench 195x5");
     expect(posts).toHaveLength(0); // not opted in
     await data.setAnnounce("u1", "c1", true);
     clock += 60_000;
-    await handleCommand({ ...withPost(), now: new Date(clock) }, "log", { sets: "bench 205x5" });
+    await logWith({ ...withPost(), now: new Date(clock) }, "bench 205x5");
     expect(posts).toHaveLength(1);
     expect(posts[0].content).toContain("**Cee** just hit a **Bench Press** PR");
     expect(posts[0].content).toContain("205 × 5 lb");
