@@ -360,3 +360,10 @@ label.row:has(> input[type="checkbox"]) { min-height: 44px; cursor: pointer; }
 .today-section-title { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); margin: 4px 2px -4px; }
 /* Small text actions inside tiles ("+ Add a goal"): a 44px tap area without changing how they look. */
 .tap-pad { display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px; margin: -12px -10px; }
+/* Settings: group headings and a jump bar */
+.settings-jump { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.settings-jump::-webkit-scrollbar { display: none; }
+.settings-group { margin: 14px 2px -4px; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); scroll-margin-top: 12px; }
+#advanced { scroll-margin-top: 12px; }
+#advanced > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 6px; list-style: none; }
+#advanced > summary::-webkit-details-marker { display: none; }

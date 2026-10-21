@@ -85,6 +85,13 @@ export default function SettingsPage() {
   return (
     <div className="page stack">
       <h1>Settings</h1>
+      <nav className="settings-jump" aria-label="Settings sections">
+        {[["you", "You"], ["training", "Training"], ["look", "Look"], ["alerts", "Reminders"], ["data", "Data"], ["advanced", "Advanced"]].map(([id, label]) => (
+          <a key={id} href={`#${id}`} className="chip" onClick={() => id === "advanced" && document.getElementById("advanced")?.setAttribute("open", "")}>{label}</a>
+        ))}
+      </nav>
+
+      <h2 className="settings-group" id="you">You</h2>
 
       <div className="card stack">
         <h2>Profile</h2>
@@ -103,9 +110,12 @@ export default function SettingsPage() {
             <button className="chip" style={{ justifySelf: "start" }} onClick={() => { setTz(deviceTz); void saveProfile({ timezone: deviceTz }); }}>Use this device&apos;s timezone ({deviceTz})</button>
           ) : null;
         })()}
+        {supabaseOf(store) && <button className="btn" style={{ justifySelf: "start" }} onClick={async () => { await supabaseOf(store)!.sb.auth.signOut(); location.reload(); }}>Sign out</button>}
       </div>
 
       <SignInMethodsCard />
+
+      <h2 className="settings-group" id="training">Training</h2>
 
       <div className="card stack">
         <h2>Logging</h2>
@@ -117,7 +127,7 @@ export default function SettingsPage() {
 
       <NutritionTargetsCard />
 
-      <RemindersCard />
+      <h2 className="settings-group" id="look">Look & feel</h2>
 
       <div className="card stack">
         <h2>Theme</h2>
@@ -217,28 +227,11 @@ export default function SettingsPage() {
         <label className="field">Weekly session target<input type="number" min={1} value={cfg.dashboard.weeklyTarget} onChange={(e) => patch({ dashboard: { weeklyTarget: Math.max(1, Number(e.target.value) || 1) } })} /></label>
       </div>
 
-      <div className="card stack">
-        <h2>Config (debug)</h2>
-        <p className="muted small">
-          Everything in <code>src/config/app.config.ts</code> can be overridden here. Only what you put in this JSON changes; it's saved in this browser.
-          Add <code>?debug=1</code> to any URL for the debug panel (time travel, state dump).
-        </p>
-        <div className="row">
-          <button className="btn sm" onClick={() => patch({ debug: { panel: !cfg.debug.panel } })}>Debug panel: {cfg.debug.panel ? "on" : "off"}</button>
-          <button className="btn sm" onClick={() => patch({ debug: { logStore: !cfg.debug.logStore } })}>Log store calls: {cfg.debug.logStore ? "on" : "off"}</button>
-          <button className="btn sm" onClick={() => patch({ restTimer: { defaultSeconds: 5, byCategory: { upper: 5, lower: 5, core: 5, cardio: 0, other: 5 } } }, "Rest timer set to 5s")}>5s rest timer</button>
-        </div>
-        <textarea rows={12} value={json} onChange={(e) => setJson(e.target.value)} spellCheck={false} aria-label="Config overrides JSON" />
-        {jsonErr && <div className="small" style={{ color: "var(--bad)" }}>{jsonErr}</div>}
-        <div className="row">
-          <button className="btn primary" onClick={() => { try { const v = JSON.parse(json || "{}"); setJsonErr(null); const prev = overrides ?? null; setOverrides(v); toast.show({ text: "Config applied", undo: () => setOverrides(prev) }); } catch (e) { setJsonErr(String(e)); } }}>Apply</button>
-          <button className="btn" onClick={() => { const prev = overrides ?? null; setOverrides(null); toast.show({ text: "Overrides cleared", undo: () => setOverrides(prev) }); }}>Reset to defaults</button>
-        </div>
-        <details>
-          <summary className="muted small">Defaults reference</summary>
-          <pre className="code">{JSON.stringify(defaultConfig, null, 2)}</pre>
-        </details>
-      </div>
+      <h2 className="settings-group" id="alerts">Reminders</h2>
+
+      <RemindersCard />
+
+      <h2 className="settings-group" id="data">Data</h2>
 
       <div className="card stack">
         <h2>Data</h2>
@@ -267,11 +260,49 @@ export default function SettingsPage() {
               }}
             />
           </label>
-          <button className="btn" onClick={async () => { try { const n = await generateDemoHistory(store, cfg, now(), 12, profile.unit); toast.show({ text: `Generated ${n} demo sessions` }); refresh(); } catch (e) { toast.show({ text: String(e) }); } }}>Generate demo history</button>
-          <button className="btn danger" onClick={async () => { const backup = await store.exportAll(); await store.resetAll(); toast.show({ text: "All data reset", undo: store.kind === "local" ? async () => { await store.importAll(backup); refresh(); } : undefined }); refresh(); }}>Reset all data</button>
-          {supabaseOf(store) && <button className="btn" onClick={async () => { await supabaseOf(store)!.sb.auth.signOut(); location.reload(); }}>Sign out</button>}
+          <button
+            className="btn danger"
+            onClick={async () => {
+              // The one confirmation in the app: online, this can't be undone.
+              if (store.kind !== "local" && !window.confirm("Delete all your workouts, sets, PRs and splits from your account? This can't be undone. (Export JSON first if you might want them back.)")) return;
+              const backup = await store.exportAll();
+              await store.resetAll();
+              toast.show({ text: "All data reset", undo: store.kind === "local" ? async () => { await store.importAll(backup); refresh(); } : undefined });
+              refresh();
+            }}
+          >
+            Reset all data
+          </button>
         </div>
       </div>
+
+      <details className="card" id="advanced">
+        <summary><strong>Advanced</strong> <span className="muted small">· config editor and debugging tools</span></summary>
+        <div className="stack" style={{ marginTop: 12 }}>
+        <p className="muted small">
+          Everything in <code>src/config/app.config.ts</code> can be overridden here. Only what you put in this JSON changes; it's saved in this browser.
+          Add <code>?debug=1</code> to any URL for the debug panel (time travel, state dump).
+        </p>
+        <div className="row">
+          <button className="btn sm" onClick={() => patch({ debug: { panel: !cfg.debug.panel } })}>Debug panel: {cfg.debug.panel ? "on" : "off"}</button>
+          <button className="btn sm" onClick={() => patch({ debug: { logStore: !cfg.debug.logStore } })}>Log store calls: {cfg.debug.logStore ? "on" : "off"}</button>
+          <button className="btn sm" onClick={() => patch({ restTimer: { defaultSeconds: 5, byCategory: { upper: 5, lower: 5, core: 5, cardio: 0, other: 5 } } }, "Rest timer set to 5s")}>5s rest timer</button>
+        </div>
+        <textarea rows={12} value={json} onChange={(e) => setJson(e.target.value)} spellCheck={false} aria-label="Config overrides JSON" />
+        {jsonErr && <div className="small" style={{ color: "var(--bad)" }}>{jsonErr}</div>}
+        <div className="row">
+          <button className="btn primary" onClick={() => { try { const v = JSON.parse(json || "{}"); setJsonErr(null); const prev = overrides ?? null; setOverrides(v); toast.show({ text: "Config applied", undo: () => setOverrides(prev) }); } catch (e) { setJsonErr(String(e)); } }}>Apply</button>
+          <button className="btn" onClick={() => { const prev = overrides ?? null; setOverrides(null); toast.show({ text: "Overrides cleared", undo: () => setOverrides(prev) }); }}>Reset to defaults</button>
+        </div>
+        <details>
+          <summary className="muted small">Defaults reference</summary>
+          <pre className="code">{JSON.stringify(defaultConfig, null, 2)}</pre>
+        </details>
+          <div className="row">
+            <button className="btn" onClick={async () => { try { const n = await generateDemoHistory(store, cfg, now(), 12, profile.unit); toast.show({ text: `Generated ${n} demo sessions` }); refresh(); } catch (e) { toast.show({ text: String(e) }); } }}>Generate demo history</button>
+          </div>
+        </div>
+      </details>
       <p className="muted small">Auto-progression suggestions are conservative and not medical advice. <Link href="/privacy">Privacy</Link></p>
       {toast.node}
     </div>
