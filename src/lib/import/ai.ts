@@ -1,5 +1,5 @@
 import type { AppConfig } from "@/config/app.config";
-import { chat, HttpError, type AiEnv } from "@/lib/ai/ask";
+import { chat, checkAiCaps, HttpError, type AiEnv } from "@/lib/ai/ask";
 import type { BotData } from "@/lib/bot/data";
 import type { ImportedData } from "./types";
 import { validateImported } from "./validate";
@@ -65,9 +65,9 @@ export async function readWithJames(
   const user = await data.getUserById(deps.userId);
   if (!user) return { ok: false, outcome: "error", message: "Couldn't find your account." };
   const day = now.toISOString().slice(0, 10);
-  const used = await data.aiUsageToday(user.id, day);
-  if (used.user >= env.dailyUserLimit) return { ok: false, outcome: "user-cap", message: `You've used today's ${env.dailyUserLimit} ${cfg.brand.botName} requests. They reset at midnight UTC.` };
-  if (used.global >= env.dailyGlobalLimit) return { ok: false, outcome: "global-cap", message: "Today's free-tier limit is used up for everyone. Try again tomorrow." };
+  const caps = await checkAiCaps(data, env, user.id, day);
+  if (caps.blocked === "user-cap") return { ok: false, outcome: "user-cap", message: `You've used today's ${caps.limit} ${cfg.brand.botName} requests. They reset at midnight UTC.` };
+  if (caps.blocked === "global-cap") return { ok: false, outcome: "global-cap", message: "Today's free-tier limit is used up for everyone. Try again tomorrow." };
 
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: user.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
   const messages = [

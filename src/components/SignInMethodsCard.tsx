@@ -13,7 +13,8 @@ const NAME: Record<Provider, string> = { discord: "Discord", google: "Google" };
  * Needs "Manual linking" turned on in Supabase → Authentication → Sign In / Providers.
  */
 export function SignInMethodsCard() {
-  const { cfg, store } = useApp();
+  const { cfg, store, profile } = useApp();
+  const [copied, setCopied] = useState(false);
   const sb = supabaseOf(store);
   const [linked, setLinked] = useState<string[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -51,6 +52,14 @@ export function SignInMethodsCard() {
         <p className="muted small" style={{ margin: 0 }}>Link Discord so {cfg.brand.botName} (the bot) knows it&apos;s you: <code>/log</code>, reminders and <code>/ask</code> need it.</p>
       )}
       {err && <span className="small" style={{ color: "var(--bad)" }}>{err}</span>}
+      <details>
+        <summary className="muted small">Account ID</summary>
+        <div className="row" style={{ marginTop: 6 }}>
+          <code className="small" style={{ wordBreak: "break-all", flex: 1 }}>{profile.id}</code>
+          <button className="btn sm" onClick={async () => { try { await navigator.clipboard.writeText(profile.id); setCopied(true); } catch { /* ignore */ } }}>{copied ? "Copied" : "Copy"}</button>
+        </div>
+        <p className="muted small" style={{ margin: "6px 0 0" }}>For the app owner: put this in <code>AI_DEV_USER_IDS</code> (Vercel) to give an account developer limits for {cfg.brand.botName}.</p>
+      </details>
     </div>
   );
 }

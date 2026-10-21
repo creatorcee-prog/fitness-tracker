@@ -19,6 +19,9 @@ export interface AiEnv {
   fallbackModel: string | null;
   dailyUserLimit: number;
   dailyGlobalLimit: number;
+  /** Developer accounts (app user ids): their own higher limit, and their use doesn't count toward everyone's shared cap. */
+  devUserIds: string[];
+  devDailyLimit: number;
   /** Most tokens the model may write (on gpt-oss this includes its hidden reasoning). */
   maxOutputTokens: number;
   /** Budget for the training summary we send. */
@@ -48,6 +51,8 @@ export function aiEnvFromProcess(e: NodeJS.ProcessEnv = process.env): AiEnv {
     fallbackModel: e.GROQ_FALLBACK_MODEL || null,
     dailyUserLimit: num(e.AI_DAILY_USER_LIMIT, 10),
     dailyGlobalLimit: num(e.AI_DAILY_GLOBAL_LIMIT, 70),
+    devUserIds: (e.AI_DEV_USER_IDS ?? "").split(/[\s,]+/).filter(Boolean),
+    devDailyLimit: num(e.AI_DEV_DAILY_LIMIT, 200),
     maxOutputTokens: num(e.AI_MAX_OUTPUT_TOKENS, 500),
     contextTokens: num(e.AI_CONTEXT_TOKENS, 2000),
     historyTurns: num(e.AI_CHAT_HISTORY_TURNS, 2),
@@ -189,6 +194,24 @@ async function post(deps: Pick<AskDeps, "env" | "fetch">, body: Record<string, u
 }
 
 /**
+ * Daily caps, shared by /ask, the app chat and imports.
+ * - Everyone: AI_DAILY_USER_LIMIT a day, and all together AI_DAILY_GLOBAL_LIMIT.
+ * - Developers (AI_DEV_USER_IDS): AI_DEV_DAILY_LIMIT a day instead, never blocked by the
+ *   shared cap, and their use is left out of it so testing doesn't use up friends' questions.
+ * Groq's own limit (per API key) still applies to everyone; that's the hard ceiling.
+ */
+export async function checkAiCaps(data: BotData, env: AiEnv, userId: string, day: string): Promise<{ blocked: null | "user-cap" | "global-cap"; limit: number; dev: boolean }> {
+  const dev = env.devUserIds.includes(userId);
+  const limit = dev ? env.devDailyLimit : env.dailyUserLimit;
+  const used = await data.aiUsageToday(userId, day);
+  if (used.user >= limit) return { blocked: "user-cap", limit, dev };
+  if (dev) return { blocked: null, limit, dev };
+  let devUse = 0;
+  for (const id of env.devUserIds) devUse += (await data.aiUsageToday(id, day)).user;
+  return { blocked: used.global - devUse >= env.dailyGlobalLimit ? "global-cap" : null, limit, dev };
+}
+
+/**
  * The whole /ask flow, in order:
  *  1. Find the app account for this Discord user (stop if not linked).
  *  2. Stop early if AI is switched off, the question is empty, or it's really a set to /log.
@@ -222,9 +245,9 @@ export async function handleAsk(deps: AskDeps, question: string, history: ChatTu
   }
 
   const day = now.toISOString().slice(0, 10); // caps reset at midnight UTC
-  const used = await data.aiUsageToday(user.id, day);
-  if (used.user >= env.dailyUserLimit) return { outcome: "user-cap", content: `⏳ You've used today's ${env.dailyUserLimit} questions. They reset at midnight UTC. Try again tomorrow!` };
-  if (used.global >= env.dailyGlobalLimit) return { outcome: "global-cap", content: `⏳ I've hit today's question limit for everyone (free tier). Try again tomorrow!` };
+  const caps = await checkAiCaps(data, env, user.id, day);
+  if (caps.blocked === "user-cap") return { outcome: "user-cap", content: `⏳ You've used today's ${caps.limit} questions. They reset at midnight UTC. Try again tomorrow!` };
+  if (caps.blocked === "global-cap") return { outcome: "global-cap", content: `⏳ I've hit today's question limit for everyone (free tier). Try again tomorrow!` };
 
   const context = await buildTrainingContext(data, user, cfg, now, env.contextTokens, inApp);
   const system = systemPrompt(cfg, user.unit, inApp);
