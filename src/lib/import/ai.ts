@@ -1,5 +1,5 @@
 import type { AppConfig } from "@/config/app.config";
-import { chat, checkAiCaps, HttpError, type AiEnv } from "@/lib/ai/ask";
+import { chat, checkAiCaps, HttpError, type AiEnv, type ContentPart } from "@/lib/ai/ask";
 import type { BotData } from "@/lib/bot/data";
 import type { ImportedData } from "./types";
 import { validateImported } from "./validate";
@@ -44,21 +44,33 @@ Rules:
   Day names: use the plan's own label; expand obvious gym abbreviations (CH=Chest, BK=Back, LG=Legs, SH=Shoulders, AR=Arms).
 - "terms": any code or abbreviation you're NOT sure about (a day label like "RE", an unfamiliar lift short-form): keep it as written where it appears and list it here with 2-4 likely meanings. Asking is better than guessing.
 - "goals": only goals the text states. Otherwise [].
-- Put anything you couldn't place in "unclear". Don't explain; output JSON only.`;
+- Put anything you couldn't place in "unclear". Don't explain; output JSON only.
+- Photos/screenshots: transcribe only what you can actually read. If a number or word is unclear (handwriting, glare, cut off), do NOT guess: put that line, as best you can read it, in "unclear" with a "?" where it's unreadable.`;
 }
 
 export type ImportOutcome =
   | { ok: true; data: ImportedData; tokensIn: number; tokensOut: number; model: string }
-  | { ok: false; outcome: "disabled" | "too-long" | "empty" | "user-cap" | "global-cap" | "busy" | "error" | "bad-output"; message: string };
+  | { ok: false; outcome: "disabled" | "too-long" | "empty" | "user-cap" | "global-cap" | "busy" | "error" | "bad-output" | "bad-image"; message: string };
+
+/** A photo as the browser sends it: a JPEG/PNG/WebP data URL, already shrunk. ~1.5 MB of text max each. */
+export const MAX_IMAGE_CHARS = 1_500_000;
+const IMAGE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
 
 export async function readWithJames(
   deps: { data: BotData; cfg: AppConfig; env: AiEnv; importEnv: ImportEnv; now: Date; userId: string; fetch: typeof fetch },
   text: string,
+  images: string[] = [],
 ): Promise<ImportOutcome> {
   const { data, cfg, env, importEnv, now } = deps;
   const input = text.trim();
-  if (!env.enabled || !env.apiKey) return { ok: false, outcome: "disabled", message: `${cfg.brand.botName} is switched off right now. The CSV and plain-text readers still work.` };
-  if (!input) return { ok: false, outcome: "empty", message: "Paste some workouts first." };
+  const bot = cfg.brand.botName;
+  if (!env.enabled || !env.apiKey) return { ok: false, outcome: "disabled", message: `${bot} is switched off right now. The CSV and plain-text readers still work.` };
+  if (images.length) {
+    if (!env.visionModel) return { ok: false, outcome: "disabled", message: "Reading photos is turned off right now. Paste the text instead." };
+    if (images.length > env.visionMaxImages) return { ok: false, outcome: "bad-image", message: `Up to ${env.visionMaxImages} photos at a time.` };
+    if (images.some((u) => !IMAGE.test(u) || u.length > MAX_IMAGE_CHARS)) return { ok: false, outcome: "bad-image", message: "One of those images couldn't be used. Try a JPEG or PNG screenshot." };
+  }
+  if (!input && !images.length) return { ok: false, outcome: "empty", message: "Paste some workouts or add a photo first." };
   if (input.length > importEnv.maxChars) {
     return { ok: false, outcome: "too-long", message: `That's ${input.length.toLocaleString()} characters; ${cfg.brand.botName} reads up to ${importEnv.maxChars.toLocaleString()} at a time on the free tier. Import it in parts (e.g. a month at a time), or use “Read it” for logs in a standard format.` };
   }
@@ -70,13 +82,17 @@ export async function readWithJames(
   if (caps.blocked === "global-cap") return { ok: false, outcome: "global-cap", message: "Today's free-tier limit is used up for everyone. Try again tomorrow." };
 
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: user.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  const userContent: string | ContentPart[] = images.length
+    ? [{ type: "text", text: input ? `Notes that came with the photos:\n${input}` : "Transcribe the workouts or plan in these photos." }, ...images.map((url): ContentPart => ({ type: "image_url", image_url: { url } }))]
+    : input;
   const messages = [
     { role: "system" as const, content: importPrompt(cfg, user.unit, today) },
-    { role: "user" as const, content: input },
+    { role: "user" as const, content: userContent },
   ];
   // Transcribing, not chatting: low temperature, no repetition penalty (logs repeat on purpose).
   const ienv = { ...env, temperature: 0, frequencyPenalty: 0, topP: 1 };
-  const models = [env.model, ...(env.fallbackModel && env.fallbackModel !== env.model ? [env.fallbackModel] : [])];
+  // Photos need the image model (no text-only fallback can read them).
+  const models = images.length ? [env.visionModel] : [env.model, ...(env.fallbackModel && env.fallbackModel !== env.model ? [env.fallbackModel] : [])];
   for (const model of models) {
     try {
       const r = await chat({ env: ienv, fetch: deps.fetch }, model, messages, importEnv.maxOutputTokens, { response_format: { type: "json_object" } });
@@ -92,6 +108,9 @@ export async function readWithJames(
     } catch (e) {
       if (e instanceof HttpError && e.status === 429) continue;
       console.error("[import]", e);
+      if (images.length && e instanceof HttpError && (e.status === 404 || /model/i.test(e.message))) {
+        return { ok: false, outcome: "error", message: `The photo model (${env.visionModel}) isn't available right now. The app owner can change GROQ_VISION_MODEL. Pasting the text still works.` };
+      }
       return { ok: false, outcome: "error", message: `${cfg.brand.botName} couldn't read it right now. Please try again in a bit.` };
     }
   }

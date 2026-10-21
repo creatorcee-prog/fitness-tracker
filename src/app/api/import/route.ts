@@ -14,7 +14,8 @@ export const maxDuration = 60;
  */
 export async function POST(req: NextRequest) {
   const jwt = req.headers.get("authorization")?.replace(/^Bearer /, "");
-  const body = (await req.json().catch(() => ({}))) as { text?: string };
+  const body = (await req.json().catch(() => ({}))) as { text?: string; images?: unknown };
+  const images = Array.isArray(body.images) ? body.images.filter((x): x is string => typeof x === "string") : [];
   if (!jwt || typeof body.text !== "string") return NextResponse.json({ ok: false, message: "bad request" }, { status: 400 });
   try {
     const sb = serviceClient();
@@ -24,8 +25,9 @@ export async function POST(req: NextRequest) {
     const r = await readWithJames(
       { data: new SupabaseBotData(() => sb, cfg), cfg, env: aiEnvFromProcess(), importEnv: importEnvFromProcess(), now: new Date(), userId: auth.user.id, fetch },
       body.text,
+      images,
     );
-    console.log(`[import] ${r.ok ? `ok model=${r.model} in=${r.tokensIn} out=${r.tokensOut} sessions=${r.data.sessions.length}` : `outcome=${r.outcome}`} chars=${body.text.length}`);
+    console.log(`[import] ${r.ok ? `ok model=${r.model} in=${r.tokensIn} out=${r.tokensOut} sessions=${r.data.sessions.length}` : `outcome=${r.outcome}`} chars=${body.text.length} images=${images.length}`);
     return NextResponse.json(r);
   } catch (e) {
     console.error("[import]", e);

@@ -155,6 +155,7 @@ Settings → **Import** (`/import`), or **Import these** when you paste workout 
 - **Memory:** answers are saved per account (`import_memory`) and applied automatically next time (changeable). `import_hints()` shows the most common answer across users, only when 3+ people gave it, never anyone's workouts. Migration `0011_import_memory.sql`; without it, it just asks every time.
 - **Editable preview:** every day and lift (name, sets, reps, start weight, remove) can be edited before saving. Sessions, lift matching, goals and every line not imported are listed.
 - **Splits:** a written-out plan is kept as written (weekdays, start weights, notes like "30s"); otherwise the split is rebuilt from the workouts (`infer.ts`). Run `0010_split_start_weights.sql` to keep start weights and notes.
+- **Photos and screenshots (test feature):** **📷 Photo or screenshot** on Import sends up to `AI_VISION_MAX_IMAGES` (2) photos, shrunk in the browser (longest side 1600 px, JPEG), to `GROQ_VISION_MODEL` (default `qwen/qwen3.8-27b`). It uses the same prompt, questions and editable preview, and James is told to list unreadable numbers instead of guessing. Groq's image models change often and some are "preview", so check console.groq.com/docs/vision and change `GROQ_VISION_MODEL` if it stops working. Set it to empty to turn photos off. Each image costs about 2K tokens.
 - Nothing is saved until **Import**. Importing twice is safe (same date and time are skipped). PRs are rebuilt.
 
 ## Sign-in, photos and guided sets

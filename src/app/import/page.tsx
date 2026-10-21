@@ -12,6 +12,7 @@ import { IMPORT_DRAFT_KEY, readAnything } from "@/lib/import/read";
 import type { ImportedData, ImportedProgram, ProgramExercise } from "@/lib/import/types";
 import { supabaseOf } from "@/lib/store";
 import { uid } from "@/lib/store/local";
+import { shrinkPhoto } from "@/lib/media/resize";
 
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const EXAMPLE = `Paste anything: notes, a plan, cells copied from a spreadsheet, or an app export.
@@ -78,6 +79,9 @@ export default function ImportPage() {
   const [memory, setMemory] = useState<Memory>({ mine: {}, popular: {} });
   const [edits, setEdits] = useState<Edits>({});
   const [removed, setRemoved] = useState<Set<string>>(new Set());
+  /** Photos/screenshots to read (shrunk data URLs). Beta: James reads them with the image model. */
+  const [photos, setPhotos] = useState<string[]>([]);
+  const maxPhotos = 2;
 
   const base = useMemo(() => (data ? data.program ?? inferProgram(data.sessions) : null), [data]);
   const questions = useMemo(() => (data ? questionsFor(data, base) : []), [data, base]);
@@ -101,15 +105,19 @@ export default function ImportPage() {
     setChoices({ history: d.sessions.length > 0, program: true, activate: !d.sessions.length && !!d.program, goals: d.goals.length > 0 });
   };
 
-  const askJames = async (input: string, why: string | null) => {
+  const askJames = async (input: string, why: string | null, images: string[] = []) => {
     if (!sb) return setErr("I couldn't read that format. Try notes like the example, a copied spreadsheet, or a Strong/Hevy export.");
     setErr(null);
     setBusy(`${why ? `${why} ` : ""}${bot} is reading it…`);
     try {
       const { data: s } = await sb.sb.auth.getSession();
-      const res = await fetch("/api/import", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${s.session?.access_token ?? ""}` }, body: JSON.stringify({ text: input }) });
+      const res = await fetch("/api/import", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${s.session?.access_token ?? ""}` }, body: JSON.stringify({ text: input, images }) });
       const json = (await res.json()) as { ok: boolean; data?: ImportedData; message?: string };
-      if (json.ok && json.data) await show(json.data, `Read by ${bot} (uses one of today's ${bot} requests). Check it below: he can misread things.`);
+      if (json.ok && json.data) {
+        await show(json.data, images.length
+          ? `Read from your photo by ${bot} (test feature, uses one of today's ${bot} requests). Check every number: handwriting and screenshots are easy to misread.`
+          : `Read by ${bot} (uses one of today's ${bot} requests). Check it below: he can misread things.`);
+      }
       else setErr(json.message ?? "Something went wrong.");
     } catch {
       setErr(navigator.onLine ? "Couldn't reach the server. Try again." : "You're offline.");
@@ -120,6 +128,7 @@ export default function ImportPage() {
 
   const read = async (input = text) => {
     setErr(null);
+    if (photos.length) return askJames(input, null, photos);
     const r = readAnything(input, profile.unit, now(), defaults);
     if (!r.needsJames) return show(r.data, null);
     await askJames(input, "This isn't a format I know, so");
@@ -189,6 +198,19 @@ export default function ImportPage() {
     await read(t);
   };
 
+  const onPhotos = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = [...(e.target.files ?? [])];
+    e.target.value = "";
+    setErr(null);
+    try {
+      const shrunk = await Promise.all(files.slice(0, maxPhotos - photos.length).map((f) => shrinkPhoto(f)));
+      setPhotos((p) => [...p, ...shrunk].slice(0, maxPhotos));
+      if (files.length > maxPhotos - photos.length) setErr(`Up to ${maxPhotos} photos at a time.`);
+    } catch (err) {
+      setErr(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   const check = (k: keyof ImportChoices, label: string, disabled = false) => (
     <label className="row small" style={{ opacity: disabled ? 0.5 : 1 }}>
       <input type="checkbox" disabled={disabled} checked={choices[k] && !disabled} onChange={(e) => setChoices({ ...choices, [k]: e.target.checked })} /> {label}
@@ -215,10 +237,25 @@ export default function ImportPage() {
             If I can&apos;t read it myself, {sb ? `${bot} will` : "I'll say so"}. You&apos;ll check everything, and answer anything unclear, before it&apos;s saved.
           </p>
           <textarea rows={12} value={text} onChange={(e) => setText(e.target.value)} placeholder={EXAMPLE} aria-label="Workouts to import" spellCheck={false} />
+          {photos.length > 0 && (
+            <div className="row" style={{ gap: 8 }}>
+              {photos.map((src, i) => (
+                <div key={i} className="photo-thumb">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} alt={`Photo ${i + 1}`} />
+                  <button className="btn sm" aria-label={`Remove photo ${i + 1}`} onClick={() => setPhotos((p) => p.filter((_, j) => j !== i))}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="row">
-            <button className="btn primary" disabled={!text.trim() || !!busy} onClick={() => read()}>Read it</button>
+            <button className="btn primary" disabled={(!text.trim() && !photos.length) || !!busy} onClick={() => read()}>Read it</button>
             <label className="btn">Upload a file<input type="file" accept=".csv,.tsv,.txt,text/csv,text/plain,text/tab-separated-values" hidden onChange={onFile} /></label>
+            {sb && photos.length < maxPhotos && (
+              <label className="btn">📷 Photo or screenshot<input type="file" accept="image/*" multiple hidden onChange={onPhotos} /></label>
+            )}
           </div>
+          {sb && <span className="muted small">Photos are a test feature: {bot} reads them, and you check every number before saving.</span>}
           {busy && <span className="muted small">{busy}</span>}
           {err && <span className="small" style={{ color: "var(--bad)" }}>{err}</span>}
         </div>

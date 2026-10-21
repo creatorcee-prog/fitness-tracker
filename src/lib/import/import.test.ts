@@ -195,6 +195,28 @@ describe("James import", () => {
     expect(d.program!.days[0].exercises[0]).toMatchObject({ detail: "x2", stated: false, weight: 40 });
     expect(questionsFor(d, d.program).map((q) => q.key)).toEqual(["term:re", "detail:x2", "setsreps"]);
   });
+  it("reads photos with the image model (a setting), validating images first", async () => {
+    const data = new FakeData();
+    const bodies: Record<string, unknown>[] = [];
+    const fetchFn = (async (_u: string, init: RequestInit) => {
+      bodies.push(JSON.parse(String(init.body)));
+      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ sessions: [{ date: "2026-10-14", day: "Push", sets: [{ e: "Bench", w: 185, r: 5, n: 3 }] }], unclear: ["OHP 1?5 x 8"] }) } }], usage: { prompt_tokens: 2600, completion_tokens: 300 } }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const env = { ...aiEnvFromProcess({ GROQ_VISION_MODEL: "vision/test-model" } as unknown as NodeJS.ProcessEnv), apiKey: "k", fallbackModel: "text/fallback" };
+    const deps = { data, cfg, env, importEnv: { maxChars: 8000, maxOutputTokens: 3500 }, now: NOW, userId: "u1", fetch: fetchFn };
+    const jpeg = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ==";
+    const r = await readWithJames(deps, "", [jpeg]);
+    expect(r.ok && r.data.sessions[0].sets).toHaveLength(3);
+    expect(r.ok && r.data.skipped).toEqual(["OHP 1?5 x 8"]); // unreadable bits are listed, not guessed
+    expect(bodies[0].model).toBe("vision/test-model");
+    const content = (bodies[0].messages as { content: unknown }[])[1].content as { type: string; image_url?: { url: string } }[];
+    expect(content.map((c) => c.type)).toEqual(["text", "image_url"]);
+    expect(content[1].image_url!.url).toBe(jpeg);
+    expect(await readWithJames(deps, "", [jpeg, jpeg, jpeg])).toMatchObject({ ok: false, outcome: "bad-image" }); // max 2 by default
+    expect(await readWithJames(deps, "", ["data:text/html;base64,PHNjcmlwdD4="])).toMatchObject({ ok: false, outcome: "bad-image" });
+    expect(await readWithJames({ ...deps, env: { ...env, visionModel: "" } }, "", [jpeg])).toMatchObject({ ok: false, outcome: "disabled" });
+    expect(bodies).toHaveLength(1); // rejected requests never reach the provider
+  });
   it("calls the model in JSON mode within the caps and records usage", async () => {
     const data = new FakeData();
     const bodies: Record<string, unknown>[] = [];

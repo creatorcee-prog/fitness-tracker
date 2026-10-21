@@ -10,6 +10,14 @@ import { buildTrainingContext } from "./context";
  * written to the database.
  */
 export interface AiEnv {
+  /**
+   * Model that reads photos/screenshots on the Import page (GROQ_VISION_MODEL). Image models on
+   * Groq change often (some are "preview"), so it's a setting: swap it without touching code.
+   * Empty = photo import off.
+   */
+  visionModel: string;
+  /** Most images per read (each costs ~2K tokens on Groq's free tier, which allows 8K tokens a minute). */
+  visionMaxImages: number;
   /** Kill switch (AI_ENABLED=false turns /ask off without a redeploy of code). */
   enabled: boolean;
   apiKey: string | null;
@@ -48,6 +56,8 @@ export function aiEnvFromProcess(e: NodeJS.ProcessEnv = process.env): AiEnv {
     apiKey: e.GROQ_API_KEY || null,
     baseUrl: (e.AI_BASE_URL || "https://api.groq.com/openai/v1").replace(/\/+$/, ""),
     model: e.GROQ_MODEL || "openai/gpt-oss-120b",
+    visionModel: e.GROQ_VISION_MODEL ?? "qwen/qwen3.8-27b",
+    visionMaxImages: num(e.AI_VISION_MAX_IMAGES, 2),
     fallbackModel: e.GROQ_FALLBACK_MODEL || null,
     dailyUserLimit: num(e.AI_DAILY_USER_LIMIT, 10),
     dailyGlobalLimit: num(e.AI_DAILY_GLOBAL_LIMIT, 70),
@@ -135,7 +145,9 @@ export class HttpError extends Error {
  * turns, and the user message (training summary + question). We get back text plus a `usage`
  * block saying how many tokens went in and out, which we record for the caps.
  */
-export type Message = { role: "system" | "user" | "assistant"; content: string };
+/** Text, or (for image-reading models) a mix of text and images. */
+export type ContentPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
+export type Message = { role: "system" | "user" | "assistant"; content: string | ContentPart[] };
 
 export async function chat(deps: Pick<AskDeps, "env" | "fetch">, model: string, messages: Message[], maxTokens = deps.env.maxOutputTokens, extra: Record<string, unknown> = {}) {
   const { env } = deps;

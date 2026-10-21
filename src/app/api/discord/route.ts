@@ -124,7 +124,7 @@ export async function GET(req: NextRequest) {
     NEXT_PUBLIC_SUPABASE_URL: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
   };
   const ai = aiEnvFromProcess();
-  const aiStatus = { enabled: ai.enabled, GROQ_API_KEY: !!ai.apiKey, model: ai.model, fallbackModel: ai.fallbackModel, dailyUserLimit: ai.dailyUserLimit, dailyGlobalLimit: ai.dailyGlobalLimit };
+  const aiStatus = { enabled: ai.enabled, GROQ_API_KEY: !!ai.apiKey, model: ai.model, fallbackModel: ai.fallbackModel, visionModel: ai.visionModel || "(off)", devAccounts: ai.devUserIds.length, dailyUserLimit: ai.dailyUserLimit, dailyGlobalLimit: ai.dailyGlobalLimit };
   let commands: string[] | string = "not checked (missing app id or bot token)";
   if (appId && botToken) {
     try {
