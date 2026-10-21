@@ -69,11 +69,6 @@ Debug tools:
 - A headless browser run on a phone-sized viewport covered logging, PR badges, rest timer, shorthand and undo, finish advancing the split, demo history, charts, friends with QR, theme switching and widgets, with no console errors.
 - **Not tested against a live Supabase project**, so the Discord OAuth round trip and Realtime have not been run.
 
-## Not built yet (per the plan's roadmap)
+## To-do
 
-v1: Discord bot (the `/log` matcher and SQL functions are ready for it), reminders, goals, mascot, offline queue (IndexedDB), bodyweight log. v2: game mode, walk planner, stall detection. The schema for these tables already exists in `0001_init.sql`.
-
-Known gaps:
-- Dashboard widget layout and theme are saved per browser (config overrides), not per account yet.
-- `saveSplit` on Supabase runs several requests rather than one transaction.
-- There is no service worker yet, so the app is installable but has no offline support.
+See [TODO.md](TODO.md) for what's in progress (Discord bot), what's next and the idea backlog.
