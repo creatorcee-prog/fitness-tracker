@@ -397,3 +397,9 @@ label.row:has(> input[type="checkbox"]) { min-height: 44px; cursor: pointer; }
 .code-input { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.82rem; line-height: 1.4; white-space: pre; overflow-x: auto; }
 /* The tile's content wrapper keeps the tile's own stacked layout. */
 .widget-body { display: grid; gap: 4px; align-content: start; min-width: 0; }
+/* Font picker */
+.font-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.font-choice { display: grid; gap: 2px; text-align: left; padding: 10px 12px; min-height: 64px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer; }
+.font-choice.on { border-color: var(--accent); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.font-name { font-weight: 700; font-size: 0.95rem; }
+.font-sample { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }

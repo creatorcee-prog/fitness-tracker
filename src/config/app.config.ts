@@ -183,6 +183,8 @@ export const defaultConfig = {
     style: "auto" as "auto" | "playful" | "pro",
     /** Frosted-glass surfaces: "auto" follows the preset (Aurora Glass has it). */
     glass: "auto" as "auto" | "on" | "off",
+    /** Font (src/config/fonts.ts). "theme" = the theme's own. */
+    font: "theme",
     /** Your own CSS on top of the theme (Settings → Advanced). External URLs and @import are stripped. */
     customCss: "",
   },
