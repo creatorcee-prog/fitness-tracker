@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useApp } from "@/components/AppProvider";
+import { Avatar } from "@/components/Avatar";
 import { FriendQr } from "@/components/FriendQr";
 import { useToast } from "@/components/UndoToast";
 import type { FriendRequest, FriendStatus } from "@/lib/domain/types";
@@ -88,14 +90,15 @@ export default function FriendsPage() {
         {friends.map((f) => {
           const s = statusLine(f);
           return (
-            <div key={f.friendId} className="card friend">
-              <div className="avatar">{f.displayName.slice(0, 1).toUpperCase()}</div>
-              <div style={{ flex: 1 }}>
-                <strong>{f.displayName}</strong>
+            <Link key={f.friendId} href={`/friends/profile?id=${encodeURIComponent(f.friendId)}`} className="card friend" style={{ color: "inherit" }}>
+              <Avatar id={f.friendId} name={f.nickname || f.displayName} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <strong>{f.nickname || f.displayName}</strong>
+                {f.nickname && <span className="muted small"> · {f.displayName}</span>}
                 <div className="muted small"><span className={`dot ${s.dot}`} /> {s.text}</div>
               </div>
-              <button className="btn sm ghost" aria-label={`Remove ${f.displayName}`} onClick={async () => { await store.removeFriend(f.friendId); toast.show({ text: `Removed ${f.displayName}` }); refresh(); }}>✕</button>
-            </div>
+              <span className="muted" aria-hidden style={{ fontSize: "1.3rem" }}>›</span>
+            </Link>
           );
         })}
       </div>

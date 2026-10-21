@@ -1,6 +1,6 @@
 import type { AppConfig } from "@/config/app.config";
 import { advance, getToday, type Today } from "@/lib/domain/split";
-import type { Exercise, FriendRequest, FriendStatus, PREvent, Profile, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
+import type { AccountPrefs, Exercise, FriendProfile, FriendRequest, FriendStatus, NutritionEntry, NutritionTargets, PREvent, Reminder, Profile, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
 import { SEED_EXERCISES, seedSplit } from "./seed";
 import type { NewSet, Store } from "./types";
 
@@ -16,6 +16,11 @@ interface DB {
   localFriends: { id: string; name: string }[];
   removedDemoFriends: string[];
   shareStatus: boolean;
+  reminders: Reminder[];
+  announcePRs: boolean;
+  nicknames: Record<string, string>;
+  nutrition: NutritionEntry[];
+  nutritionTargets: NutritionTargets;
 }
 
 /** UUIDs everywhere so ids are valid in both backends. */
@@ -40,6 +45,11 @@ function freshDb(cfg: AppConfig): DB {
     localFriends: [],
     removedDemoFriends: [],
     shareStatus: true,
+    reminders: [],
+    announcePRs: false,
+    nicknames: {},
+    nutrition: [],
+    nutritionTargets: { calories: null, protein: null },
   };
 }
 
@@ -48,13 +58,14 @@ export class LocalStore implements Store {
   readonly kind = "local" as const;
   private db: DB;
 
-  constructor(private cfg: AppConfig) {
+  /** `storage` is injectable so the offline mirror (and tests) can use their own. */
+  constructor(private cfg: AppConfig, private storage: Pick<Storage, "getItem" | "setItem"> = window.localStorage) {
     this.db = this.load();
   }
 
   private load(): DB {
     try {
-      const raw = window.localStorage.getItem(this.cfg.data.localStorageKey);
+      const raw = this.storage.getItem(this.cfg.data.localStorageKey);
       if (raw) return { ...freshDb(this.cfg), ...JSON.parse(raw) };
     } catch {
       /* fall through to a fresh db */
@@ -64,7 +75,7 @@ export class LocalStore implements Store {
 
   private save() {
     try {
-      window.localStorage.setItem(this.cfg.data.localStorageKey, JSON.stringify(this.db));
+      this.storage.setItem(this.cfg.data.localStorageKey, JSON.stringify(this.db));
     } catch (e) {
       console.error("[local store] save failed", e);
     }
@@ -161,9 +172,9 @@ export class LocalStore implements Store {
     return this.read("getOpenSession", (db) => db.sessions.find((s) => !s.finishedAt) ?? null);
   }
 
-  async startSession(splitDayId: string | null, now: Date) {
+  async startSession(splitDayId: string | null, now: Date, id?: string) {
     return this.mutate("startSession", (db) => {
-      const s: Session = { id: uid(), splitDayId, startedAt: now.toISOString(), finishedAt: null, source: "web" };
+      const s: Session = { id: id ?? uid(), splitDayId, startedAt: now.toISOString(), finishedAt: null, source: "web" };
       db.sessions.push(s);
       return s;
     });
@@ -210,7 +221,7 @@ export class LocalStore implements Store {
 
   async addSet(s: NewSet) {
     return this.mutate("addSet", (db) => {
-      const row: SetEntry = { ...s, id: uid(), createdAt: s.createdAt ?? new Date().toISOString() };
+      const row: SetEntry = { ...s, id: s.id ?? uid(), createdAt: s.createdAt ?? new Date().toISOString() };
       db.sets.push(row);
       return row;
     });
@@ -268,7 +279,11 @@ export class LocalStore implements Store {
   }
 
   async friendsToday(): Promise<FriendStatus[]> {
-    return this.read("friendsToday", (db) => [
+    return this.read("friendsToday", (db) => this.demoFriends(db).map((f) => ({ ...f, nickname: db.nicknames[f.friendId] ?? null })));
+  }
+
+  private demoFriends(db: DB): FriendStatus[] {
+    return [
       ...this.cfg.friends.demoFriends
         .map((f, i) => ({ id: `demo-${i}`, f }))
         .filter(({ id }) => !db.removedDemoFriends.includes(id))
@@ -281,7 +296,61 @@ export class LocalStore implements Store {
           lastSessionAt: null,
         })),
       ...db.localFriends.map((f): FriendStatus => ({ friendId: f.id, displayName: f.name, kind: "rest", dayName: null, setsToday: 0, lastSessionAt: null })),
-    ]);
+    ];
+  }
+
+  /** Demo profile built from the demo friend (local mode has no other users). */
+  async getFriendProfile(friendId: string, now: Date): Promise<FriendProfile | null> {
+    return this.read("getFriendProfile", (db) => {
+      const f = this.demoFriends(db).find((x) => x.friendId === friendId);
+      if (!f) return null;
+      const nickname = db.nicknames[friendId] ?? null;
+      if (f.kind === "hidden") return { id: f.friendId, displayName: f.displayName, nickname, shared: false };
+      const daysAgo = (d: number) => new Date(now.getTime() - d * 86_400_000).toISOString();
+      return {
+        id: f.friendId, displayName: f.displayName, nickname, shared: true, unit: "lb",
+        today: { kind: f.kind, dayName: f.dayName, setsToday: f.setsToday },
+        lastSessionAt: (f.setsToday ?? 0) > 0 ? now.toISOString() : daysAgo(2),
+        sessionsThisWeek: (f.setsToday ?? 0) > 0 ? 3 : 2, sessions30d: 12, splitName: "Push / Pull / Legs",
+        recentPrs: [
+          { exercise: "Bench Press", type: "e1rm", weightKg: 97.5, reps: 5, valueKg: 113.75, achievedAt: daysAgo(2) },
+          { exercise: "Back Squat", type: "weight", weightKg: 140, reps: 3, valueKg: 140, achievedAt: daysAgo(6) },
+        ],
+        topLifts: [{ exercise: "Deadlift", e1rmKg: 190 }, { exercise: "Back Squat", e1rmKg: 152 }, { exercise: "Bench Press", e1rmKg: 113.75 }],
+      };
+    });
+  }
+
+  async setNickname(friendId: string, nickname: string | null) {
+    this.mutate("setNickname", (db) => {
+      const n = nickname?.trim();
+      if (n) db.nicknames[friendId] = n.slice(0, 40);
+      else delete db.nicknames[friendId];
+    });
+  }
+
+  async listNutrition(from: string, to: string) {
+    return this.read("listNutrition", (db) => db.nutrition.filter((e) => e.date >= from && e.date <= to).sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
+  }
+
+  async addNutrition(e: Omit<NutritionEntry, "id" | "createdAt">) {
+    return this.mutate("addNutrition", (db) => {
+      const row: NutritionEntry = { ...e, id: uid(), createdAt: new Date().toISOString() };
+      db.nutrition.push(row);
+      return row;
+    });
+  }
+
+  async deleteNutrition(id: string) {
+    this.mutate("deleteNutrition", (db) => (db.nutrition = db.nutrition.filter((e) => e.id !== id)));
+  }
+
+  async getNutritionTargets() {
+    return this.read("getNutritionTargets", (db) => db.nutritionTargets);
+  }
+
+  async setNutritionTargets(t: NutritionTargets) {
+    this.mutate("setNutritionTargets", (db) => (db.nutritionTargets = t));
   }
 
   async setShareStatus(share: boolean) {
@@ -292,10 +361,46 @@ export class LocalStore implements Store {
     return this.read("getShareStatus", (db) => db.shareStatus);
   }
 
+  // Reminders and announcements are stored so the Settings UI can be debugged
+  // locally, but only the Supabase backend + Discord bot actually send them.
+  async listReminders() {
+    return this.read("listReminders", (db) => db.reminders);
+  }
+
+  async saveReminder(r: Reminder) {
+    return this.mutate("saveReminder", (db) => {
+      const i = db.reminders.findIndex((x) => x.id === r.id);
+      if (i >= 0) db.reminders[i] = r;
+      else db.reminders.push(r);
+      return r;
+    });
+  }
+
+  async deleteReminder(id: string) {
+    this.mutate("deleteReminder", (db) => (db.reminders = db.reminders.filter((r) => r.id !== id)));
+  }
+
+  async getAnnounceSettings() {
+    return this.read("getAnnounceSettings", (db) => ({ enabled: db.announcePRs, channelSet: false }));
+  }
+
+  async setAnnouncePRs(on: boolean) {
+    this.mutate("setAnnouncePRs", (db) => (db.announcePRs = on));
+  }
+
+  async announcePRs() {}
+
+  async getPrefs(): Promise<AccountPrefs | null> {
+    return null;
+  }
+
+  async savePrefs() {}
+
   subscribe(cb: () => void) {
     const onStorage = (e: StorageEvent) => {
       if (e.key === this.cfg.data.localStorageKey) cb();
     };
+    if (typeof window === "undefined") return () => {};
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }

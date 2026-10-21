@@ -1,0 +1,25 @@
+-- Schedules the reminder check. Run ONCE in the Supabase SQL editor after:
+--   1. 0004_reminders.sql has run
+--   2. CRON_SECRET is set in Vercel (any long random string) and the app is redeployed
+-- Replace YOUR-APP and YOUR-CRON-SECRET below before running.
+-- (This file is an example, not a migration, because it contains your secret.)
+
+create extension if not exists pg_cron;
+create extension if not exists pg_net;
+
+-- Every minute; change '* * * * *' to '*/5 * * * *' for every 5 minutes.
+select cron.schedule(
+  'fitness-reminders',
+  '* * * * *',
+  $$
+  select net.http_post(
+    url     := 'https://YOUR-APP.vercel.app/api/cron/reminders',
+    headers := jsonb_build_object('Authorization', 'Bearer YOUR-CRON-SECRET', 'Content-Type', 'application/json'),
+    body    := '{}'::jsonb
+  );
+  $$
+);
+
+-- To check it's running:   select * from cron.job_run_details order by start_time desc limit 5;
+-- To see HTTP responses:   select status_code, content from net._http_response order by created desc limit 5;
+-- To stop it:              select cron.unschedule('fitness-reminders');

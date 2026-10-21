@@ -1,7 +1,8 @@
 import type { Today } from "@/lib/domain/split";
-import type { Exercise, FriendRequest, FriendStatus, PREvent, Profile, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
+import type { AccountPrefs, AnnounceSettings, Exercise, FriendProfile, FriendRequest, FriendStatus, NutritionEntry, NutritionTargets, PREvent, Reminder, Profile, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
 
-export type NewSet = Omit<SetEntry, "id" | "createdAt"> & { createdAt?: string };
+/** A set to insert. Pass `id` to choose it (offline sync replays inserts with the same id). */
+export type NewSet = Omit<SetEntry, "id" | "createdAt"> & { id?: string; createdAt?: string };
 
 /**
  * Everything the UI needs from persistence. Two implementations:
@@ -30,7 +31,8 @@ export interface Store {
   setNextPosition(position: number): Promise<void>;
 
   getOpenSession(): Promise<Session | null>;
-  startSession(splitDayId: string | null, now: Date): Promise<Session>;
+  /** `id` is optional so offline sync can replay the insert with the same id. */
+  startSession(splitDayId: string | null, now: Date, id?: string): Promise<Session>;
   /** Finishes the session AND advances the split in one step. */
   finishSession(sessionId: string, now: Date): Promise<void>;
   /** Undo for finishSession: clears finished_at and puts the split pointer back. */
@@ -58,12 +60,39 @@ export interface Store {
   /** Each accepted friend's split day today and whether they've lifted. */
   friendsToday(now: Date): Promise<FriendStatus[]>;
   setShareStatus(share: boolean): Promise<void>;
+  /** A friend's profile (null if not an accepted friend). */
+  getFriendProfile(friendId: string, now: Date): Promise<FriendProfile | null>;
+  /** Your private label for a friend; null/empty clears it. */
+  setNickname(friendId: string, nickname: string | null): Promise<void>;
+
+  /** Calorie intake, by local date (YYYY-MM-DD), inclusive range. */
+  listNutrition(from: string, to: string): Promise<NutritionEntry[]>;
+  addNutrition(e: Omit<NutritionEntry, "id" | "createdAt">): Promise<NutritionEntry>;
+  deleteNutrition(id: string): Promise<void>;
+  getNutritionTargets(): Promise<NutritionTargets>;
+  setNutritionTargets(t: NutritionTargets): Promise<void>;
   getShareStatus(): Promise<boolean>;
+
+  /** Discord reminders / daily check-in (sent only on the Supabase backend). */
+  listReminders(): Promise<Reminder[]>;
+  saveReminder(r: Reminder): Promise<Reminder>;
+  deleteReminder(id: string): Promise<void>;
+
+  /** Opt-in PR announcements in the Discord channel chosen with /announce on. */
+  getAnnounceSettings(): Promise<AnnounceSettings>;
+  setAnnouncePRs(on: boolean): Promise<void>;
+  /** Ask the server to announce any PRs this set earned (no-op when off or local). */
+  announcePRs(setId: string): Promise<void>;
+
+  /** Theme and dashboard saved to the account (null on the local backend). */
+  getPrefs(): Promise<AccountPrefs | null>;
+  savePrefs(prefs: AccountPrefs): Promise<void>;
 
   /** Called when data changes elsewhere (other tab, Realtime). Returns unsubscribe. */
   subscribe(cb: () => void): () => void;
 
   exportAll(): Promise<unknown>;
-  importAll(data: unknown): Promise<void>;
+  /** Returns counts when the backend reports them (Supabase). */
+  importAll(data: unknown): Promise<void | { sessions: number; sets: number; skipped: number }>;
   resetAll(): Promise<void>;
 }

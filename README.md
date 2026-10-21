@@ -69,6 +69,24 @@ Debug tools:
 - A headless browser run on a phone-sized viewport covered logging, PR badges, rest timer, shorthand and undo, finish advancing the split, demo history, charts, friends with QR, theme switching and widgets, with no console errors.
 - **Not tested against a live Supabase project**, so the Discord OAuth round trip and Realtime have not been run.
 
+## Friends, profiles and calories
+
+- **Friends:** tap a friend to see their profile: today's day and whether they've logged, sessions this week, last workout, top lifts and recent PRs. If they turn sharing off, you only see their name. Profiles come from the `friend_profile()` SQL function, which returns this summary for accepted friends and never their raw sets.
+- **Nicknames:** give any friend a nickname. Only you see it, and it's used in the app and in Discord `/friends`.
+- **Calories:** the Calories card on Today logs intake with quick-add buttons and optional protein. It shows progress against your target (Settings → Nutrition) and the last 7 days.
+- **Setup:** run `supabase/migrations/0005_profiles_nutrition.sql`.
+
+## Offline logging
+
+On the Supabase backend, the app keeps a copy of your workout data on the device (`src/lib/store/sync.ts`).
+
+- **Online:** everything behaves as normal.
+- **No signal:** starting a workout, logging, undo, finishing, skipping and swapping save on the phone. They sync in order when the connection returns. A banner shows what's waiting.
+- **Opening the app with no signal:** a service worker (`public/sw.js`) lets the installed app open.
+- **Needs a connection:** split editing, friends and reminders. They say so when you're offline.
+- **Turning it off:** set `data.offline` (and `data.serviceWorker`) to `false`.
+- **Debugging:** set `data.backend` to `"local-sync"` to run the same sync layer against a fake server in the browser, then toggle DevTools → Network → Offline.
+
 ## Discord bot
 
 Slash commands are served by `src/app/api/discord/route.ts` (no separate bot process). Logic lives in `src/lib/bot/`; the server-only SQL functions are in `supabase/migrations/0003_bot.sql`.
@@ -80,7 +98,17 @@ Setup:
 4. Discord Developer Portal → General Information → **Interactions Endpoint URL** = `https://<app>/api/discord`, then save. Discord verifies it, and that verification also registers the commands. (Manual fallback: `https://<app>/api/discord?register=1`.)
 5. Installation: enable Guild Install (scopes `applications.commands`, `bot`) and User Install (`applications.commands`), then use the install link.
 
-Commands: `/today` `/log` `/undo` `/done` `/skip` `/swap` `/lift` `/streak` `/friends` `/plates` `/rest`, with [Same again] / [Undo] buttons on `/log` and [Skip] on `/today`. Replies in servers are visible only to you (`bot.ephemeralInGuilds`).
+Commands: `/today` `/log` `/undo` `/done` `/skip` `/swap` `/lift` `/streak` `/friends` `/plates` `/rest` `/announce`, with [Same again] / [Undo] buttons on `/log` and [Skip] on `/today`. Replies in servers are visible only to you (`bot.ephemeralInGuilds`).
+
+### Reminders, daily check-in and PR announcements
+
+- **Reminders** (Settings → Reminders): a DM at your time with today's split day and **Start workout / Rest day / Skip / Snooze** buttons. Not sent if you already trained that day, or on weekly rest days (`reminders.*` in config). If Discord refuses the DM, that reminder switches off and Settings explains why.
+- **PR announcements**: run `/announce on` in a server channel and tick "Post my PRs" in Settings. PRs from the web app *and* Discord are posted there, once per set. The server re-checks every PR, so it can't be faked.
+
+Setup:
+1. Run `supabase/migrations/0004_reminders.sql`.
+2. In Vercel, add `CRON_SECRET` (Secret, any long random string) and redeploy.
+3. Copy `supabase/cron.sql.example`, put in your app URL and `CRON_SECRET`, and run it in the SQL editor. It schedules a call to `/api/cron/reminders` every minute via `pg_cron` + `pg_net`.
 
 ## To-do
 

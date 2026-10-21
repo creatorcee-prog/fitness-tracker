@@ -12,10 +12,10 @@
 export type Unit = "lb" | "kg";
 export type E1rmFormula = "epley" | "brzycki" | "lombardi" | "oconner";
 export type SplitMode = "rotation" | "weekly";
-export type DataBackend = "local" | "supabase";
+export type DataBackend = "local" | "supabase" | "local-sync";
 export type Category = "upper" | "lower" | "core" | "cardio" | "other";
 
-export type WidgetId = "today" | "week" | "streak" | "lastPr" | "friends" | "topLift" | "volume";
+export type WidgetId = "today" | "week" | "streak" | "lastPr" | "friends" | "topLift" | "volume" | "calories";
 export interface WidgetConfig {
   id: WidgetId;
   enabled: boolean;
@@ -25,10 +25,21 @@ export interface WidgetConfig {
 
 export const defaultConfig = {
   data: {
-    /** "local" keeps everything in this browser; "supabase" uses the hosted database. */
+    /**
+     * "local" keeps everything in this browser; "supabase" uses the hosted database.
+     * "local-sync" (debugging) runs the offline-sync layer against a fake server in
+     * this browser that fails whenever the browser is offline (DevTools → Offline).
+     */
     backend: "local" as DataBackend,
     /** localStorage key prefix used by the local backend. */
     localStorageKey: "ft:data:v1",
+    /**
+     * Supabase backend only: keep a copy of your workout data on the device so
+     * sets can be logged with no signal and synced later. false = always online.
+     */
+    offline: true,
+    /** Register the service worker so the app itself opens without a connection. */
+    serviceWorker: true,
   },
 
   units: {
@@ -139,6 +150,10 @@ export const defaultConfig = {
     preset: "midnight",
     /** Per-variable overrides, e.g. { "accent": "#ff00aa", "radius": "8px" }. */
     vars: {} as Record<string, string>,
+    /** Layout style: "auto" follows the preset; "playful" or "pro" forces one. */
+    style: "auto" as "auto" | "playful" | "pro",
+    /** Frosted-glass surfaces: "auto" follows the preset (Aurora Glass has it). */
+    glass: "auto" as "auto" | "on" | "off",
   },
 
   /**
@@ -147,17 +162,37 @@ export const defaultConfig = {
    */
   dashboard: {
     enabled: true,
+    /** The Mon–Sun strip at the top of Today, with a dot on days you trained. */
+    weekStrip: true,
     widgets: [
       { id: "today", enabled: true, size: 2, color: "hero" },
       { id: "week", enabled: true, size: 1, color: "lime" },
       { id: "streak", enabled: true, size: 1, color: "surface" },
       { id: "lastPr", enabled: true, size: 1, color: "surface" },
       { id: "friends", enabled: true, size: 1, color: "surface" },
+      { id: "calories", enabled: true, size: 2, color: "surface" },
       { id: "topLift", enabled: false, size: 1, color: "surface" },
       { id: "volume", enabled: false, size: 1, color: "surface" },
     ] as WidgetConfig[],
     /** Target sessions per week for the "week" widget. */
     weeklyTarget: 3,
+  },
+
+  reminders: {
+    /** A reminder is sent at most this long after its time (covers missed cron ticks, never hours late). */
+    windowMinutes: 120,
+    snoozeMinutes: 60,
+    /** Don't remind if a workout was already started today. */
+    skipIfTrainedToday: true,
+    /** Send on weekly-split rest days too. */
+    onRestDays: false,
+  },
+
+  nutrition: {
+    /** Used until you set your own target in Settings. */
+    defaultCalorieTarget: 2500,
+    /** Quick-add buttons on the calories card (kcal). */
+    quickAdd: [100, 250, 500, 750],
   },
 
   bot: {

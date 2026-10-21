@@ -83,6 +83,7 @@ export default function ProgressPage() {
         const top = Math.max(...ss.map((s) => s.weightKg));
         return { t, best, top };
       }).sort((a, b) => a.t - b.t);
+      if (cfg.debug.logStore) console.debug("[chart] points", points);
 
       // One marker per session: the best PR of that type (several sets can each beat the old record).
       const prPoints = (type: PREvent["type"]) =>
@@ -91,6 +92,7 @@ export default function ProgressPage() {
 
       const base = {
         backgroundColor: "transparent",
+        animationDuration: 450,
         textStyle: { color: text, fontFamily: "inherit" },
         grid: { left: 44, right: 16, top: 24, bottom: 32 },
         xAxis: { type: "time", axisLine: { lineStyle: { color: grid } }, splitLine: { show: false } },

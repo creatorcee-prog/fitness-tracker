@@ -5,13 +5,16 @@ import { defaultConfig, type Unit, type WidgetConfig } from "@/config/app.config
 import { deepMerge } from "@/config/runtime";
 import { contrastRatio, THEME_PRESETS } from "@/config/themes";
 import { useApp } from "@/components/AppProvider";
+import { withNewWidgets } from "@/components/Dashboard";
+import { NutritionTargetsCard } from "@/components/NutritionTargetsCard";
+import { RemindersCard } from "@/components/RemindersCard";
 import { useToast } from "@/components/UndoToast";
 import { generateDemoHistory } from "@/lib/service";
-import { SupabaseStore } from "@/lib/store/supabase";
+import { supabaseOf } from "@/lib/store";
 
 const WIDGET_LABEL: Record<WidgetConfig["id"], string> = {
   today: "Today's split day", week: "Sessions this week", streak: "Weekly streak", lastPr: "Latest PR",
-  friends: "Friends lifting today", topLift: "Top e1RM", volume: "Weekly volume",
+  friends: "Friends lifting today", topLift: "Top e1RM", volume: "Weekly volume", calories: "Calories today",
 };
 const NAMED_COLORS = ["surface", "hero", "lime"];
 const CONTRAST_PAIRS: [string, string][] = [["text", "bg"], ["text", "surface"], ["accent-text", "accent"], ["highlight-text", "highlight"]];
@@ -37,7 +40,7 @@ export default function SettingsPage() {
   };
 
   // Arrays are replaced wholesale by deepMerge, so widget edits write the full list.
-  const widgets = cfg.dashboard.widgets;
+  const widgets = withNewWidgets(cfg.dashboard.widgets);
   const setWidgets = (w: WidgetConfig[]) => patch({ dashboard: { widgets: w } });
   const updWidget = (i: number, p: Partial<WidgetConfig>) => setWidgets(widgets.map((w, j) => (j === i ? { ...w, ...p } : w)));
   const moveWidget = (i: number, d: number) => {
@@ -92,15 +95,48 @@ export default function SettingsPage() {
         <label className="field">Timezone (decides "today" in weekly mode)<input value={tz} onChange={(e) => setTz(e.target.value)} onBlur={() => saveProfile({ timezone: tz })} /></label>
       </div>
 
+      <NutritionTargetsCard />
+
+      <RemindersCard />
+
       <div className="card stack">
         <h2>Theme</h2>
-        <div className="row">
+        <div className="swatches">
           {Object.entries(THEME_PRESETS).map(([id, t]) => (
-            <button key={id} className={`btn sm ${cfg.theme.preset === id ? "active" : ""}`} onClick={() => patch({ theme: { preset: id, vars: {} } }, `Theme: ${t.label}`)}>
-              <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 6, background: t.vars.accent, marginRight: 6, verticalAlign: "middle", boxShadow: `6px 0 0 ${t.vars.highlight}` }} />
-              {"  "}{t.label}
+            <button
+              key={id}
+              className={`swatch ${cfg.theme.preset === id ? "on" : ""}`}
+              onClick={() => patch({ theme: { preset: id, vars: {}, style: "auto", glass: "auto" } }, `Theme: ${t.label}`)}
+              aria-pressed={cfg.theme.preset === id}
+            >
+              <span className="preview" style={{ background: t.vars["bg-glow"] && t.vars["bg-glow"] !== "none" ? `${t.vars["bg-glow"]}, ${t.vars.bg}` : t.vars.bg }}>
+                <i style={{ left: 8, top: 8, width: "calc(100% - 16px)", height: 14, background: t.vars.highlight, opacity: t.glass ? 0.7 : 1 }} />
+                <i style={{ left: 8, top: 28, width: "44%", height: 18, background: t.vars.accent }} />
+                <i style={{ right: 8, top: 28, width: "40%", height: 18, background: t.vars.surface, opacity: t.glass ? 0.5 : 1 }} />
+              </span>
+              {t.label}
             </button>
           ))}
+        </div>
+        <div className="row">
+          <span className="muted small" style={{ minWidth: 96 }}>Layout style</span>
+          <div className="segmented">
+            {(["auto", "playful", "pro"] as const).map((st) => (
+              <button key={st} className={cfg.theme.style === st ? "on" : ""} onClick={() => patch({ theme: { style: st } }, `Style: ${st}`)}>
+                {st === "auto" ? "Auto" : st === "playful" ? "Playful" : "Pro"}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="row">
+          <span className="muted small" style={{ minWidth: 96 }}>Glass</span>
+          <div className="segmented">
+            {(["auto", "on", "off"] as const).map((g) => (
+              <button key={g} className={cfg.theme.glass === g ? "on" : ""} onClick={() => patch({ theme: { glass: g } }, `Glass: ${g}`)}>
+                {g === "auto" ? "Auto" : g === "on" ? "On" : "Off"}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="grid2">
           {colorKeys.map((k) => (
@@ -179,15 +215,29 @@ export default function SettingsPage() {
         <div className="row">
           <button className="btn" onClick={download}>Export JSON</button>
           <button className="btn" onClick={downloadCsv}>Export CSV</button>
-          {store.kind === "local" && (
-            <label className="btn">
-              Import JSON
-              <input type="file" accept="application/json" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; await store.importAll(JSON.parse(await f.text())); toast.show({ text: "Imported" }); refresh(); }} />
-            </label>
-          )}
-          <button className="btn" onClick={async () => { try { const n = await generateDemoHistory(store, cfg, now()); toast.show({ text: `Generated ${n} demo sessions` }); refresh(); } catch (e) { toast.show({ text: String(e) }); } }}>Generate demo history</button>
+          <label className="btn">
+            Import JSON
+            <input
+              type="file"
+              accept="application/json"
+              hidden
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (!f) return;
+                try {
+                  const r = await store.importAll(JSON.parse(await f.text()));
+                  toast.show({ text: r ? `Imported ${r.sessions} sessions, ${r.sets} sets${r.skipped ? ` (${r.skipped} already here)` : ""}` : "Imported" });
+                  refresh();
+                } catch (err) {
+                  toast.show({ text: `Import failed: ${err instanceof Error ? err.message : String(err)}` });
+                }
+              }}
+            />
+          </label>
+          <button className="btn" onClick={async () => { try { const n = await generateDemoHistory(store, cfg, now(), 12, profile.unit); toast.show({ text: `Generated ${n} demo sessions` }); refresh(); } catch (e) { toast.show({ text: String(e) }); } }}>Generate demo history</button>
           <button className="btn danger" onClick={async () => { const backup = await store.exportAll(); await store.resetAll(); toast.show({ text: "All data reset", undo: store.kind === "local" ? async () => { await store.importAll(backup); refresh(); } : undefined }); refresh(); }}>Reset all data</button>
-          {store instanceof SupabaseStore && <button className="btn" onClick={async () => { await store.sb.auth.signOut(); location.reload(); }}>Sign out</button>}
+          {supabaseOf(store) && <button className="btn" onClick={async () => { await supabaseOf(store)!.sb.auth.signOut(); location.reload(); }}>Sign out</button>}
         </div>
       </div>
       <p className="muted small">Auto-progression suggestions are conservative and not medical advice.</p>

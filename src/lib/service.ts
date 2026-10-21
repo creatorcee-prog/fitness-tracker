@@ -1,7 +1,7 @@
 import type { AppConfig, Unit } from "@/config/app.config";
 import { prsForSet, replayPRs } from "./domain/prs";
 import type { Exercise, PREvent, PRType, SetEntry, Split } from "./domain/types";
-import { toKg } from "./domain/units";
+import { fromKg, toKg } from "./domain/units";
 import type { Store } from "./store";
 import type { NewSet } from "./store/types";
 
@@ -37,7 +37,7 @@ export function stepKg(ex: Exercise | undefined, unit: Unit, cfg: AppConfig): nu
  * Debug helper: fill the active split with `weeks` of plausible history ending
  * yesterday, so charts, PRs and % gain have something to show.
  */
-export async function generateDemoHistory(store: Store, cfg: AppConfig, now: Date, weeks = 12): Promise<number> {
+export async function generateDemoHistory(store: Store, cfg: AppConfig, now: Date, weeks = 12, unit: Unit = "kg"): Promise<number> {
   const split: Split | undefined = (await store.listSplits()).find((s) => s.isActive);
   if (!split || !split.days.length) throw new Error("Create an active split first.");
   const exercises = new Map((await store.listExercises()).map((e) => [e.id, e]));
@@ -55,7 +55,9 @@ export async function generateDemoHistory(store: Store, cfg: AppConfig, now: Dat
     for (const plan of day.exercises) {
       const ex = exercises.get(plan.exerciseId);
       const progress = 1 + (i / sessionsTotal) * 0.15 + (Math.random() - 0.5) * 0.03;
-      const w = Math.round(((base[ex?.category ?? "other"] ?? 40) * progress) / 2.5) * 2.5;
+      // Round to what you'd actually load in your unit (5 lb or 2.5 kg steps).
+      const step = cfg.logging.weightStep[unit];
+      const w = toKg(Math.round(fromKg((base[ex?.category ?? "other"] ?? 40) * progress, unit) / step) * step, unit);
       for (let k = 0; k < plan.targetSets; k++) {
         const createdAt = new Date(at.getTime() + (plan.order * 10 + k * 3) * 60_000).toISOString();
         await store.addSet({ sessionId: sess.id, exerciseId: plan.exerciseId, setIndex: k, weightKg: w, reps: 5 + Math.floor(Math.random() * 4), rpe: null, isWarmup: false, note: null, createdAt });

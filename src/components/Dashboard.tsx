@@ -9,7 +9,9 @@ import type { Today } from "@/lib/domain/split";
 import { finishedBetween, volumeKg, weekStart, weeklyStreak } from "@/lib/domain/stats";
 import type { Exercise, FriendStatus, PREvent, Session, SetEntry } from "@/lib/domain/types";
 import { formatWeight } from "@/lib/domain/units";
+import { defaultConfig } from "@/config/app.config";
 import { useApp } from "./AppProvider";
+import { CaloriesCard } from "./CaloriesCard";
 import { Ring } from "./Ring";
 
 interface Data {
@@ -21,6 +23,12 @@ interface Data {
 }
 
 const PR_LABEL: Record<string, string> = { weight: "Heaviest", reps_at_weight: "Rep PR", e1rm: "e1RM PR", session_volume: "Volume PR" };
+
+/** Saved layouts predate newer widgets: append any missing ones with their default settings. */
+export function withNewWidgets(saved: WidgetConfig[]): WidgetConfig[] {
+  const have = new Set(saved.map((w) => w.id));
+  return [...saved, ...defaultConfig.dashboard.widgets.filter((w) => !have.has(w.id))];
+}
 
 /** Named colors map to theme tokens; anything else is used as a raw CSS color. */
 function tileStyle(w: WidgetConfig): { className: string; style?: React.CSSProperties } {
@@ -54,53 +62,67 @@ export function Dashboard({ today, onFocusWorkout }: { today: Today | null; onFo
   }, [store, cfg, version, now]);
 
   if (!cfg.dashboard.enabled) return null;
-  const widgets = cfg.dashboard.widgets.filter((w) => w.enabled);
+  const widgets = withNewWidgets(cfg.dashboard.widgets).filter((w) => w.enabled);
   const t = now();
   const ws = weekStart(t, cfg.split.weekStartsOn);
   const target = cfg.dashboard.weeklyTarget;
+
+  const done = data ? finishedBetween(data.sessions, ws, new Date(t.getTime() + 1)).length : 0;
+  const pct = (a: number, b: number) => `${Math.round(Math.min(1, b ? a / b : 0) * 100)}%`;
+  const Bar = ({ v, of }: { v: number; of: number }) => (
+    <div className="bar" aria-hidden>
+      <i style={{ width: pct(v, of) }} />
+    </div>
+  );
 
   const render = (w: WidgetConfig) => {
     switch (w.id) {
       case "today":
         return (
-          <button className="reset" onClick={onFocusWorkout} style={{ all: "unset", cursor: "pointer", display: "grid", gap: 4 }}>
-            <span className="muted small">Today</span>
-            <span style={{ fontSize: "1.6rem", fontWeight: 600 }}>
-              {today?.kind === "day" ? today.day.name : today?.kind === "rest" ? "Rest day" : "No split yet"}
+          <button onClick={onFocusWorkout} style={{ all: "unset", cursor: "pointer", display: "flex", alignItems: "center", gap: 14 }}>
+            <span style={{ display: "grid", gap: 2, flex: 1 }}>
+              <span className="label">Today</span>
+              <span className="value">{today?.kind === "day" ? today.day.name : today?.kind === "rest" ? "Rest day" : "No split yet"}</span>
+              <span className="foot">
+                {today?.kind === "day" ? `${today.day.exercises.length} exercises · tap to start` : today?.kind === "rest" ? "Recover, or train anyway below" : "Set one up in Split"}
+              </span>
             </span>
-            <span className="muted small">
-              {today?.kind === "day" ? `${today.day.exercises.length} exercises · tap to start` : today?.kind === "rest" ? "Recover, or train anyway below" : "Set one up in Split"}
-            </span>
+            <Ring value={Math.min(1, done / target)} size={58} stroke={7}>
+              <b style={{ fontSize: "0.85rem" }}>{done}/{target}</b>
+            </Ring>
           </button>
         );
-      case "week": {
-        const done = data ? finishedBetween(data.sessions, ws, new Date(t.getTime() + 1)).length : 0;
+      case "week":
         return (
-          <div className="row" style={{ justifyContent: "space-between" }}>
-            <div>
-              <div className="small" style={{ opacity: 0.8 }}>This week</div>
-              <div style={{ fontSize: "1.6rem", fontWeight: 700 }}>{done}/{target}</div>
-              <div className="small" style={{ opacity: 0.8 }}>sessions</div>
-            </div>
-            <Ring value={Math.min(1, done / target)} size={64} stroke={8} />
-          </div>
+          <>
+            <span className="label">This week</span>
+            <span className="value">{done}<small>/{target} sessions</small></span>
+            <Bar v={done} of={target} />
+            <span className="foot">{pct(done, target)} of your weekly target</span>
+          </>
         );
-      }
       case "streak": {
         const n = data ? weeklyStreak(data.sessions, t, cfg.split.weekStartsOn, target) : 0;
-        return (<><span className="muted small">Streak</span><span style={{ fontSize: "1.6rem", fontWeight: 700 }}>{n} wk</span><span className="muted small">≥{target} sessions/week</span></>);
+        return (
+          <>
+            <span className="label">Streak</span>
+            <span className="value">{n}<small> wk</small></span>
+            <Bar v={done} of={target} />
+            <span className="foot">{done >= target ? "This week counts ✓" : `${target - done} more to keep it going`}</span>
+          </>
+        );
       }
       case "lastPr": {
         const pr = data?.latestPr;
         return (
           <>
-            <span className="muted small">Latest PR</span>
+            <span className="label">Latest PR</span>
             {pr ? (
               <>
-                <span style={{ fontWeight: 600 }}>{data!.exercises.get(pr.exerciseId)?.name ?? "Lift"}</span>
-                <span><span className="badge">{PR_LABEL[pr.type]}</span> {formatWeight(pr.weightKg, profile.unit, cfg.units.displayDecimals)} × {pr.reps}</span>
+                <span style={{ fontWeight: 700, fontSize: "1.05rem", letterSpacing: "-0.01em" }}>{data!.exercises.get(pr.exerciseId)?.name ?? "Lift"}</span>
+                <span className="foot" style={{ opacity: 1 }}><span className="badge">{PR_LABEL[pr.type]}</span> {formatWeight(pr.weightKg, profile.unit, cfg.units.displayDecimals)} × {pr.reps}</span>
               </>
-            ) : <span className="muted">None yet. Go set one.</span>}
+            ) : <span className="foot">None yet. Go set one.</span>}
           </>
         );
       }
@@ -109,9 +131,10 @@ export function Dashboard({ today, onFocusWorkout }: { today: Today | null; onFo
         const lifted = f.filter((x) => (x.setsToday ?? 0) > 0).length;
         return (
           <Link href="/friends" style={{ color: "inherit", display: "grid", gap: 4 }}>
-            <span className="muted small">Friends</span>
-            <span style={{ fontSize: "1.6rem", fontWeight: 700 }}>{lifted}/{f.length}</span>
-            <span className="muted small">lifted today</span>
+            <span className="label">Friends</span>
+            <span className="value">{lifted}<small>/{f.length}</small></span>
+            <Bar v={lifted} of={f.length} />
+            <span className="foot">lifted today</span>
           </Link>
         );
       }
@@ -122,14 +145,31 @@ export function Dashboard({ today, onFocusWorkout }: { today: Today | null; onFo
           const v = e1rm(s.weightKg, s.reps, cfg.prs.formula);
           if (!best || v > best.v) best = { name: data!.exercises.get(s.exerciseId)?.name ?? "Lift", v };
         }
-        return (<><span className="muted small">Top e1RM</span>{best ? (<><span style={{ fontSize: "1.4rem", fontWeight: 700 }}>{formatWeight(best.v, profile.unit, 0)}</span><span className="muted small">{best.name}</span></>) : <span className="muted">No sets yet</span>}</>);
+        return (
+          <>
+            <span className="label">Top e1RM</span>
+            {best ? (<><span className="value">{formatWeight(best.v, profile.unit, 0)}</span><span className="foot">{best.name}</span></>) : <span className="foot">No sets yet</span>}
+          </>
+        );
       }
+      case "calories":
+        return <CaloriesCard />;
       case "volume": {
-        const v = data ? volumeKg(data.sets.filter((s) => Date.parse(s.createdAt) >= ws.getTime())) : 0;
-        return (<><span className="muted small">Volume this week</span><span style={{ fontSize: "1.4rem", fontWeight: 700 }}>{formatWeight(v, profile.unit, 0)}</span></>);
+        const thisWeek = data ? volumeKg(data.sets.filter((s) => Date.parse(s.createdAt) >= ws.getTime())) : 0;
+        const lastStart = ws.getTime() - 7 * 86_400_000;
+        const lastWeek = data ? volumeKg(data.sets.filter((s) => Date.parse(s.createdAt) >= lastStart && Date.parse(s.createdAt) < ws.getTime())) : 0;
+        return (
+          <>
+            <span className="label">Volume this week</span>
+            <span className="value">{formatWeight(thisWeek, profile.unit, 0)}</span>
+            <Bar v={thisWeek} of={lastWeek || thisWeek} />
+            <span className="foot">{lastWeek ? `${pct(thisWeek, lastWeek)} of last week` : "No data for last week"}</span>
+          </>
+        );
       }
     }
   };
+
 
   return (
     <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr" }}>

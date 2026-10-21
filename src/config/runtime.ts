@@ -49,7 +49,7 @@ export function writeLocalOverrides(overrides: unknown | null) {
 export function resolveConfig(localOverrides: unknown = readLocalOverrides()): AppConfig {
   let cfg = defaultConfig;
   const envBackend = process.env.NEXT_PUBLIC_DATA_BACKEND;
-  if (envBackend === "local" || envBackend === "supabase") {
+  if (envBackend === "local" || envBackend === "supabase" || envBackend === "local-sync") {
     cfg = deepMerge(cfg, { data: { backend: envBackend } });
   }
   cfg = deepMerge(cfg, parseJson(process.env.NEXT_PUBLIC_CONFIG_OVERRIDES));
