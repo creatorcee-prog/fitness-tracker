@@ -234,6 +234,7 @@ export default function SettingsPage() {
         <h2>Data</h2>
         <p className="muted small">Backend: <strong>{store.kind}</strong>{store.kind === "local" && " (this browser only)"}</p>
         <div className="row">
+          <Link className="btn primary" href="/import">Import old workouts</Link>
           <button className="btn" onClick={download}>Export JSON</button>
           <button className="btn" onClick={downloadCsv}>Export CSV</button>
           <label className="btn">

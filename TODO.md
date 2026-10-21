@@ -45,6 +45,15 @@ Slash commands through `/api/discord` in the web app (no separate bot server).
 - [x] James mascot with scripted lines, moods and a placeholder silhouette
 - [ ] Real James art (keep `JamesSilhouette` props)
 
+## Done: import, account changes, Google, photos
+
+- [x] Import old workouts (Strong/Hevy CSV, notes, or James), split rebuilt faithfully, goals
+- [x] James proposes account changes in the app chat (Apply / Undo)
+- [x] Google sign-in + link Discord
+- [x] Profile photos and banners
+- [x] Guided sets optional (off by default)
+- [ ] Live test: Google provider + manual linking in Supabase; a real James import
+
 ## Next
 
 - [ ] Web push reminders (needs Home Screen install on iPhone)

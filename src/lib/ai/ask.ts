@@ -115,7 +115,7 @@ Rules you must follow:
 You have the user's recent workout history and goals in TRAINING DATA when provided.${inApp ? `\n\n${ACTIONS_PROMPT}` : ""}`;
 }
 
-class HttpError extends Error {
+export class HttpError extends Error {
   constructor(readonly status: number, message: string) {
     super(message);
   }
@@ -127,9 +127,9 @@ class HttpError extends Error {
  * turns, and the user message (training summary + question). We get back text plus a `usage`
  * block saying how many tokens went in and out, which we record for the caps.
  */
-type Message = { role: "system" | "user" | "assistant"; content: string };
+export type Message = { role: "system" | "user" | "assistant"; content: string };
 
-async function chat(deps: AskDeps, model: string, messages: Message[], maxTokens = deps.env.maxOutputTokens) {
+export async function chat(deps: Pick<AskDeps, "env" | "fetch">, model: string, messages: Message[], maxTokens = deps.env.maxOutputTokens, extra: Record<string, unknown> = {}) {
   const { env } = deps;
   const body: Record<string, unknown> = {
     model,
@@ -138,6 +138,7 @@ async function chat(deps: AskDeps, model: string, messages: Message[], maxTokens
     temperature: env.temperature,
     top_p: env.topP,
     frequency_penalty: env.frequencyPenalty,
+    ...extra,
   };
   // gpt-oss "thinks" before answering; low effort keeps that short (and cheap).
   if (/gpt-oss/i.test(model)) body.reasoning_effort = "low";
@@ -146,9 +147,9 @@ async function chat(deps: AskDeps, model: string, messages: Message[], maxTokens
   // Some models reject optional tuning knobs. Rather than fail, retry once without them.
   if (res.status === 400) {
     const detail = await res.text();
-    if (/frequency_penalty|top_p|temperature|reasoning_effort|unsupported|not supported/i.test(detail)) {
+    if (/frequency_penalty|top_p|temperature|reasoning_effort|response_format|json|unsupported|not supported/i.test(detail)) {
       console.warn(`[ask] ${model} rejected an optional parameter, retrying without them: ${detail.slice(0, 200)}`);
-      for (const k of ["frequency_penalty", "top_p", "temperature", "reasoning_effort"]) delete body[k];
+      for (const k of ["frequency_penalty", "top_p", "temperature", "reasoning_effort", "response_format"]) delete body[k];
       res = await post(deps, body);
     } else {
       throw new HttpError(400, `400 ${detail.slice(0, 300)}`);
@@ -169,7 +170,7 @@ async function chat(deps: AskDeps, model: string, messages: Message[], maxTokens
 }
 
 /** POST with a 25-second timeout (Discord lets us edit the reply for 15 minutes, but nobody waits that long). */
-async function post(deps: AskDeps, body: Record<string, unknown>): Promise<Response> {
+async function post(deps: Pick<AskDeps, "env" | "fetch">, body: Record<string, unknown>): Promise<Response> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 25_000);
   try {

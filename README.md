@@ -140,6 +140,22 @@ Setup:
 - **Art:** `src/components/JamesSilhouette.tsx` is a placeholder silhouette with mood eyebrows. Swap in real art later with the same props. `public/james.png` (512×512) is the same art for the Discord bot avatar (Developer Portal → Bot → Icon).
 - **Setup:** run `supabase/migrations/0008_goals.sql`, then open `/api/discord?register=1` to register `/goal`.
 
+## Import old workouts
+
+Settings → **Import old workouts** (`/import`). Paste or choose a file:
+- **Strong / Hevy CSV exports** and **notes** ("Oct 14 - Push" then "Bench press 185x5x3", "OHP: 115 8,8,7", "Pull-ups 3x8", "Goal: bench 225 by 2027-03-01") are read in the browser: free, exact, no AI (`src/lib/import/csv.ts`, `text.ts`).
+- **Have James read it** sends messier text (up to `AI_IMPORT_MAX_CHARS`, 8,000 by default) to the model, which only transcribes into JSON. The result is validated (`validate.ts`) and counts as one of the day's James requests. On Groq's free tier a long log may need to go in parts.
+- The **preview** shows the workouts as read, which lifts match yours (exact name, alias, initials or name prefix only; anything else becomes a new lift with the name as written), the split, goals, and every line that wasn't imported.
+- **Split:** if the text writes out a program, that's used as written. Otherwise it's rebuilt from the workouts (`infer.ts`): your day names in your order, the lifts on each day, the usual number of sets and the rep range you actually did (last 4 sessions per day), weekly if each day kept to a weekday.
+- Nothing is saved until **Import**. Importing twice is safe (same date and time are skipped). PRs are rebuilt.
+
+## Sign-in, photos and guided sets
+
+- **Google sign-in:** create an OAuth client in Google Cloud (Web application; redirect URI = the callback URL shown in Supabase → Authentication → Sign In / Providers → Google), paste the client ID and secret there and enable it. Turn on **Manual linking** on the same page so Settings → Sign-in methods can link Discord to a Google account (the bot needs Discord linked). Same email on both is linked automatically by Supabase. Hide a button with `auth.providers` in config.
+- **Profile photo and banner** (Settings → Profile): resized and cropped in the browser (256px photo, 1200×400 banner, JPEG), stored in `profile_media`, visible to you and accepted friends only.
+- **Guided sets** (Settings → Logging, off by default): weight suggestions, the reason hint, and moving to the next exercise automatically. Off: the bar starts from last time's numbers.
+- **Setup:** run `supabase/migrations/0009_google_photos.sql`.
+
 ## To-do
 
 See [TODO.md](TODO.md) for what's in progress (Discord bot), what's next and the idea backlog.
