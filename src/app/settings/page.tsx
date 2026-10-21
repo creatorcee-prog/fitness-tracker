@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { defaultConfig, type Unit, type WidgetConfig } from "@/config/app.config";
 import { deepMerge } from "@/config/runtime";
 import { WIDGET_INFO } from "@/config/layouts";
+import { FONTS, googleFontsUrl } from "@/config/fonts";
 import { contrastRatio, THEME_PRESETS, themeVars as presetVars } from "@/config/themes";
 import { useApp } from "@/components/AppProvider";
 import { withNewWidgets } from "@/components/Dashboard";
@@ -21,6 +22,7 @@ const NAMED_COLORS = ["surface", "hero", "lime"];
 const CONTRAST_PAIRS: [string, string][] = [["text", "bg"], ["text", "surface"], ["accent-text", "accent"], ["highlight-text", "highlight"]];
 
 type Overrides = Record<string, unknown>;
+const FONT_SAMPLE = "Bench 225 × 5 · PR";
 
 export default function SettingsPage() {
   const { cfg, store, profile, setProfile, overrides, setOverrides, refresh, now, mode } = useApp();
@@ -31,6 +33,14 @@ export default function SettingsPage() {
   const [tz, setTz] = useState(profile.timezone);
 
   useEffect(() => setJson(JSON.stringify(overrides ?? {}, null, 2)), [overrides]);
+
+  // Font previews: fetch only the letters shown on the buttons, for every font (a few KB).
+  useEffect(() => {
+    const text = [...new Set(FONTS.map((f) => f.label).join("") + FONT_SAMPLE)].join("");
+    const href = googleFontsUrl(FONTS, text);
+    if (!href || document.getElementById("ft-font-previews")) return;
+    document.head.appendChild(Object.assign(document.createElement("link"), { id: "ft-font-previews", rel: "stylesheet", href }));
+  }, []);
 
   const ov = (overrides ?? {}) as Overrides;
   /** Merge a partial config into the saved overrides (with undo). */
@@ -159,6 +169,25 @@ export default function SettingsPage() {
               </button>
             ))}
           </div>
+        </div>
+        <div className="stack" style={{ gap: 6 }}>
+          <span className="muted small">Font</span>
+          <div className="font-grid">
+            {FONTS.map((f) => (
+              <button
+                key={f.id}
+                className={`font-choice ${cfg.theme.font === f.id ? "on" : ""}`}
+                aria-pressed={cfg.theme.font === f.id}
+                style={f.stack ? { fontFamily: f.stack } : undefined}
+                onClick={() => patch({ theme: { font: f.id } }, `Font: ${f.label}`)}
+                title={f.note}
+              >
+                <span className="font-name">{f.label}</span>
+                <span className="font-sample">{FONT_SAMPLE}</span>
+              </button>
+            ))}
+          </div>
+          <span className="muted small">{FONTS.find((f) => f.id === cfg.theme.font)?.note}</span>
         </div>
         <div className="row">
           <span className="muted small" style={{ minWidth: 96 }}>Layout style</span>

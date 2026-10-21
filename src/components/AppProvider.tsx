@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { AppConfig } from "@/config/app.config";
 import { THEME_PRESETS, themeVars, type ColorMode } from "@/config/themes";
 import { sanitizeCss } from "@/lib/widgets/css";
+import { fontById, googleFontsUrl } from "@/config/fonts";
 import { now as cfgNow, readLocalOverrides, resolveConfig, writeLocalOverrides } from "@/config/runtime";
 import type { Profile } from "@/lib/domain/types";
 import { createStore, supabaseOf, type Store } from "@/lib/store";
@@ -83,6 +84,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     for (const name of Array.from(root.style)) if (name.startsWith("--")) root.style.removeProperty(name);
     for (const [k, v] of Object.entries(vars)) root.style.setProperty(`--${k}`, v);
     root.style.colorScheme = mode;
+    // Font choice: overrides the theme's font, downloading only that one family.
+    const font = fontById(cfg.theme.font);
+    if (font.stack) root.style.setProperty("--font", font.stack);
+    const href = googleFontsUrl([font]);
+    let link = document.getElementById("ft-font") as HTMLLinkElement | null;
+    if (!href) link?.remove();
+    else if (link?.href !== href) {
+      link ??= Object.assign(document.createElement("link"), { id: "ft-font", rel: "stylesheet" });
+      link.href = href;
+      document.head.appendChild(link);
+    }
   }, [cfg, mode]);
 
   // Your own CSS (Settings → Advanced), cleaned so it can't load anything from the internet.

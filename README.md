@@ -145,6 +145,7 @@ Setup:
 ## Look, layout and habits
 
 - **Themes:** Ember is the default. Every theme has a **dark and a light version**: Settings → Look & feel → Appearance → Dark (default), Light or **Follow my phone**. `src/config/themes.test.ts` checks every theme in both modes for WCAG AA contrast (4.5:1 text, 3:1 status colors). Add a theme by giving it `vars`, its `mode` and an `alt` (the other mode); the test tells you if something is unreadable.
+- **Fonts:** Settings → Look & feel → Font, with 13 choices (System, Outfit, Inter, Manrope, DM Sans, Space Grotesk, Sora, Barlow, Rubik, Lexend, Atkinson Hyperlegible, JetBrains Mono, or the theme's own). Only the chosen font is downloaded; the picker previews fetch just the letters they show (`src/config/fonts.ts`).
 - **Today:** on a training day (or mid-workout) the workout comes first and the widgets follow; rest days show widgets first (`dashboard.workoutFirst`). The chat button sits in Today's header, so nothing floats over the workout.
 - **Touch targets:** 44px minimum (48px weight/reps buttons), following Apple's HIG and WCAG 2.5.5.
 - **Settings** is grouped (You, Training, Look & feel, Reminders, Data) with a jump bar; debugging tools are under **Advanced**.
