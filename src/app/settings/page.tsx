@@ -13,6 +13,7 @@ import { ProfileMediaHeader } from "@/components/ProfileMediaCard";
 import { NutritionTargetsCard } from "@/components/NutritionTargetsCard";
 import { RemindersCard } from "@/components/RemindersCard";
 import { SignInMethodsCard } from "@/components/SignInMethodsCard";
+import { AboutCard } from "@/components/AboutCard";
 import { useToast } from "@/components/UndoToast";
 import { generateDemoHistory } from "@/lib/service";
 import { supabaseOf } from "@/lib/store";
@@ -120,6 +121,8 @@ export default function SettingsPage() {
         })()}
         {supabaseOf(store) && <button className="btn" style={{ justifySelf: "start" }} onClick={async () => { await supabaseOf(store)!.sb.auth.signOut(); location.reload(); }}>Sign out</button>}
       </div>
+
+      <AboutCard />
 
       <SignInMethodsCard />
 

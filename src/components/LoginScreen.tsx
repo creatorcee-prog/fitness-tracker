@@ -21,7 +21,8 @@ export function LoginScreen({ store }: { store: SupabaseStore }) {
           <button key={p} className={`btn big ${p === auth.providers[0] ? "primary" : ""}`} onClick={() => signIn(p)}>{LABEL[p]}</button>
         ))}
       </div>
-      <p className="muted small">Debugging? Set NEXT_PUBLIC_DATA_BACKEND=local to skip accounts.</p>
+      <p className="small" style={{ margin: 0 }}><strong>Invite only for now:</strong> you&apos;ll need the link from someone already using {brand.appName}.</p>
+      <p className="muted small" style={{ margin: 0 }}>More sign-in options on the way!</p>
     </div>
   );
 }

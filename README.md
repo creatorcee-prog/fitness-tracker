@@ -152,6 +152,21 @@ Setup:
 - **Streak freezes:** one is earned every 4 weeks on target (up to 2 saved) and covers a missed week instead of resetting the streak (`streak.*`). Research on streaks found intact streaks motivate and broken ones make people quit, so repairs soften that.
 - **Rest timer:** sound and vibration switches in Settings → Training. iPhone web apps can't vibrate, so the timer also flashes.
 
+## First sign-in setup
+
+New accounts get a short setup with James (`src/components/Onboarding.tsx`). He asks, in his typed voice:
+1. Your name.
+2. What you're training for (Strength Builder, Bodybuilder, Calisthenics, Weight Loss, General Fitness, Runner, Swimmer, Cyclist, Athlete).
+3. How often (Casual 1–2, Regular 3–4, Gym Rat 5–6, Every Day).
+4. Experience.
+5. lb/kg, plus optional height and weight. BMI is shown with its limit spelled out: it can't tell muscle from fat.
+6. A plan: his starter pick for your answers (`src/lib/onboarding/templates.ts`), bring your own (Import), build it yourself, or keep your current split.
+7. Linking Discord, if you signed in another way.
+
+Answers set your weekly target, turn on guided sets for beginners, and go to James (app and Discord) so his advice fits. "Skip setup" is always there. Settings → You → **About you** edits the answers or redoes the setup. Run `supabase/migrations/0013_onboarding.sql`; before it's run, nobody is sent to setup.
+
+The sign-in screen says it's **invite only for now** and that **more sign-in options are on the way**.
+
 ## Editable Today and custom widgets
 
 - **Edit like Control Center:**

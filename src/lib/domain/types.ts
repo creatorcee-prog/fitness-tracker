@@ -7,6 +7,10 @@ export interface Profile {
   displayName: string;
   unit: Unit;
   timezone: string;
+  /** From the first sign-in setup (see domain/about.ts). */
+  about?: import("./about").About;
+  /** When the first sign-in setup was finished or skipped (null = not yet). */
+  onboardedAt?: string | null;
 }
 
 export interface Exercise {
