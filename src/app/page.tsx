@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useApp } from "@/components/AppProvider";
 import { MascotBubble, useMascot } from "@/components/Mascot";
 import { OPEN_CHAT_EVENT } from "@/components/CoachChat";
+import { JamesButton } from "@/components/JamesButton";
 import { useMyMedia } from "@/components/ProfileMediaCard";
 import { WeekStrip } from "@/components/WeekStrip";
 import { Dashboard } from "@/components/Dashboard";
@@ -444,9 +445,7 @@ export default function TodayPage() {
         <div className="header-actions">
           {cfg.ai.chatButton && (
             // On Today the chat lives up here, so nothing floats over the workout and logging bar.
-            <button className="icon-btn" aria-label={`Ask ${cfg.brand.botName}`} onClick={() => window.dispatchEvent(new Event(OPEN_CHAT_EVENT))}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.8A8 8 0 1 1 21 12z" /></svg>
-            </button>
+            <JamesButton name={cfg.brand.botName} onClick={() => window.dispatchEvent(new Event(OPEN_CHAT_EVENT))} />
           )}
           <Link href="/settings" className={`avatar-btn ${media.avatar ? "has-photo" : ""}`} aria-label="Profile and settings">
             {/* eslint-disable-next-line @next/next/no-img-element */}

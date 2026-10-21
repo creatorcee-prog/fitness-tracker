@@ -11,6 +11,7 @@ import { uid } from "@/lib/store/local";
 import type { Mood } from "@/lib/mascot/lines";
 import { parseFreeText } from "@/lib/domain/freetext";
 import { useApp } from "./AppProvider";
+import { JamesButton } from "./JamesButton";
 import { JamesSilhouette } from "./JamesSilhouette";
 
 /** Other screens open the chat with window.dispatchEvent(new Event(OPEN_CHAT_EVENT)). */
@@ -187,13 +188,7 @@ export function CoachChat() {
     <>
       {/* No floating button on Today: it has a chat button in its header instead (less over the workout). */}
       {!open && path !== "/" && (
-        <button className="coach-fab compact" onClick={() => setOpen(true)} aria-label={`Ask ${bot}`}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.8A8 8 0 1 1 21 12z" />
-            <path d="M8.5 11h.01M12 11h.01M15.5 11h.01" />
-          </svg>
-          <span>Ask {bot}</span>
-        </button>
+        <JamesButton name={bot} size={52} className="coach-fab-james" onClick={() => setOpen(true)} />
       )}
       {open && (
         <div className="coach-panel" role="dialog" aria-label={`Chat with ${bot}`}>
