@@ -63,6 +63,8 @@ export default function TodayPage() {
   const [shorthandErr, setShorthandErr] = useState<string | null>(null);
   const [timer, setTimer] = useState<TimerState | null>(null);
   const [busy, setBusy] = useState(false);
+  /** The logging bar shows only while you're logging: a workout is open, or you picked an exercise / tapped Start. */
+  const [logging, setLogging] = useState(false);
   const workoutRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -325,6 +327,7 @@ export default function TodayPage() {
     await store.finishSession(session.id, now());
     for (const id of sessionSets.keys()) await rebuildPRs(store, cfg, id);
     setTimer(null);
+    setLogging(false);
     setDayOverride(null);
     setExtraExercises([]);
     const sid = session.id;
@@ -374,12 +377,16 @@ export default function TodayPage() {
                 {[...split.days].sort((a, b) => a.position - b.position).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             )}
-            <select aria-label="Add exercise" value="" onChange={(e) => e.target.value && (setExtraExercises((x) => [...x, e.target.value]), setFocusId(e.target.value))}>
+            <select aria-label="Add exercise" value="" onChange={(e) => e.target.value && (setExtraExercises((x) => [...x, e.target.value]), setFocusId(e.target.value), setLogging(true))}>
               <option value="">+ Add exercise</option>
               {[...exercises.values()].filter((e) => !plan.some((p) => p.exerciseId === e.id)).map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
             </select>
             {session && <span className="pill good">In progress{session.source === "discord" ? " (from Discord)" : ""}</span>}
           </div>
+        )}
+
+        {!session && !logging && day && plan.length > 0 && (
+          <button className="btn primary big" onClick={() => setLogging(true)}>Start {day.name}</button>
         )}
 
         {today?.kind === "no-split" && !day && (
@@ -393,7 +400,7 @@ export default function TodayPage() {
           const events = prEvents.get(p.exerciseId) ?? [];
           const last = lastSessionSets(history.get(p.exerciseId) ?? [], session?.id ?? null).filter((s) => !s.isWarmup);
           return (
-            <div key={p.exerciseId} className={`card ${p.exerciseId === focusId ? "focused" : ""}`} onClick={() => setFocusId(p.exerciseId)}>
+            <div key={p.exerciseId} className={`card ${p.exerciseId === focusId && (session || logging) ? "focused" : ""}`} onClick={() => { setFocusId(p.exerciseId); setLogging(true); }}>
               <div className="spread">
                 <div>
                   <strong>{ex?.name ?? "Unknown exercise"}</strong>
@@ -460,12 +467,13 @@ export default function TodayPage() {
 
       {workoutFirst ? <>{workoutBlock}{dashboard}</> : <>{dashboard}{workoutBlock}</>}
 
-      {focusId && draft && (
+      {focusId && draft && (session || logging) && (
         <div className="dock" ref={dockRef}>
           <div className="dock-inner">
             {timer && <RestTimer timer={timer} onChange={setTimer} />}
             <div className="spread">
               <strong>{focusEx?.name} · {draft.isWarmup ? "warm-up" : `set ${focusWorkingCount + 1}`}</strong>
+              {!session && <button className="btn sm ghost" onClick={() => setLogging(false)} aria-label="Hide the logging bar">Hide</button>}
               {cfg.logging.guided && cfg.features.progressionHints && prefill && (
                 <span className="muted small">
                   {prefill.reason === "progression" ? `↑ +${cfg.progression.jump[unit][focusEx?.category ?? "other"]} ${unit}, all reps hit` : prefill.reason === "hold-missed" ? "Hold weight: missed reps last time" : prefill.reason === "last-time" ? "Same as last time" : "No history yet"}
