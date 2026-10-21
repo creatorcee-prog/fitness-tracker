@@ -204,6 +204,11 @@ export const defaultConfig = {
     quickAdd: [100, 250, 500, 750],
   },
 
+  ai: {
+    /** Floating "Ask James" chat button in the app (needs the Supabase backend + GROQ_API_KEY). */
+    chatButton: true,
+  },
+
   bot: {
     /** In servers, replies with personal data are visible only to the person who ran the command. */
     ephemeralInGuilds: true,

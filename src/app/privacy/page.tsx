@@ -22,9 +22,9 @@ export default function PrivacyPage() {
         <p>{bot}, the Discord bot, reads the commands you send it and replies through Discord. In servers, replies with your data are only visible to you. PR announcements are posted only if you turn them on.</p>
       </div>
       <div className="card stack">
-        <h2>AI answers (/ask)</h2>
+        <h2>AI answers (/ask and the in-app chat)</h2>
         <p>
-          When you use <code>/ask</code>, your question and a short training summary (recent sessions&apos; top sets, PRs, goals, bodyweight trend, today&apos;s split day) are sent to Groq to generate the answer. Your name and Discord ID are not included. The AI can&apos;t change your data. Nothing is sent to Groq unless you use <code>/ask</code>.
+          When you ask {bot} something, in Discord with <code>/ask</code> or with the chat button in the app, your question and a short training summary (recent sessions&apos; top sets, PRs, goals, bodyweight trend, today&apos;s split day) are sent to Groq to generate the answer. In the app chat, your last couple of questions and answers are included too, so follow-ups make sense. Your name and Discord ID are not included. The AI can&apos;t change your data. Nothing is sent to Groq unless you ask {bot} something. The chat itself is only kept in your browser tab.
         </p>
       </div>
       <div className="card stack">

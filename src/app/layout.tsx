@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { resolveConfig } from "@/config/runtime";
 import { AppProvider } from "@/components/AppProvider";
+import { CoachChat } from "@/components/CoachChat";
 import { DebugPanel } from "@/components/DebugPanel";
 import { NavBar } from "@/components/NavBar";
 import { SyncBanner } from "@/components/SyncBanner";
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <SyncBanner />
           {children}
           <NavBar />
+          <CoachChat />
           <DebugPanel />
         </AppProvider>
       </body>

@@ -23,7 +23,8 @@ function fakeFetch(script: ({ status: number; json?: unknown } | Error)[]): type
 
 const ok = (text: string, pin = 900, pout = 120) => ({ status: 200, json: { choices: [{ message: { content: text } }], usage: { prompt_tokens: pin, completion_tokens: pout } } });
 
-const deps = (f: typeof fetch, e = env(), who = "d1"): AskDeps => ({ data, cfg: defaultConfig, env: e, now: NOW, discordUserId: who, appUrl: "https://app.test", fetch: f });
+const deps = (f: typeof fetch, e = env(), who = "d1"): AskDeps => ({ data, cfg: defaultConfig, env: e, now: NOW, who: { discordUserId: who }, appUrl: "https://app.test", fetch: f });
+const appDeps = (f: typeof fetch, e = env()): AskDeps => ({ data, cfg: defaultConfig, env: e, now: NOW, who: { userId: "u1" }, appUrl: "https://app.test", fetch: f });
 
 async function seedHistory() {
   for (let i = 0; i < 6; i++) {
@@ -135,6 +136,29 @@ describe("/ask", () => {
   it("reads env: Groq defaults, caps and the kill switch", () => {
     const e = aiEnvFromProcess({ GROQ_API_KEY: "k", AI_DAILY_USER_LIMIT: "3", AI_ENABLED: "FALSE" } as unknown as NodeJS.ProcessEnv);
     expect(e).toMatchObject({ apiKey: "k", baseUrl: "https://api.groq.com/openai/v1", model: "openai/gpt-oss-120b", dailyUserLimit: 3, dailyGlobalLimit: 70, enabled: false });
+  });
+});
+
+describe("in-app chat", () => {
+  it("answers for a signed-in app user and returns the answer without the Discord footer", async () => {
+    const r = await handleAsk(appDeps(fakeFetch([ok("Keep going!")])), "How am I doing?");
+    expect(r).toMatchObject({ outcome: "answered", answer: "Keep going!" });
+    expect((await data.aiUsageToday("u1", "2026-10-21")).user).toBe(1); // same cap as Discord
+  });
+  it("includes only the last N earlier turns", async () => {
+    const history = [1, 2, 3].map((i) => ({ question: `Q${i}?`, answer: `A${i}` }));
+    await handleAsk(appDeps(fakeFetch([ok("x")]), env({ historyTurns: 2 })), "And squats?", history);
+    const msgs = calls[0].body.messages as { role: string; content: string }[];
+    expect(msgs.map((m) => m.role)).toEqual(["system", "user", "assistant", "user", "assistant", "user"]);
+    expect(msgs[1].content).toBe("Q2?");
+    expect(msgs[5].content).toContain("QUESTION: And squats?");
+  });
+  it("can turn history off", async () => {
+    await handleAsk(appDeps(fakeFetch([ok("x")]), env({ historyTurns: 0 })), "Hi?", [{ question: "Q?", answer: "A" }]);
+    expect((calls[0].body.messages as unknown[]).length).toBe(2);
+  });
+  it("points sets to the Today screen in the app", async () => {
+    expect((await handleAsk(appDeps(fakeFetch([])), "bench 185x5")).content).toContain("Today screen");
   });
 });
 

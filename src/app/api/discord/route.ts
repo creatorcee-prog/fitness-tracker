@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
       // Always private: the answer includes personal training data.
       after(async () => {
         const r = await handleAsk(
-          { data: ctx.data, cfg: ctx.cfg, env: aiEnvFromProcess(), now: ctx.now, discordUserId: ctx.discordUserId, appUrl: ctx.appUrl, fetch },
+          { data: ctx.data, cfg: ctx.cfg, env: aiEnvFromProcess(), now: ctx.now, who: { discordUserId: ctx.discordUserId }, appUrl: ctx.appUrl, fetch },
           String(opts.question ?? ""),
         ).catch((e) => {
           console.error("[ask]", e);

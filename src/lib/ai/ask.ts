@@ -22,6 +22,8 @@ export interface AiEnv {
   maxOutputTokens: number;
   /** Budget for the training summary we send. */
   contextTokens: number;
+  /** In-app chat only: how many earlier exchanges to include for follow-up questions (0 = none). */
+  historyTurns: number;
   /** Sampling: higher temperature = more varied wording. */
   temperature: number;
   /** Sampling: only consider the most likely 90% of words. */
@@ -43,6 +45,7 @@ export function aiEnvFromProcess(e: NodeJS.ProcessEnv = process.env): AiEnv {
     dailyGlobalLimit: num(e.AI_DAILY_GLOBAL_LIMIT, 70),
     maxOutputTokens: num(e.AI_MAX_OUTPUT_TOKENS, 500),
     contextTokens: num(e.AI_CONTEXT_TOKENS, 2000),
+    historyTurns: num(e.AI_CHAT_HISTORY_TURNS, 2),
     temperature: num(e.AI_TEMPERATURE, 0.5),
     topP: num(e.AI_TOP_P, 0.9),
     frequencyPenalty: num(e.AI_FREQUENCY_PENALTY, 0.25),
@@ -54,9 +57,16 @@ export interface AskDeps {
   cfg: AppConfig;
   env: AiEnv;
   now: Date;
-  discordUserId: string;
+  /** Who is asking: a Discord user (/ask) or a signed-in app user (chat panel). */
+  who: { discordUserId: string } | { userId: string };
   appUrl: string;
   fetch: typeof fetch;
+}
+
+/** One earlier exchange shown in the app's chat (Discord /ask has none). */
+export interface ChatTurn {
+  question: string;
+  answer: string;
 }
 
 export interface AskResult {
@@ -66,6 +76,8 @@ export interface AskResult {
   model?: string;
   tokensIn?: number;
   tokensOut?: number;
+  /** The model's answer without the Discord footer (for the in-app chat). */
+  answer?: string;
 }
 
 const DISCORD_LIMIT = 2000;
@@ -105,18 +117,17 @@ class HttpError extends Error {
 
 /**
  * One call to the provider's "chat completions" endpoint (the OpenAI-style API
- * Groq offers). We send two messages: the system prompt (instructions) and the
- * user message (training summary + question). We get back text plus a `usage`
+ * Groq offers). We send the system prompt (instructions), any earlier chat
+ * turns, and the user message (training summary + question). We get back text plus a `usage`
  * block saying how many tokens went in and out, which we record for the caps.
  */
-async function chat(deps: AskDeps, model: string, system: string, user: string) {
+type Message = { role: "system" | "user" | "assistant"; content: string };
+
+async function chat(deps: AskDeps, model: string, messages: Message[]) {
   const { env } = deps;
   const body: Record<string, unknown> = {
     model,
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ],
+    messages,
     max_completion_tokens: env.maxOutputTokens,
     temperature: env.temperature,
     top_p: env.topP,
@@ -177,19 +188,27 @@ async function post(deps: AskDeps, body: Record<string, unknown>): Promise<Respo
  *  6. Record the token usage, trim to Discord's 2,000 characters and return the text.
  * The caller (the Discord route) posts the returned text as the reply.
  */
-export async function handleAsk(deps: AskDeps, question: string): Promise<AskResult> {
+export async function handleAsk(deps: AskDeps, question: string, history: ChatTurn[] = []): Promise<AskResult> {
   const { data, cfg, env, now } = deps;
   const bot = cfg.brand.botName;
+  const inApp = "userId" in deps.who;
   const q = question.trim().slice(0, 500);
 
-  const user = await data.findUser(deps.discordUserId);
+  const user = "userId" in deps.who ? await data.getUserById(deps.who.userId) : await data.findUser(deps.who.discordUserId);
   if (!user) return { outcome: "unlinked", content: `👋 I'm ${bot}. Link your account first: sign in at ${deps.appUrl} with this Discord account, then ask again.` };
-  if (!env.enabled || !env.apiKey) return { outcome: "disabled", content: `🤖 AI answers are switched off right now. Everything else still works: try \`/lift\` or \`/today\`.` };
-  if (!q) return { outcome: "empty", content: "Ask me something, e.g. `/ask question: how's my bench trending?`" };
+  if (!env.enabled || !env.apiKey) {
+    return { outcome: "disabled", content: inApp ? "🤖 AI answers are switched off right now." : "🤖 AI answers are switched off right now. Everything else still works: try `/lift` or `/today`." };
+  }
+  if (!q) return { outcome: "empty", content: inApp ? "Ask me something, like “how's my bench trending?”" : "Ask me something, e.g. `/ask question: how's my bench trending?`" };
 
-  // A set typed into /ask: point to /log instead of spending tokens.
+  // A set typed into the question box: point to logging instead of spending tokens.
   if (!q.includes("?") && parseFreeText(q).ok) {
-    return { outcome: "log-intent", content: `That looks like a set. I can't save anything from /ask. Use \`/log ${q.slice(0, 80)}\` and confirm it there.` };
+    return {
+      outcome: "log-intent",
+      content: inApp
+        ? "That looks like a set. I can't save anything from chat. Log it on the Today screen (or with `/log` in Discord)."
+        : `That looks like a set. I can't save anything from /ask. Use \`/log ${q.slice(0, 80)}\` and confirm it there.`,
+    };
   }
 
   const day = now.toISOString().slice(0, 10); // caps reset at midnight UTC
@@ -200,16 +219,23 @@ export async function handleAsk(deps: AskDeps, question: string): Promise<AskRes
   const context = await buildTrainingContext(data, user, cfg, now, env.contextTokens);
   const system = systemPrompt(cfg, user.unit);
   const prompt = `TRAINING DATA:\n${context}\n\nQUESTION: ${q}`;
+  // Earlier chat turns (app only), trimmed, so follow-ups like "and squats?" make sense.
+  const keep = Math.max(0, env.historyTurns); // note: slice(-0) would return everything, hence the check
+  const turns = (keep ? history.slice(-keep) : []).flatMap((t): Message[] => [
+    { role: "user", content: t.question.slice(0, 500) },
+    { role: "assistant", content: t.answer.slice(0, 800) },
+  ]);
+  const messages: Message[] = [{ role: "system", content: system }, ...turns, { role: "user", content: prompt }];
 
   const models = [env.model, ...(env.fallbackModel && env.fallbackModel !== env.model ? [env.fallbackModel] : [])];
   for (const model of models) {
     try {
-      const r = await chat(deps, model, system, prompt);
+      const r = await chat(deps, model, messages);
       await data.recordAiUsage(user.id, day, r.tokensIn, r.tokensOut).catch((e) => console.error("[ask] usage", e));
       if (!r.text) return { outcome: "empty", model, tokensIn: r.tokensIn, tokensOut: r.tokensOut, content: "🤔 I couldn't come up with an answer to that. Try asking it a different way." };
       const room = DISCORD_LIMIT - FOOTER.length;
       const text = r.text.length > room ? `${r.text.slice(0, room - 1).trimEnd()}…` : r.text;
-      return { outcome: "answered", model, tokensIn: r.tokensIn, tokensOut: r.tokensOut, content: text + FOOTER };
+      return { outcome: "answered", model, tokensIn: r.tokensIn, tokensOut: r.tokensOut, content: text + FOOTER, answer: r.text };
     } catch (e) {
       if (e instanceof HttpError && e.status === 429) continue; // rate limited: try the fallback model, if any
       console.error("[ask]", e);
