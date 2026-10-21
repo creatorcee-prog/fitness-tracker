@@ -1,9 +1,16 @@
 /** Theme presets. Every key becomes a CSS variable (--key). Add presets freely. */
 export type ThemeVars = Record<string, string>;
 
-export const THEME_PRESETS: Record<string, { label: string; vars: ThemeVars }> = {
+/**
+ * "playful": floating round nav, pill buttons, big rounded cards.
+ * "pro": labelled tab bar, rectangular controls, tighter radius, quieter cards.
+ */
+export type UiStyle = "playful" | "pro";
+
+export const THEME_PRESETS: Record<string, { label: string; style: UiStyle; vars: ThemeVars }> = {
   midnight: {
     label: "Midnight Lime",
+    style: "playful",
     vars: {
       bg: "#131417", surface: "#1e2024", "surface-2": "#2a2d33", text: "#f3f4f6", muted: "#9a9fa9", border: "#2f3238",
       accent: "#d7f75b", "accent-text": "#15170f", highlight: "#4c62e8", "highlight-text": "#ffffff",
@@ -13,6 +20,7 @@ export const THEME_PRESETS: Record<string, { label: string; vars: ThemeVars }> =
   },
   fresh: {
     label: "Fresh (light, teal → violet)",
+    style: "playful",
     vars: {
       bg: "#f4f6f8", surface: "#ffffff", "surface-2": "#eef1f5", text: "#1b1f2a", muted: "#6b7280", border: "#e3e7ee",
       accent: "#14c8b8", "accent-text": "#ffffff", highlight: "#7b5cf0", "highlight-text": "#ffffff",
@@ -22,6 +30,7 @@ export const THEME_PRESETS: Record<string, { label: string; vars: ThemeVars }> =
   },
   graphite: {
     label: "Graphite (gradient rings)",
+    style: "playful",
     vars: {
       bg: "#1b1f27", surface: "#252a35", "surface-2": "#303643", text: "#e8ecf3", muted: "#8f98a8", border: "#363d4b",
       accent: "#38b6ff", "accent-text": "#0b1220", highlight: "#e0568f", "highlight-text": "#ffffff",
@@ -29,13 +38,24 @@ export const THEME_PRESETS: Record<string, { label: string; vars: ThemeVars }> =
       "bg-glow": "linear-gradient(180deg, #1b1f27, #141820)",
     },
   },
-  professional: {
-    label: "Professional (neutral)",
+  "pro-dark": {
+    label: "Pro Dark",
+    style: "pro",
     vars: {
-      bg: "#f7f7f8", surface: "#ffffff", "surface-2": "#f0f1f3", text: "#111827", muted: "#6b7280", border: "#e5e7eb",
-      accent: "#2563eb", "accent-text": "#ffffff", highlight: "#111827", "highlight-text": "#ffffff",
-      "ring-a": "#2563eb", "ring-b": "#2563eb", pr: "#d97706", good: "#059669", bad: "#dc2626",
-      "bg-glow": "none",
+      bg: "#0e1116", surface: "#151a21", "surface-2": "#1c222b", text: "#e6e9ef", muted: "#8b95a5", border: "#262d38",
+      accent: "#4f8cff", "accent-text": "#ffffff", highlight: "#1a2433", "highlight-text": "#e6e9ef",
+      "ring-a": "#4f8cff", "ring-b": "#4f8cff", pr: "#f0b429", good: "#3ecf8e", bad: "#f87171",
+      "bg-glow": "none", radius: "10px", font: '"Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+    },
+  },
+  professional: {
+    label: "Pro Light",
+    style: "pro",
+    vars: {
+      bg: "#f6f7f9", surface: "#ffffff", "surface-2": "#f1f3f6", text: "#111827", muted: "#6b7280", border: "#e3e6eb",
+      accent: "#2563eb", "accent-text": "#ffffff", highlight: "#eef3ff", "highlight-text": "#1e3a8a",
+      "ring-a": "#2563eb", "ring-b": "#2563eb", pr: "#f59e0b", good: "#047857", bad: "#dc2626",
+      "bg-glow": "none", radius: "10px", font: '"Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
     },
   },
 };

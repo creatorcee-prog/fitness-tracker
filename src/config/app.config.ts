@@ -139,6 +139,8 @@ export const defaultConfig = {
     preset: "midnight",
     /** Per-variable overrides, e.g. { "accent": "#ff00aa", "radius": "8px" }. */
     vars: {} as Record<string, string>,
+    /** Layout style: "auto" follows the preset; "playful" or "pro" forces one. */
+    style: "auto" as "auto" | "playful" | "pro",
   },
 
   /**

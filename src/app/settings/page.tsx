@@ -99,11 +99,21 @@ export default function SettingsPage() {
         <h2>Theme</h2>
         <div className="row">
           {Object.entries(THEME_PRESETS).map(([id, t]) => (
-            <button key={id} className={`btn sm ${cfg.theme.preset === id ? "active" : ""}`} onClick={() => patch({ theme: { preset: id, vars: {} } }, `Theme: ${t.label}`)}>
+            <button key={id} className={`btn sm ${cfg.theme.preset === id ? "active" : ""}`} onClick={() => patch({ theme: { preset: id, vars: {}, style: "auto" } }, `Theme: ${t.label}`)}>
               <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 6, background: t.vars.accent, marginRight: 6, verticalAlign: "middle", boxShadow: `6px 0 0 ${t.vars.highlight}` }} />
               {"  "}{t.label}
             </button>
           ))}
+        </div>
+        <div className="row">
+          <span className="muted small">Layout style</span>
+          <div className="segmented">
+            {(["auto", "playful", "pro"] as const).map((st) => (
+              <button key={st} className={cfg.theme.style === st ? "on" : ""} onClick={() => patch({ theme: { style: st } }, `Style: ${st}`)}>
+                {st === "auto" ? "Auto" : st === "playful" ? "Playful" : "Professional"}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="grid2">
           {colorKeys.map((k) => (
@@ -202,7 +212,7 @@ export default function SettingsPage() {
               }}
             />
           </label>
-          <button className="btn" onClick={async () => { try { const n = await generateDemoHistory(store, cfg, now()); toast.show({ text: `Generated ${n} demo sessions` }); refresh(); } catch (e) { toast.show({ text: String(e) }); } }}>Generate demo history</button>
+          <button className="btn" onClick={async () => { try { const n = await generateDemoHistory(store, cfg, now(), 12, profile.unit); toast.show({ text: `Generated ${n} demo sessions` }); refresh(); } catch (e) { toast.show({ text: String(e) }); } }}>Generate demo history</button>
           <button className="btn danger" onClick={async () => { const backup = await store.exportAll(); await store.resetAll(); toast.show({ text: "All data reset", undo: store.kind === "local" ? async () => { await store.importAll(backup); refresh(); } : undefined }); refresh(); }}>Reset all data</button>
           {store instanceof SupabaseStore && <button className="btn" onClick={async () => { await store.sb.auth.signOut(); location.reload(); }}>Sign out</button>}
         </div>
