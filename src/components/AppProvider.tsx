@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AppConfig } from "@/config/app.config";
 import { THEME_PRESETS, themeVars, type ColorMode } from "@/config/themes";
+import { sanitizeCss } from "@/lib/widgets/css";
 import { now as cfgNow, readLocalOverrides, resolveConfig, writeLocalOverrides } from "@/config/runtime";
 import type { Profile } from "@/lib/domain/types";
 import { createStore, supabaseOf, type Store } from "@/lib/store";
@@ -83,6 +84,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     for (const [k, v] of Object.entries(vars)) root.style.setProperty(`--${k}`, v);
     root.style.colorScheme = mode;
   }, [cfg, mode]);
+
+  // Your own CSS (Settings → Advanced), cleaned so it can't load anything from the internet.
+  useEffect(() => {
+    const css = cfg?.theme.customCss ?? "";
+    let el = document.getElementById("ft-user-css") as HTMLStyleElement | null;
+    if (!css.trim()) return void el?.remove();
+    if (!el) {
+      el = document.createElement("style");
+      el.id = "ft-user-css";
+      document.head.appendChild(el);
+    }
+    el.textContent = sanitizeCss(css);
+  }, [cfg?.theme.customCss]);
 
   const refresh = useCallback(() => setVersion((v) => v + 1), []);
 

@@ -371,3 +371,29 @@ label.row:has(> input[type="checkbox"]) { min-height: 44px; cursor: pointer; }
 .timer.done { animation: rest-done 0.9s ease-in-out 3; border-radius: var(--radius-sm); }
 @keyframes rest-done { 50% { background: color-mix(in srgb, var(--good) 28%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .timer.done { animation: none; background: color-mix(in srgb, var(--good) 22%, transparent); } }
+
+/* ------------------------------------------------------------------ editable Today (widgets) */
+.widget { position: relative; }
+.widgets.editing .widget { animation: wiggle 0.32s ease-in-out infinite alternate; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab; }
+.widgets.editing .widget.dragging { animation: none; opacity: 0.85; transform: scale(1.03); box-shadow: 0 16px 40px rgb(0 0 0 / 0.35); z-index: 2; cursor: grabbing; }
+@keyframes wiggle { from { transform: rotate(-0.7deg); } to { transform: rotate(0.7deg); } }
+/* Reduced motion: no wiggle; a dashed outline says "editing" instead. */
+@media (prefers-reduced-motion: reduce) { .widgets.editing .widget { animation: none; outline: 2px dashed var(--muted); outline-offset: 3px; } }
+.widget, .widget * { -webkit-touch-callout: none; }
+.widget-remove {
+  position: absolute; top: -10px; left: -10px; width: 30px; height: 30px; border-radius: 50%; border: 0; cursor: pointer;
+  background: var(--surface-2); color: var(--text); font-size: 1.3rem; font-weight: 800; line-height: 1; box-shadow: 0 2px 8px rgb(0 0 0 / 0.3); z-index: 3;
+}
+/* The visible badge is 30px; the tap area around it is 44px. */
+.widget-remove::before { content: ""; position: absolute; inset: -7px; }
+.widget-tools { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.widget-tools .btn.sm { padding: 4px 10px; }
+.widget-add { border: 2px dashed var(--border); background: transparent; color: var(--muted); font: inherit; font-weight: 650; cursor: pointer; min-height: 88px; place-items: center; }
+.sheet-backdrop { position: fixed; inset: 0; background: rgb(0 0 0 / 0.45); z-index: 60; display: flex; align-items: flex-end; justify-content: center; }
+.sheet { width: 100%; max-width: 640px; max-height: 88vh; overflow-y: auto; background: var(--surface); color: var(--text); border-radius: 22px 22px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); display: grid; gap: 10px; box-shadow: 0 -10px 40px rgb(0 0 0 / 0.3); animation: sheet-up 0.25s var(--ease); }
+@keyframes sheet-up { from { transform: translateY(24px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
+.sheet-item { display: grid; gap: 2px; text-align: left; padding: 12px 14px; min-height: 56px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font: inherit; cursor: pointer; }
+.code-input { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.82rem; line-height: 1.4; white-space: pre; overflow-x: auto; }
+/* The tile's content wrapper keeps the tile's own stacked layout. */
+.widget-body { display: grid; gap: 4px; align-content: start; min-width: 0; }
