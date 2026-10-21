@@ -102,6 +102,14 @@ export default function SettingsPage() {
         })()}
       </div>
 
+      <div className="card stack">
+        <h2>Logging</h2>
+        <label className="row small" style={{ alignItems: "flex-start" }}>
+          <input type="checkbox" checked={cfg.logging.guided} onChange={(e) => patch({ logging: { guided: e.target.checked } }, `Guided sets ${e.target.checked ? "on" : "off"}`)} />
+          <span><strong>Guided sets</strong><br /><span className="muted">Suggests your next weight (adds a little when you hit every rep last time), says why, and moves to the next exercise when one is done. Off: starts from last time&apos;s numbers and stays on the exercise you pick.</span></span>
+        </label>
+      </div>
+
       <NutritionTargetsCard />
 
       <RemindersCard />

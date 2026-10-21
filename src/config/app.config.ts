@@ -59,6 +59,12 @@ export const defaultConfig = {
   },
 
   logging: {
+    /**
+     * Guided sets: the logging bar suggests the next weight (auto-progression),
+     * explains why, and moves on to the next exercise when you finish one.
+     * Off = it starts from what you did last time and stays where you put it.
+     */
+    guided: false,
     /** Stepper step for weight, per display unit. Per-exercise `increment` wins when set. */
     weightStep: { lb: 5, kg: 2.5 } as Record<Unit, number>,
     repStep: 1,

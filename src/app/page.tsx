@@ -162,7 +162,9 @@ export default function TodayPage() {
   const prefill: Prefill | null = useMemo(() => {
     if (!focusId || !focusPlan) return null;
     const last = lastSessionSets(history.get(focusId) ?? [], session?.id ?? null);
-    const pf = prefillFor(focusWorkingCount, last, focusPlan.repRange, focusEx?.category ?? "other", unit, cfg, step);
+    // Not guided: no suggested jumps, just last time's numbers.
+    const pcfg = cfg.logging.guided ? cfg : { ...cfg, progression: { ...cfg.progression, enabled: false } };
+    const pf = prefillFor(focusWorkingCount, last, focusPlan.repRange, focusEx?.category ?? "other", unit, pcfg, step);
     // Within a session, repeat this session's previous set rather than last time's.
     const cur = sessionSets.get(focusId)?.filter((s) => !s.isWarmup) ?? [];
     if (pf && cur.length && pf.reason !== "progression") return { weightKg: cur[cur.length - 1].weightKg, reps: pf.reps, reason: pf.reason };
@@ -210,6 +212,7 @@ export default function TodayPage() {
   };
 
   const advanceFocusIfDone = (exerciseId: string, newWorkingCount: number) => {
+    if (!cfg.logging.guided) return;
     const p = plan.find((x) => x.exerciseId === exerciseId);
     if (!p || newWorkingCount < p.targetSets) return;
     const next = plan.find((x) => x.exerciseId !== exerciseId && (sessionSets.get(x.exerciseId)?.filter((s) => !s.isWarmup).length ?? 0) < x.targetSets);
@@ -437,7 +440,7 @@ export default function TodayPage() {
             {timer && <RestTimer timer={timer} onChange={setTimer} />}
             <div className="spread">
               <strong>{focusEx?.name} · {draft.isWarmup ? "warm-up" : `set ${focusWorkingCount + 1}`}</strong>
-              {cfg.features.progressionHints && prefill && (
+              {cfg.logging.guided && cfg.features.progressionHints && prefill && (
                 <span className="muted small">
                   {prefill.reason === "progression" ? `↑ +${cfg.progression.jump[unit][focusEx?.category ?? "other"]} ${unit}, all reps hit` : prefill.reason === "hold-missed" ? "Hold weight: missed reps last time" : prefill.reason === "last-time" ? "Same as last time" : "No history yet"}
                 </span>
