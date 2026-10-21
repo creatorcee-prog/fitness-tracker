@@ -6,7 +6,7 @@ import type { WidgetConfig } from "@/config/app.config";
 import { e1rm } from "@/lib/domain/e1rm";
 import { replayPRs } from "@/lib/domain/prs";
 import type { Today } from "@/lib/domain/split";
-import { finishedBetween, volumeKg, weekStart, weeklyStreak } from "@/lib/domain/stats";
+import { finishedBetween, volumeKg, weekStart, freezeRules, streakInfo } from "@/lib/domain/stats";
 import type { Exercise, FriendStatus, PREvent, Session, SetEntry } from "@/lib/domain/types";
 import { formatWeight } from "@/lib/domain/units";
 import { defaultConfig } from "@/config/app.config";
@@ -38,7 +38,7 @@ function tileStyle(w: WidgetConfig): { className: string; style?: React.CSSPrope
   return { className: "tile", style: { ...span, background: w.color, borderColor: "transparent" } };
 }
 
-export function Dashboard({ today, onFocusWorkout }: { today: Today | null; onFocusWorkout?: () => void }) {
+export function Dashboard({ today, onFocusWorkout, hide = [] }: { today: Today | null; onFocusWorkout?: () => void; hide?: WidgetConfig["id"][] }) {
   const { cfg, store, profile, version, now } = useApp();
   const [data, setData] = useState<Data | null>(null);
 
@@ -63,7 +63,7 @@ export function Dashboard({ today, onFocusWorkout }: { today: Today | null; onFo
   }, [store, cfg, version, now]);
 
   if (!cfg.dashboard.enabled) return null;
-  const widgets = withNewWidgets(cfg.dashboard.widgets).filter((w) => w.enabled);
+  const widgets = withNewWidgets(cfg.dashboard.widgets).filter((w) => w.enabled && !hide.includes(w.id));
   const t = now();
   const ws = weekStart(t, cfg.split.weekStartsOn);
   const target = cfg.dashboard.weeklyTarget;
@@ -103,13 +103,13 @@ export function Dashboard({ today, onFocusWorkout }: { today: Today | null; onFo
           </>
         );
       case "streak": {
-        const n = data ? weeklyStreak(data.sessions, t, cfg.split.weekStartsOn, target) : 0;
+        const st = data ? streakInfo(data.sessions, t, cfg.split.weekStartsOn, target, freezeRules(cfg)) : { weeks: 0, freezes: 0, frozen: 0 };
         return (
           <>
-            <span className="label">Streak</span>
-            <span className="value">{n}<small> wk</small></span>
+            <span className="label">Streak{st.freezes > 0 && <span title="A freeze covers one missed week so your streak doesn't reset."> · 🧊 {st.freezes}</span>}</span>
+            <span className="value">{st.weeks}<small> wk</small></span>
             <Bar v={done} of={target} />
-            <span className="foot">{done >= target ? "This week counts ✓" : `${target - done} more to keep it going`}</span>
+            <span className="foot">{done >= target ? "This week counts ✓" : st.freezes > 0 ? `${target - done} more · a freeze covers a missed week` : `${target - done} more to keep it going`}</span>
           </>
         );
       }

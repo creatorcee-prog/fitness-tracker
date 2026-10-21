@@ -142,6 +142,15 @@ Setup:
 - **Art:** `src/components/JamesSilhouette.tsx` is a placeholder silhouette with mood eyebrows. Swap in real art later with the same props. `public/james.png` (512×512) is the same art for the Discord bot avatar (Developer Portal → Bot → Icon).
 - **Setup:** run `supabase/migrations/0008_goals.sql`, then open `/api/discord?register=1` to register `/goal`.
 
+## Look, layout and habits
+
+- **Themes:** Ember is the default. Every theme has a **dark and a light version**: Settings → Look & feel → Appearance → Dark (default), Light or **Follow my phone**. `src/config/themes.test.ts` checks every theme in both modes for WCAG AA contrast (4.5:1 text, 3:1 status colors). Add a theme by giving it `vars`, its `mode` and an `alt` (the other mode); the test tells you if something is unreadable.
+- **Today:** on a training day (or mid-workout) the workout comes first and the widgets follow; rest days show widgets first (`dashboard.workoutFirst`). The chat button sits in Today's header, so nothing floats over the workout.
+- **Touch targets:** 44px minimum (48px weight/reps buttons), following Apple's HIG and WCAG 2.5.5.
+- **Settings** is grouped (You, Training, Look & feel, Reminders, Data) with a jump bar; debugging tools are under **Advanced**.
+- **Streak freezes:** one is earned every 4 weeks on target (up to 2 saved) and covers a missed week instead of resetting the streak (`streak.*`). Research on streaks found intact streaks motivate and broken ones make people quit, so repairs soften that.
+- **Rest timer:** sound and vibration switches in Settings → Training. iPhone web apps can't vibrate, so the timer also flashes.
+
 ## Bodyweight
 
 Progress → **Bodyweight**, or `/bodyweight 182` in Discord (`/bodyweight` alone shows the trend). One entry per day; logging again replaces it. The headline numbers are the **7-day average** and a fitted **rate per week** over the last 4 weeks, not today vs yesterday (single weigh-ins swing with water and food). **Strength ÷ bodyweight** shows each lift's best est. 1RM over the last 6 weeks divided by your latest weight. No migration needed (`bodyweight_entries` exists since 0001). After deploying, open `/api/discord?register=1` to add `/bodyweight` and `/help`.

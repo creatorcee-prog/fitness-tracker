@@ -9,7 +9,7 @@ import { platesPerSide } from "@/lib/domain/plates";
 import { prefillFor } from "@/lib/domain/progression";
 import { currentRecords, prsForSet, replayPRs } from "@/lib/domain/prs";
 import { localDate, nextPosition } from "@/lib/domain/split";
-import { finishedBetween, volumeKg, weekStart, weeklyStreak } from "@/lib/domain/stats";
+import { finishedBetween, volumeKg, weekStart, freezeRules, streakInfo, weeklyStreak } from "@/lib/domain/stats";
 import type { Exercise, PREvent, PRType, SetEntry, Split, SplitDay } from "@/lib/domain/types";
 import { formatWeight, fromKg, toKg } from "@/lib/domain/units";
 import { lastSessionSets, stepKg } from "@/lib/service";
@@ -398,8 +398,10 @@ async function streak(ctx: BotContext): Promise<BotReply> {
   const sessions = await ctx.data.listSessions(u.id);
   const target = ctx.cfg.dashboard.weeklyTarget;
   const thisWeek = finishedBetween(sessions, weekStart(ctx.now, ctx.cfg.split.weekStartsOn), new Date(ctx.now.getTime() + 1)).length;
-  const n = weeklyStreak(sessions, ctx.now, ctx.cfg.split.weekStartsOn, target);
-  return { content: `🔥 **${n} week${n === 1 ? "" : "s"}** in a row with ${target}+ sessions\nThis week: ${thisWeek}/${target}` };
+  const st = streakInfo(sessions, ctx.now, ctx.cfg.split.weekStartsOn, target, freezeRules(ctx.cfg));
+  const n = st.weeks;
+  const ice = st.freezes ? `\n🧊 ${st.freezes} streak freeze${st.freezes === 1 ? "" : "s"} saved: a missed week won't reset it.` : "";
+  return { content: `🔥 **${n} week${n === 1 ? "" : "s"}** in a row with ${target}+ sessions\nThis week: ${thisWeek}/${target}${ice}` };
 }
 
 async function friends(ctx: BotContext): Promise<BotReply> {

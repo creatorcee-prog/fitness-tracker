@@ -170,7 +170,9 @@ export const defaultConfig = {
 
   theme: {
     /** Key of THEME_PRESETS in src/config/themes.ts. */
-    preset: "midnight",
+    preset: "ember",
+    /** Dark, light, or follow the phone's setting ("system"). Every theme has both. */
+    appearance: "dark" as "dark" | "light" | "system",
     /** Per-variable overrides, e.g. { "accent": "#ff00aa", "radius": "8px" }. */
     vars: {} as Record<string, string>,
     /** Layout style: "auto" follows the preset; "playful" or "pro" forces one. */
@@ -185,7 +187,12 @@ export const defaultConfig = {
    */
   dashboard: {
     enabled: true,
-    /** The Mon–Sun strip at the top of Today, with a dot on days you trained. */
+    /**
+     * Where your workout sits on Today. "training-days": first on a training day or while a workout
+     * is open, after the widgets on rest days. "always" / "never" force it.
+     */
+    workoutFirst: "training-days" as "training-days" | "always" | "never",
+    /** The week strip at the top of Today, with a dot on days you trained. */
     weekStrip: true,
     widgets: [
       { id: "today", enabled: true, size: 2, color: "hero" },
@@ -206,6 +213,13 @@ export const defaultConfig = {
     /** Sets and reps for imported program lifts when the source doesn't say (shown in the preview; edit later on the Split page). */
     defaultSets: 3,
     defaultReps: "8-12",
+  },
+
+  streak: {
+    /** Earn a streak freeze every N weeks on target (0 = no freezes). A missed week uses one instead of resetting. */
+    freezeEveryWeeks: 4,
+    /** Most freezes saved at once. */
+    maxFreezes: 2,
   },
 
   reminders: {
