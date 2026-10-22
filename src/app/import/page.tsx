@@ -6,6 +6,7 @@ import { useApp } from "@/components/AppProvider";
 import { applyAction, describeAction } from "@/lib/ai/actions";
 import type { Exercise } from "@/lib/domain/types";
 import { buildImport, type ImportChoices } from "@/lib/import/build";
+import { rankLifts } from "@/lib/domain/synonyms";
 import { inferProgram } from "@/lib/import/infer";
 import { applyAnswer, questionsFor, type ImportQuestion } from "@/lib/import/questions";
 import { IMPORT_DRAFT_KEY, readAnything } from "@/lib/import/read";
@@ -86,7 +87,9 @@ export default function ImportPage() {
   const base = useMemo(() => (data ? data.program ?? inferProgram(data.sessions) : null), [data]);
   const questions = useMemo(() => (data ? questionsFor(data, base) : []), [data, base]);
   const program = useMemo(() => finalProgram(base, questions, answers, edits, removed), [base, questions, answers, edits, removed]);
-  const built = useMemo(() => (data ? buildImport(data, program, exercises, choices, cfg, uid) : null), [data, program, exercises, choices, cfg]);
+  /** "Same as" picks for lifts that didn't match: imported name (lowercase) → your lift. */
+  const [sameAs, setSameAs] = useState<Record<string, string>>({});
+  const built = useMemo(() => (data ? buildImport(data, program, exercises, choices, cfg, uid, sameAs) : null), [data, program, exercises, choices, cfg, sameAs]);
   const unanswered = questions.filter((q) => !answers[q.key]);
 
   const show = async (d: ImportedData, how: string | null) => {
@@ -97,6 +100,7 @@ export default function ImportPage() {
     setMemory(mem);
     setAnswers(mem.mine); // your earlier answers apply straight away (changeable)
     setEdits({});
+    setSameAs({});
     setRemoved(new Set());
     setData(d);
     setDone(null);
@@ -176,6 +180,9 @@ export default function ImportPage() {
         }
         parts.push(`${ok} goal${ok === 1 ? "" : "s"}`);
       }
+      // Teach synonyms: your "same as" picks, and names that are still new (for the owner's review).
+      for (const [name, id] of Object.entries(sameAs)) void store.voteAlias(name, id);
+      for (const l of built.preview.lifts) if (!l.existing) void store.recordNameMiss(l.name);
       // Remember the answers for next time (and, counted anonymously, as hints for others).
       if (Object.keys(answers).length) await store.rememberImportAnswers(answers);
       setDone(parts.join(" · ") || "Imported");
@@ -381,7 +388,23 @@ export default function ImportPage() {
                 {built.preview.lifts.map((l) => (
                   <li key={l.name}>
                     <span className="grow small">{l.name}{l.existing && l.existing.toLowerCase() !== l.name.toLowerCase() ? <span className="muted"> → {l.existing}</span> : null}</span>
-                    {l.existing ? <span className="muted small">yours</span> : <span className="badge">new</span>}
+                    {(!l.existing || sameAs[l.name.trim().toLowerCase()]) ? (
+                      <select
+                        className="small"
+                        aria-label={`What is ${l.name}?`}
+                        value={sameAs[l.name.trim().toLowerCase()] ?? ""}
+                        onChange={(e) => setSameAs((m) => {
+                          const k = l.name.trim().toLowerCase();
+                          const { [k]: _, ...rest } = m;
+                          return e.target.value ? { ...rest, [k]: e.target.value } : rest;
+                        })}
+                      >
+                        <option value="">New lift</option>
+                        <optgroup label="Same as…">
+                          {rankLifts(l.name, exercises, [], 8).map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+                        </optgroup>
+                      </select>
+                    ) : <span className="muted small">yours</span>}
                   </li>
                 ))}
               </ul>

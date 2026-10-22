@@ -3,6 +3,7 @@ import type { AppConfig, Unit } from "@/config/app.config";
 import { e1rm } from "@/lib/domain/e1rm";
 import type { Goal } from "@/lib/domain/goals";
 import type { Today } from "@/lib/domain/split";
+import { isLearnableAlias, normalizeAlias, toLearned, withLearnedAliases } from "@/lib/domain/synonyms";
 import type { Exercise, FriendStatus, PREvent, Session, SetEntry, Split } from "@/lib/domain/types";
 import { check, toExercise, toGoal, toSession, toSet, toSplit } from "@/lib/store/supabase";
 import type { NewSet } from "@/lib/store/types";
@@ -73,6 +74,9 @@ export interface BotData {
   /** Leaderboard (% gain) for this user and opted-in friends; null if they haven't opted in. */
   leaderboard(uid: string, now: Date): Promise<import("@/lib/domain/leaderboard").LeaderboardRow[] | null>;
   setLeaderboard(uid: string, on: boolean): Promise<void>;
+  /** Learning synonyms (see Store.voteAlias / recordNameMiss). */
+  voteAlias(uid: string, typed: string, exerciseId: string): Promise<void>;
+  recordNameMiss(name: string): Promise<void>;
   /** Log (or replace) a day's bodyweight (kg). */
   logBodyweight(uid: string, date: string, weightKg: number): Promise<void>;
   aiUsageToday(uid: string, date: string): Promise<{ user: number; global: number }>;
@@ -206,7 +210,21 @@ export class SupabaseBotData implements BotData {
   }
 
   async listExercises(uid: string) {
-    return check(await this.sb.from("exercises").select("*").or(`owner_id.is.null,owner_id.eq.${uid}`).order("name"), "listExercises").map(toExercise);
+    const [ex, learned] = await Promise.all([
+      this.sb.from("exercises").select("*").or(`owner_id.is.null,owner_id.eq.${uid}`).order("name"),
+      this.sb.rpc("learned_aliases_for", { p_user: uid }),
+    ]);
+    return withLearnedAliases(check(ex, "listExercises").map(toExercise), learned.error ? [] : toLearned(learned.data as Parameters<typeof toLearned>[0]));
+  }
+
+  async voteAlias(uid: string, typed: string, exerciseId: string) {
+    if (!isLearnableAlias(typed)) return;
+    const r = await this.sb.from("exercise_alias_votes").upsert({ user_id: uid, alias: normalizeAlias(typed), exercise_id: exerciseId, created_at: new Date().toISOString() });
+    if (r.error) console.warn("[voteAlias] needs migration 0016?", r.error.message);
+  }
+
+  async recordNameMiss(name: string) {
+    if (isLearnableAlias(name)) await this.sb.rpc("record_name_miss", { p_name: normalizeAlias(name) });
   }
 
   async getOpenSession(uid: string) {

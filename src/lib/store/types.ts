@@ -73,6 +73,15 @@ export interface Store {
   /** Your private label for a friend; null/empty clears it. */
   setNickname(friendId: string, nickname: string | null): Promise<void>;
 
+  /**
+   * Learning synonyms: "when I typed X I meant this lift". Used for you right
+   * away (listExercises includes it in the lift's aliases) and, for library
+   * lifts, for everyone once 3+ people agree.
+   */
+  voteAlias(typed: string, exerciseId: string): Promise<void>;
+  /** A name that matched nothing (counts only, for the owner's synonym review). */
+  recordNameMiss(name: string): Promise<void>;
+
   /** Friends leaderboard (% strength gain), opt-in: you and opted-in friends. */
   getLeaderboard(now: Date): Promise<{ optedIn: boolean; rows: LeaderboardRow[] }>;
   setLeaderboardOptIn(on: boolean): Promise<void>;

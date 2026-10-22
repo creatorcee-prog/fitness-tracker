@@ -120,6 +120,13 @@ describe("/log confirm flow", () => {
     await handleComponent(ctx(), pick.buttons![0].id);
     expect(data.sets.map((x) => x.exerciseId)).toEqual(["ex-incline-db", "ex-incline-db", "ex-incline-db"]);
   });
+  it("learns from the pick: the same name matches next time, and the miss is recorded", async () => {
+    const r = await run("log", { sets: "benchy 185 3x5" });
+    expect(data.misses).toEqual(["benchy"]);
+    await handleComponent(ctx(), r.select!.id, ["ex-incline-db"]);
+    expect(data.aliasVotes).toEqual({ benchy: "ex-incline-db" });
+    expect((await run("log", { sets: "benchy 185 3x5" })).content).toContain("**Incline Dumbbell Press**");
+  });
   it("kg suffix is respected for lb users", async () => {
     const r = await run("log", { sets: "bench 100kg 3x5" });
     expect(r.content).toContain("@ 220.5 lb");

@@ -19,6 +19,7 @@ import { prefillFor, type Prefill } from "@/lib/domain/progression";
 import { prsForSet, replayPRs } from "@/lib/domain/prs";
 import { parseShorthand } from "@/lib/domain/shorthand";
 import { spokenToShorthand } from "@/lib/domain/spoken";
+import { rankLifts } from "@/lib/domain/synonyms";
 import { VoiceLogButton } from "@/components/VoiceLogButton";
 import { weighInDue, type BodyweightEntry } from "@/lib/domain/bodyweight";
 import { localDate, nextPosition, type Today } from "@/lib/domain/split";
@@ -67,6 +68,7 @@ export default function TodayPage() {
   const [shorthand, setShorthand] = useState("");
   const [shorthandErr, setShorthandErr] = useState<string | null>(null);
   const [voiceHint, setVoiceHint] = useState<string | null>(null);
+  const [didYouMean, setDidYouMean] = useState<Exercise[]>([]);
   const [timer, setTimer] = useState<TimerState | null>(null);
   const [busy, setBusy] = useState(false);
   /** The logging bar shows only while you're logging: a workout is open, or you picked an exercise / tapped Start. */
@@ -307,13 +309,20 @@ export default function TodayPage() {
     await load();
   };
 
-  const submitShorthand = async () => {
+  /** `picked`: the lift chosen from "Did you mean…" after a name didn't match (teaches the synonym). */
+  const submitShorthand = async (picked?: Exercise) => {
     const parsed = parseShorthand(shorthand);
     if (!parsed) return setShorthandErr('Try "185x5x3", "185 5,5,4" or "185x5, 195x3"');
+    setDidYouMean([]);
     let exId = focusId;
     if (parsed.exercise) {
-      const match = matchExercise(parsed.exercise, [...exercises.values()], cfg.logging.aliases);
-      if (!match) return setShorthandErr(`No exercise matches "${parsed.exercise}"`);
+      const match = picked ?? matchExercise(parsed.exercise, [...exercises.values()], cfg.logging.aliases);
+      if (!match) {
+        void store.recordNameMiss(parsed.exercise);
+        setDidYouMean(rankLifts(parsed.exercise, [...exercises.values()], plan.map((p) => p.exerciseId), 3));
+        return setShorthandErr(`No lift called "${parsed.exercise}". Did you mean:`);
+      }
+      if (picked) void store.voteAlias(parsed.exercise, picked.id);
       exId = match.id;
       if (!plan.some((p) => p.exerciseId === exId)) setExtraExercises((x) => [...x, match.id]);
     }
@@ -543,6 +552,11 @@ export default function TodayPage() {
                 <input style={{ flex: 1 }} placeholder='Quick: 185x5x3 · 185 5,5,4 · bench 185x5' value={shorthand} onChange={(e) => setShorthand(e.target.value)} aria-label="Shorthand sets" />
                 <button className="btn" type="submit">Log</button>
                 {shorthandErr && <div className="small" style={{ color: "var(--bad)", width: "100%" }}>{shorthandErr}</div>}
+                {shorthandErr && didYouMean.length > 0 && (
+                  <div className="row" style={{ width: "100%" }}>
+                    {didYouMean.map((e) => <button key={e.id} type="button" className="btn sm" onClick={() => void submitShorthand(e)}>{e.name}</button>)}
+                  </div>
+                )}
                 {!shorthandErr && voiceHint && <div className="muted small" style={{ width: "100%" }}>{voiceHint}</div>}
               </form>
             )}

@@ -4,6 +4,7 @@ import type { AppConfig } from "@/config/app.config";
 import { e1rm } from "@/lib/domain/e1rm";
 import type { Goal } from "@/lib/domain/goals";
 import { replayPRs } from "@/lib/domain/prs";
+import { isLearnableAlias, normalizeAlias, toLearned, withLearnedAliases } from "@/lib/domain/synonyms";
 import type { Today } from "@/lib/domain/split";
 import { planImport, type ExportData } from "@/lib/importPlan";
 import type { AccountPrefs, Exercise, FriendProfile, FriendRequest, FriendStatus, NutritionEntry, NutritionTargets, PREvent, Reminder, Profile, ProfileMedia, Session, SetEntry, Split, SplitDay } from "@/lib/domain/types";
@@ -124,7 +125,9 @@ export class SupabaseStore implements Store {
   }
 
   async listExercises() {
-    return check(await this.sb.from("exercises").select("*").order("name"), "listExercises").map(toExercise);
+    const [ex, learned] = await Promise.all([this.sb.from("exercises").select("*").order("name"), this.sb.rpc("learned_aliases")]);
+    // Before migration 0016 the rpc doesn't exist: just no learned synonyms.
+    return withLearnedAliases(check(ex, "listExercises").map(toExercise), learned.error ? [] : toLearned(learned.data as Parameters<typeof toLearned>[0]));
   }
 
   async createExercise(e: Omit<Exercise, "id" | "ownerId">) {
@@ -406,6 +409,18 @@ export class SupabaseStore implements Store {
         avgGain: r.avg_gain == null ? null : Number(r.avg_gain), topLift: r.top_lift, topGain: r.top_gain == null ? null : Number(r.top_gain),
       })),
     };
+  }
+
+  async voteAlias(typed: string, exerciseId: string) {
+    if (!isLearnableAlias(typed)) return;
+    const user_id = await this.userId();
+    const r = await this.sb.from("exercise_alias_votes").upsert({ user_id, alias: normalizeAlias(typed), exercise_id: exerciseId, created_at: new Date().toISOString() });
+    if (r.error) console.warn("[voteAlias] needs migration 0016?", r.error.message);
+  }
+
+  async recordNameMiss(name: string) {
+    if (!isLearnableAlias(name)) return;
+    await this.sb.rpc("record_name_miss", { p_name: normalizeAlias(name) });
   }
 
   async setLeaderboardOptIn(on: boolean) {

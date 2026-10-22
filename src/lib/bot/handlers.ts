@@ -2,6 +2,7 @@ import type { AppConfig, Unit } from "@/config/app.config";
 import { percentageGains } from "@/lib/domain/gain";
 import { FREETEXT_HELP, parseFreeText } from "@/lib/domain/freetext";
 import { bodyweightTrend } from "@/lib/domain/bodyweight";
+import { isLearnableAlias, normalizeAlias, rankLifts } from "@/lib/domain/synonyms";
 import { goalProgress } from "@/lib/domain/goals";
 import { describeGoal, outlookText, progressText } from "@/lib/domain/goalText";
 import { matchExercise } from "@/lib/domain/match";
@@ -218,25 +219,12 @@ Save ${entries.length === 1 ? "this set" : `these ${entries.length} sets`}?`,
   };
 }
 
-/** Best guesses first, so the menu usually has the right lift near the top (max 25 options). */
-function rankLifts(query: string | null, exercises: Exercise[], preferIds: string[] = []): Exercise[] {
-  const q = (query ?? "").toLowerCase();
-  const words = q.split(/\s+/).filter(Boolean);
-  const score = (e: Exercise) => {
-    const n = e.name.toLowerCase();
-    let sc = preferIds.includes(e.id) ? 5 : 0;
-    if (q && n.startsWith(q)) sc += 40;
-    if (q && n.includes(q)) sc += 20;
-    sc += words.filter((w) => n.includes(w)).length * 10;
-    if (q && n.split(/\s+/).some((w) => w[0] === q[0])) sc += 2;
-    return sc;
-  };
-  return [...exercises].sort((a, b) => score(b) - score(a) || a.name.localeCompare(b.name)).slice(0, 25);
-}
-
 function pickReply(entries: Entry[], unit: Unit, options: Exercise[], typed: string | null): BotReply {
-  const id = `lp:${encodeEntries(entries)}`;
-  if (id.length > 100) return { content: "That's a lot of different sets for one message. Log them in two goes." };
+  const base = `lp:${encodeEntries(entries)}`;
+  if (base.length > 100) return { content: "That's a lot of different sets for one message. Log them in two goes." };
+  // Carry what they typed (if it fits Discord's 100-character id) so the pick teaches a synonym.
+  const t = typed && isLearnableAlias(typed) ? normalizeAlias(typed).replace(/:/g, " ") : "";
+  const id = t && base.length + 1 + t.length <= 100 ? `${base}:${t}` : base;
   return {
     content: `${typed ? `I don't have a lift called **${typed}**.` : "Which lift?"} Pick one for ${describeEntries(entries, unit)}:`,
     select: { id, placeholder: "Choose a lift", options: options.map((e) => ({ label: e.name, value: e.id, description: e.category })) },
@@ -262,7 +250,9 @@ async function log(ctx: BotContext, text: string): Promise<BotReply> {
 
   if (parsed.exercise) {
     const ex = matchExercise(parsed.exercise, exercises, ctx.cfg.logging.aliases);
-    return ex ? confirmReply(ex, entries, u.unit) : pickReply(entries, u.unit, rankLifts(parsed.exercise, exercises), parsed.exercise);
+    if (ex) return confirmReply(ex, entries, u.unit);
+    void ctx.data.recordNameMiss(parsed.exercise).catch(() => {});
+    return pickReply(entries, u.unit, rankLifts(parsed.exercise, exercises), parsed.exercise);
   }
   // No name: default to the lift logged last in this workout, else ask (today's plan first).
   const open = await ctx.data.getOpenSession(u.id);
@@ -283,6 +273,8 @@ async function confirmOrPick(ctx: BotContext, customId: string, values: string[]
     const ex = exercises.find((e) => e.id === values[0]);
     const entries = decodeEntries(parts[1] ?? "");
     if (!ex || !entries.length) return { content: "That choice expired. Run `/log` again." };
+    // "I typed X and meant this": remembered for them, and counts toward a shared synonym.
+    if (parts[2]) await ctx.data.voteAlias(u.id, parts[2], ex.id);
     return confirmReply(ex, entries, u.unit);
   }
   const ex = exercises.find((e) => e.id === parts[1]);

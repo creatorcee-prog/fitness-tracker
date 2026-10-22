@@ -377,6 +377,14 @@ export class SyncStore implements Store {
   getShareStatus() {
     return this.online_(() => this.remote.getShareStatus());
   }
+  voteAlias(typed: string, exerciseId: string) {
+    // Mirror it locally too, so it works offline and right away.
+    void this.mirror?.voteAlias(typed, exerciseId);
+    return this.remote.voteAlias(typed, exerciseId).catch(() => {});
+  }
+  recordNameMiss(name: string) {
+    return this.remote.recordNameMiss(name).catch(() => {});
+  }
   getLeaderboard(now: Date) {
     return this.online_(() => this.remote.getLeaderboard(now));
   }
