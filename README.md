@@ -136,6 +136,17 @@ Setup:
 - **No chat history in Discord:** each `/ask` stands alone. Slash commands don't see earlier messages, and the bot doesn't read channel messages (no Message Content intent). Check the current limits at https://console.groq.com/docs/rate-limits; they change.
 - **Privacy:** `/privacy`, linked from Settings, explains what is sent to Groq.
 
+## Bot hub link
+
+James also works inside the bot hub (`creatorcee-prog/dashboard-app`): its dashboard shows his training summary and can chat with him. One account only, normally yours.
+
+- **`GET /api/hub`**: the training summary James reads before answering (the same server-built facts as `/ask`, about 600 tokens), for the hub's Fitness card.
+- **`POST /api/hub`** `{question, history}`: ask James. Same prompt, caps and usage tracking as the in-app chat. Proposed changes can't be applied from the hub, so it only gets a count and points you to the app.
+- **Auth:** `Authorization: Bearer <HUB_SECRET>`. Off (503) until both settings below are set.
+- **Setup:**
+  1. In Vercel, add `HUB_SECRET` (Secret, any long random string) and `HUB_USER_ID` (your Account ID from Settings → Sign-in methods), then redeploy.
+  2. In the hub's Vercel project, set `GARAGE_GYM_URL` to this app's URL and `GARAGE_GYM_SECRET` to the same `HUB_SECRET`.
+
 ## Goals and James (the mascot)
 
 - **Goals** (Progress → Goals, plus a Today widget): est. 1RM for a lift, reps at a weight, or sessions per week. Progress is computed from your logged sets each time, never stored. Lift 1RM goals get a projected date from a straight-line fit of your weekly best e1RM over the last 8 weeks (`src/lib/domain/goals.ts`). It's an estimate and says so. `/goal` in Discord shows the same thing.
