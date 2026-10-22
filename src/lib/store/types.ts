@@ -82,6 +82,11 @@ export interface Store {
   /** A name that matched nothing (counts only, for the owner's synonym review). */
   recordNameMiss(name: string): Promise<void>;
 
+  /** Opened someone's invite link: credits them if this account is brand new. */
+  claimInvite(code: string): Promise<boolean>;
+  /** How many people each account brought in (yourself and accepted friends only). */
+  recruitCounts(ids: string[]): Promise<Record<string, number>>;
+
   /** Friends leaderboard (% strength gain), opt-in: you and opted-in friends. */
   getLeaderboard(now: Date): Promise<{ optedIn: boolean; rows: LeaderboardRow[] }>;
   setLeaderboardOptIn(on: boolean): Promise<void>;

@@ -385,6 +385,12 @@ export class SyncStore implements Store {
   recordNameMiss(name: string) {
     return this.remote.recordNameMiss(name).catch(() => {});
   }
+  claimInvite(code: string) {
+    return this.remote.claimInvite(code).catch(() => false);
+  }
+  recruitCounts(ids: string[]) {
+    return this.remote.recruitCounts(ids).catch(() => ({}) as Record<string, number>);
+  }
   getLeaderboard(now: Date) {
     return this.online_(() => this.remote.getLeaderboard(now));
   }

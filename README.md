@@ -191,6 +191,16 @@ Progress → **Bodyweight**, or `/bodyweight 182` in Discord (`/bodyweight` alon
 - **Leaderboard** (Friends page, `/leaderboard view|join|leave`): you and friends who **opted in**, ranked by average % gain in best e1RM per lift, last 4 weeks vs 2–3 months ago (Epley, 1–10 reps, no warm-ups). Percent rather than pounds so beginners and veterans compete on progress. Only the % and top lift name are shared. Needs `supabase/migrations/0015_leaderboard.sql`.
 - **Voice log**: the 🎤 in the logging bar uses the browser's speech recognition. Say "185 for 5", "3 sets of 8 at 135" or "bench one eighty five by five"; it's turned into shorthand in the quick box and **nothing is saved until you tap Log**. Hidden where unsupported (Firefox). Safari/Chrome may send the audio to Apple/Google to transcribe. `features.voiceLog` to turn off.
 
+## Synonyms, weather and invites
+
+- **Typos:** "bench pres", "romanian dedlift" still find the lift (1 typo for 4–7 letters, 2 for longer; a tie means no guess). Import only accepts typos in names of 6+ letters.
+- **Learning from corrections:** picking a lift after a name didn't match (Discord `/log` menu, "Did you mean" in the quick box) or **Same as…** in the Import preview. Yours work for you immediately; a library lift's synonym works for everyone once **3+ people** agree.
+- **Owner review** at `/dev/synonyms` (accounts in `AI_DEV_USER_IDS`): corrections with how many agree, names that matched nothing (counts only, no user ids), approved list. **Ask the AI** suggests matches or new synonyms; each is validated and only goes live when you approve. Rejecting also switches off a 3+ people synonym.
+- **Weather nudges** (Settings → Reminders, opt-in): pick a place (your location, rounded to ~1 km, or a city search). James names the best run/walk window left today in the Discord check-in and on Today in the morning; on skipped days only good weather is sent. Data: [Open-Meteo](https://open-meteo.com/) (free for non-commercial use, CC BY 4.0, credited in the app).
+- **Invites:** James suggests sharing your invite link at most every 30 days, only if you've finished 3+ workouts in 14 days and have ≤2 friends (`invites.*`), and it can be switched off. It's a rule in the app: no person or AI looks at the friend graph. A brand-new account (≤7 days) that opens your link counts as yours: 📣 Recruiter (1), 🤝 Crew Builder (3), 🏅 Gym Ambassador (5), shown to friends. Opening an invite link before signing in now brings you back to it afterwards.
+
+Needs `supabase/migrations/0016_synonyms_weather_invites.sql`.
+
 ## Import
 
 Settings → **Import** (`/import`), or **Import these** when you paste workout notes into the chat. One box takes anything: notes, a plan, cells copied from Google Sheets/Excel/Numbers (tab-separated), Strong/Hevy exports, or a CSV.

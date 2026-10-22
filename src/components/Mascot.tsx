@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { fill, MOOD, pickLine, PRIORITY, type MascotEvent, type Mood } from "@/lib/mascot/lines";
 import { useApp } from "./AppProvider";
 
@@ -9,12 +10,14 @@ interface Said {
   text: string;
   mood: Mood;
   at: number;
+  /** Optional button under the line, e.g. "Invite a friend" → /friends#invite. */
+  action?: { label: string; href: string };
 }
 
 interface MascotCtx {
   current: Said | null;
   /** Ask James to say something. A lower-priority event won't interrupt a recent higher one (one line per screen). */
-  say: (event: MascotEvent, vars?: Record<string, string | number | undefined>) => void;
+  say: (event: MascotEvent, vars?: Record<string, string | number | undefined>, action?: Said["action"]) => void;
   dismiss: () => void;
 }
 
@@ -32,7 +35,7 @@ export function MascotProvider({ children }: { children: ReactNode }) {
   currentRef.current = current;
 
   const say = useCallback(
-    (event: MascotEvent, vars: Record<string, string | number | undefined> = {}) => {
+    (event: MascotEvent, vars: Record<string, string | number | undefined> = {}, action?: Said["action"]) => {
       if (!cfg.mascot.enabled) return;
       const cur = currentRef.current;
       // Keep an important line (PR, goal) on screen for a while instead of replacing it with small talk.
@@ -51,7 +54,7 @@ export function MascotProvider({ children }: { children: ReactNode }) {
       }
       // "You" is the default display name; "That's a record, You." reads wrong, so fall back to "friend".
       const name = profile.displayName && profile.displayName !== "You" ? profile.displayName : undefined;
-      setCurrent({ event, mood: MOOD[event], at: Date.now(), text: fill(line.text, { name, ...vars }) });
+      setCurrent({ event, mood: MOOD[event], at: Date.now(), text: fill(line.text, { name, ...vars }), action });
     },
     [cfg.mascot.enabled, cfg.mascot.holdMs, profile.displayName],
   );
@@ -87,6 +90,11 @@ export function MascotBubble() {
       <div className="mascot-bubble">
         <span aria-hidden>{tw.visible}</span>
         {!tw.done && <span className="mascot-caret" aria-hidden />}
+        {tw.done && current.action && (
+          <div style={{ marginTop: 8 }}>
+            <Link className="btn sm primary" href={current.action.href} onClick={(e) => { e.stopPropagation(); dismiss(); }}>{current.action.label}</Link>
+          </div>
+        )}
       </div>
       <button className="btn sm ghost mascot-close" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); dismiss(); }}>✕</button>
     </div>

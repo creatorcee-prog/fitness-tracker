@@ -106,7 +106,7 @@ export default function FriendsPage() {
 
       <LeaderboardCard />
 
-      <div className="card stack">
+      <div className="card stack" id="invite">
         <h2>Add a friend</h2>
         <p className="muted small">Have a friend scan this with their phone camera, or share the link. You'll still accept their request.</p>
         <FriendQr code={myCode} />

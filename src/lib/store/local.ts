@@ -417,6 +417,14 @@ export class LocalStore implements Store {
     // Local mode has no app owner to review misses.
   }
 
+  async claimInvite() {
+    return false; // no other accounts in local mode
+  }
+
+  async recruitCounts(ids: string[]) {
+    return Object.fromEntries(ids.map((id) => [id, 0]));
+  }
+
   async setLeaderboardOptIn(on: boolean) {
     this.mutate("setLeaderboardOptIn", (db) => (db.leaderboard = on));
   }

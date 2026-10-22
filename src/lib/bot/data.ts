@@ -5,7 +5,7 @@ import type { Goal } from "@/lib/domain/goals";
 import type { Today } from "@/lib/domain/split";
 import { isLearnableAlias, normalizeAlias, toLearned, withLearnedAliases } from "@/lib/domain/synonyms";
 import type { Exercise, FriendStatus, PREvent, Session, SetEntry, Split } from "@/lib/domain/types";
-import { check, toExercise, toGoal, toSession, toSet, toSplit } from "@/lib/store/supabase";
+import { check, weatherFromRow, toExercise, toGoal, toSession, toSet, toSplit } from "@/lib/store/supabase";
 import type { NewSet } from "@/lib/store/types";
 
 export interface BotUser {
@@ -20,6 +20,8 @@ export interface BotUser {
   discordId: string | null;
   /** First sign-in setup answers, for James (absent before migration 0013). */
   about?: import("@/lib/domain/about").About;
+  /** Weather nudges (absent before migration 0016). */
+  weather?: import("@/lib/domain/weather").WeatherPrefs;
 }
 
 /** Goals as stored (see src/lib/domain/goals.ts). */
@@ -92,6 +94,7 @@ const toBotUser = (r: Row): BotUser => ({
   id: r.id, displayName: r.display_name, unit: r.unit, timezone: r.timezone,
   announceChannelId: r.announce_channel_id ?? null, announcePrs: !!r.announce_prs, discordId: r.discord_id ?? null,
   about: { style: r.training_style ?? null, frequency: r.training_frequency ?? null, experience: r.experience ?? null, heightCm: r.height_cm == null ? null : Number(r.height_cm) },
+  weather: weatherFromRow(r),
 });
 
 export function serviceClient(): SupabaseClient {

@@ -11,6 +11,10 @@ export interface Profile {
   about?: import("./about").About;
   /** When the first sign-in setup was finished or skipped (null = not yet). */
   onboardedAt?: string | null;
+  /** Weather nudges for runs and walks (opt-in; see domain/weather.ts). */
+  weather?: import("./weather").WeatherPrefs;
+  /** Invite nudges from James (see domain/invites.ts) and how many people you brought in. */
+  invites?: { nudges: boolean; nudgedAt: string | null; recruits: number };
 }
 
 export interface Exercise {

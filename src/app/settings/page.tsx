@@ -14,6 +14,8 @@ import { NutritionTargetsCard } from "@/components/NutritionTargetsCard";
 import { RemindersCard } from "@/components/RemindersCard";
 import { SignInMethodsCard } from "@/components/SignInMethodsCard";
 import { AboutCard } from "@/components/AboutCard";
+import { WeatherCard } from "@/components/WeatherCard";
+import { InviteNudgeCard } from "@/components/InviteNudgeCard";
 import { useToast } from "@/components/UndoToast";
 import { generateDemoHistory } from "@/lib/service";
 import { supabaseOf } from "@/lib/store";
@@ -264,6 +266,8 @@ export default function SettingsPage() {
       <h2 className="settings-group" id="alerts">Reminders</h2>
 
       <RemindersCard />
+      <WeatherCard />
+      <InviteNudgeCard />
 
       <h2 className="settings-group" id="data">Data</h2>
 
