@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
+import { recruiterBadge } from "@/lib/domain/invites";
 import { useApp } from "@/components/AppProvider";
 import { Avatar } from "@/components/Avatar";
 import { useToast } from "@/components/UndoToast";
@@ -24,6 +25,7 @@ function Profile() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [nick, setNick] = useState("");
+  const [recruits, setRecruits] = useState(0);
 
   const load = useCallback(async () => {
     try {
@@ -39,6 +41,10 @@ function Profile() {
   useEffect(() => {
     void load();
   }, [load]);
+  useEffect(() => {
+    void store.recruitCounts([id]).then((r) => setRecruits(r[id] ?? 0)).catch(() => {});
+  }, [store, id]);
+  const badge = recruiterBadge(recruits);
 
   const w = (kg: number) => formatWeight(kg, me.unit, 0);
 
@@ -60,6 +66,7 @@ function Profile() {
         <Avatar id={p.id} name={name} size={64} src={p.avatar} />
         <div style={{ minWidth: 0 }}>
           <h1 style={{ fontSize: "1.7rem" }}>{name}</h1>
+          {badge && <span className="pill" title={`Brought ${recruits} ${recruits === 1 ? "person" : "people"} to ${cfg.brand.appName}`}>{badge.emoji} {badge.label}</span>}
           <div className="muted small">{p.nickname ? `${p.displayName} · ` : ""}{p.shared && p.splitName ? p.splitName : p.shared ? "No active split" : "Keeps their training private"}</div>
         </div>
       </div>

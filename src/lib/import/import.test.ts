@@ -157,6 +157,10 @@ describe("buildImport", () => {
     expect(byName.Press).toBeNull(); // too vague to guess
     expect(byName["Moon squat"]).toBeNull();
     expect(guessCategory("Moon squat")).toBe("lower");
+    // "Same as" in the preview maps it to one of yours instead.
+    const squat = ex.find((e) => /squat/i.test(e.name))!;
+    const again = buildImport(data, null, ex, { history: true, program: false, activate: false, goals: false }, cfg, id, { "moon squat": squat.id });
+    expect(again.preview.lifts.find((l) => l.name === "Moon squat")?.existing).toBe(squat.name);
 
   });
   it("imports into the local store, merges, rebuilds PRs, and is safe to repeat", async () => {
@@ -167,7 +171,9 @@ describe("buildImport", () => {
     expect(await store.importAll(first.exportData)).toEqual({ sessions: 2, sets: 4, skipped: 0 });
     const splitsAfter = await store.listSplits();
     expect(splitsAfter.some((s) => s.name === "Imported split")).toBe(true);
-    expect((await store.listExercises()).some((e) => e.name === "Bench Press (Barbell)")).toBe(true);
+    // Strong's "Bench Press (Barbell)" is a library synonym, so it logs under Bench Press (no duplicate lift).
+    expect(first.preview.lifts.find((l) => l.name === "Bench Press (Barbell)")?.existing).toBe("Bench Press");
+    expect((await store.listExercises()).some((e) => e.name === "Bench Press (Barbell)")).toBe(false);
     const again = buildImport(data, null, await store.listExercises(), { ...choices, program: false }, cfg, id);
     expect(await store.importAll(again.exportData)).toEqual({ sessions: 0, sets: 0, skipped: 2 });
   });

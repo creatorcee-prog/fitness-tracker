@@ -4,6 +4,7 @@ import type { Goal } from "@/lib/domain/goals";
 import { advance, getToday, type Today } from "@/lib/domain/split";
 import type { AccountPrefs, Exercise, FriendProfile, FriendRequest, FriendStatus, NutritionEntry, NutritionTargets, PREvent, Reminder, Profile, ProfileMedia, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
 import { leaderboardRow } from "@/lib/domain/leaderboard";
+import { isLearnableAlias, normalizeAlias, withLearnedAliases } from "@/lib/domain/synonyms";
 import { replayPRs } from "@/lib/domain/prs";
 import { planImport, type ExportData } from "@/lib/importPlan";
 import { libraryExercises, seedSplit } from "./seed";
@@ -31,6 +32,8 @@ interface DB {
   bodyweight: BodyweightEntry[];
   importMemory: Record<string, string>;
   leaderboard: boolean;
+  /** Your synonym corrections: normalised typed name → exercise id. */
+  aliasVotes: Record<string, string>;
 }
 
 /** UUIDs everywhere so ids are valid in both backends. */
@@ -65,6 +68,7 @@ function freshDb(cfg: AppConfig): DB {
     bodyweight: [],
     importMemory: {},
     leaderboard: false,
+    aliasVotes: {},
   };
 }
 
@@ -142,7 +146,10 @@ export class LocalStore implements Store {
   }
 
   async listExercises() {
-    return this.read("listExercises", (db) => [...db.exercises].sort((a, b) => a.name.localeCompare(b.name)));
+    return this.read("listExercises", (db) => {
+      const learned = Object.entries(db.aliasVotes).map(([alias, exerciseId]) => ({ alias, exerciseId, source: "you" as const }));
+      return withLearnedAliases([...db.exercises], learned).sort((a, b) => a.name.localeCompare(b.name));
+    });
   }
 
   async createExercise(e: Omit<Exercise, "id" | "ownerId">) {
@@ -399,6 +406,23 @@ export class LocalStore implements Store {
     const name = (id: string) => this.db.exercises.find((e) => e.id === id)?.name ?? "?";
     const rows = this.db.leaderboard ? [leaderboardRow({ id: this.db.profile.id, name: this.db.profile.displayName, isYou: true }, this.db.sets, name, now)] : [];
     return { optedIn: this.db.leaderboard, rows };
+  }
+
+  async voteAlias(typed: string, exerciseId: string) {
+    if (!isLearnableAlias(typed)) return;
+    this.mutate("voteAlias", (db) => (db.aliasVotes = { ...db.aliasVotes, [normalizeAlias(typed)]: exerciseId }));
+  }
+
+  async recordNameMiss() {
+    // Local mode has no app owner to review misses.
+  }
+
+  async claimInvite() {
+    return false; // no other accounts in local mode
+  }
+
+  async recruitCounts(ids: string[]) {
+    return Object.fromEntries(ids.map((id) => [id, 0]));
   }
 
   async setLeaderboardOptIn(on: boolean) {

@@ -248,6 +248,16 @@ export const defaultConfig = {
     weighInActiveDays: 14,
   },
 
+  invites: {
+    /** James asks you to share your invite link at most this often (and you can switch it off). */
+    everyDays: 30,
+    /** …only if you've finished this many workouts in the last `withinDays`… */
+    minSessions: 3,
+    withinDays: 14,
+    /** …and have at most this many friends on the app. */
+    maxFriends: 2,
+  },
+
   nutrition: {
     /** Used until you set your own target in Settings. */
     defaultCalorieTarget: 2500,

@@ -4,6 +4,8 @@ import type { AppConfig } from "@/config/app.config";
 import { e1rm } from "@/lib/domain/e1rm";
 import type { Goal } from "@/lib/domain/goals";
 import { replayPRs } from "@/lib/domain/prs";
+import type { WeatherPrefs } from "@/lib/domain/weather";
+import { isLearnableAlias, normalizeAlias, toLearned, withLearnedAliases } from "@/lib/domain/synonyms";
 import type { Today } from "@/lib/domain/split";
 import { planImport, type ExportData } from "@/lib/importPlan";
 import type { AccountPrefs, Exercise, FriendProfile, FriendRequest, FriendStatus, NutritionEntry, NutritionTargets, PREvent, Reminder, Profile, ProfileMedia, Session, SetEntry, Split, SplitDay } from "@/lib/domain/types";
@@ -20,6 +22,12 @@ export function supabaseBrowserClient(): SupabaseClient {
 }
 
 /** Throws on error. Data may still be null for maybeSingle(); callers that use it check. */
+/** Weather columns (migration 0016); absent before it. */
+export function weatherFromRow(r: Row): WeatherPrefs | undefined {
+  if (!("weather_on" in r)) return undefined;
+  return { on: !!r.weather_on, lat: r.weather_lat == null ? null : Number(r.weather_lat), lon: r.weather_lon == null ? null : Number(r.weather_lon), place: r.weather_place ?? null };
+}
+
 export function check<T>(res: { data: T; error: { message: string } | null }, op: string): NonNullable<T> {
   if (res.error) throw new Error(`[store:supabase] ${op}: ${res.error.message}`);
   return res.data as NonNullable<T>;
@@ -83,7 +91,14 @@ export class SupabaseStore implements Store {
       about: { style: r.training_style ?? null, frequency: r.training_frequency ?? null, experience: r.experience ?? null, heightCm: r.height_cm == null ? null : Number(r.height_cm) },
       // Before migration 0013 the column doesn't exist: treat as onboarded so nobody gets stuck in setup.
       onboardedAt: "onboarded_at" in r ? r.onboarded_at : "pre-0013",
+      weather: weatherFromRow(r),
+      invites: "invite_nudges" in r ? { nudges: !!r.invite_nudges, nudgedAt: r.invite_nudged_at ?? null, recruits: await this.recruits(id) } : undefined,
     };
+  }
+
+  private async recruits(id: string): Promise<number> {
+    const r = await this.sb.rpc("recruit_counts", { p_ids: [id] });
+    return r.error ? 0 : Number((r.data as Row[])[0]?.recruits ?? 0);
   }
 
   async updateProfile(patch: Partial<Omit<Profile, "id">>) {
@@ -95,10 +110,12 @@ export class SupabaseStore implements Store {
     const extra: Row = {};
     if (patch.about) Object.assign(extra, { training_style: patch.about.style, training_frequency: patch.about.frequency, experience: patch.about.experience, height_cm: patch.about.heightCm });
     if (patch.onboardedAt !== undefined) extra.onboarded_at = patch.onboardedAt;
+    if (patch.weather) Object.assign(extra, { weather_on: patch.weather.on, weather_lat: patch.weather.lat, weather_lon: patch.weather.lon, weather_place: patch.weather.place });
+    if (patch.invites) Object.assign(extra, { invite_nudges: patch.invites.nudges, invite_nudged_at: patch.invites.nudgedAt });
     const r = await this.sb.from("users").update({ ...row, ...extra }).eq("id", id);
     // Setup columns (migration 0013) missing: save the rest rather than fail.
     if (r.error && Object.keys(extra).length && /column|schema cache/i.test(r.error.message)) {
-      console.warn("[profile] run migration 0013 to save setup answers:", r.error.message);
+      console.warn("[profile] run migrations 0013/0016 to save these settings:", r.error.message);
       if (Object.keys(row).length) check(await this.sb.from("users").update(row).eq("id", id), "updateProfile");
     } else check(r, "updateProfile");
     return this.getProfile();
@@ -124,7 +141,9 @@ export class SupabaseStore implements Store {
   }
 
   async listExercises() {
-    return check(await this.sb.from("exercises").select("*").order("name"), "listExercises").map(toExercise);
+    const [ex, learned] = await Promise.all([this.sb.from("exercises").select("*").order("name"), this.sb.rpc("learned_aliases")]);
+    // Before migration 0016 the rpc doesn't exist: just no learned synonyms.
+    return withLearnedAliases(check(ex, "listExercises").map(toExercise), learned.error ? [] : toLearned(learned.data as Parameters<typeof toLearned>[0]));
   }
 
   async createExercise(e: Omit<Exercise, "id" | "ownerId">) {
@@ -406,6 +425,28 @@ export class SupabaseStore implements Store {
         avgGain: r.avg_gain == null ? null : Number(r.avg_gain), topLift: r.top_lift, topGain: r.top_gain == null ? null : Number(r.top_gain),
       })),
     };
+  }
+
+  async voteAlias(typed: string, exerciseId: string) {
+    if (!isLearnableAlias(typed)) return;
+    const user_id = await this.userId();
+    const r = await this.sb.from("exercise_alias_votes").upsert({ user_id, alias: normalizeAlias(typed), exercise_id: exerciseId, created_at: new Date().toISOString() });
+    if (r.error) console.warn("[voteAlias] needs migration 0016?", r.error.message);
+  }
+
+  async recordNameMiss(name: string) {
+    if (!isLearnableAlias(name)) return;
+    await this.sb.rpc("record_name_miss", { p_name: normalizeAlias(name) });
+  }
+
+  async claimInvite(code: string) {
+    const r = await this.sb.rpc("claim_invite", { p_code: code });
+    return !r.error && r.data === true;
+  }
+
+  async recruitCounts(ids: string[]) {
+    const r = await this.sb.rpc("recruit_counts", { p_ids: ids });
+    return Object.fromEntries(((r.data as Row[] | null) ?? []).map((x) => [x.user_id, Number(x.recruits)]));
   }
 
   async setLeaderboardOptIn(on: boolean) {

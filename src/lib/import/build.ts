@@ -1,5 +1,5 @@
 import type { AppConfig, Category } from "@/config/app.config";
-import { matchExercise } from "@/lib/domain/match";
+import { findExercise } from "@/lib/domain/match";
 import type { Exercise, Session, SetEntry, Split } from "@/lib/domain/types";
 import { toKg } from "@/lib/domain/units";
 import type { ExportData } from "@/lib/importPlan";
@@ -38,7 +38,11 @@ export interface ImportPreview {
  * rebuilt). Lifts are matched to yours by name (aliases, initials, prefix);
  * anything unmatched becomes a new lift with the name you wrote.
  */
-export function buildImport(data: ImportedData, program: ImportedProgram | null, existing: Exercise[], choices: ImportChoices, cfg: AppConfig, newId: () => string) {
+export function buildImport(
+  data: ImportedData, program: ImportedProgram | null, existing: Exercise[], choices: ImportChoices, cfg: AppConfig, newId: () => string,
+  /** "Same as" picks from the preview: lowercased imported name → one of your lift ids. */
+  sameAs: Record<string, string> = {},
+) {
   const exByKey = new Map<string, Exercise>();
   const newExercises: Exercise[] = [];
   const counts = new Map<string, number>();
@@ -46,14 +50,18 @@ export function buildImport(data: ImportedData, program: ImportedProgram | null,
     const key = name.trim().toLowerCase();
     const hit = exByKey.get(key);
     if (hit) return hit;
-    // Match to one of your lifts only when it's clearly the same one: exact name, an alias
-    // ("ohp"), initials ("bp"), or the start of the name ("bench" → "Bench Press").
-    // Anything looser ("press" → "Leg Press"?) becomes a new lift with the name as written.
-    const match = matchExercise(name, existing, cfg.logging.aliases) ?? matchExercise(name, newExercises);
-    const n = match?.name.toLowerCase() ?? "";
-    const initials = n.split(/[\s-]+/).map((w) => w[0]).join("");
-    const viaAlias = Object.keys(cfg.logging.aliases).some((k) => k.toLowerCase() === key);
-    const ok = !!match && (n === key || viaAlias || initials === key.replace(/\s+/g, "") || (key.length >= 4 && n.startsWith(key)));
+    const picked = sameAs[key] ? existing.find((e) => e.id === sameAs[key]) : undefined;
+    if (picked) {
+      exByKey.set(key, picked);
+      return picked;
+    }
+    // Match to one of your lifts only when it's clearly the same one: exact name, a synonym
+    // ("ohp"), initials ("bp"), the start of the name ("bench" → "Bench Press"), or a typo
+    // in a longer name ("romanian dedlift"). Anything looser ("press" → "Leg Press"?)
+    // becomes a new lift with the name as written.
+    const found = findExercise(name, existing, cfg.logging.aliases) ?? findExercise(name, newExercises);
+    const match = found?.item;
+    const ok = !!found && (["exact", "alias", "config", "initials"].includes(found.via) || (found.via === "prefix" && key.length >= 4) || (found.via === "typo" && key.length >= 6));
     const ex = ok ? match! : { id: newId(), name: name.trim(), category: guessCategory(name), equipment: null, incrementKg: null, ownerId: "import" };
     if (!ok) newExercises.push(ex);
     exByKey.set(key, ex);

@@ -6,6 +6,8 @@
 export type MascotEvent =
   | "first_visit"
   | "weigh_in"
+  | "weather"
+  | "invite"
   | "morning"
   | "afternoon"
   | "evening"
@@ -30,6 +32,8 @@ export interface Line {
 export const MOOD: Record<MascotEvent, Mood> = {
   first_visit: "happy",
   weigh_in: "neutral",
+  weather: "happy",
+  invite: "happy",
   morning: "neutral",
   afternoon: "neutral",
   evening: "neutral",
@@ -48,7 +52,7 @@ export const MOOD: Record<MascotEvent, Mood> = {
 /** Higher wins when two events want the bubble at once (one line per screen). */
 export const PRIORITY: Record<MascotEvent, number> = {
   first_visit: 1, morning: 1, afternoon: 1, evening: 1, rest_day: 1,
-  missed_days: 2, comeback: 3, session_start: 3, workout_done: 3, streak_milestone: 4, pr: 5, goal_hit: 6, welcome: 4, plateau: 2, weigh_in: 1,
+  missed_days: 2, comeback: 3, session_start: 3, workout_done: 3, streak_milestone: 4, pr: 5, goal_hit: 6, welcome: 4, plateau: 2, weigh_in: 1, weather: 1, invite: 1,
 };
 
 export const LINES: Record<MascotEvent, Line[]> = {
@@ -125,6 +129,15 @@ export const LINES: Record<MascotEvent, Line[]> = {
     { text: "Welcome back! Start a little lighter and build it up again." },
     { text: "There you are! Back under the bar where you belong." },
     { text: "The comeback starts with this set. Glad you're here." },
+  ],
+  weather: [
+    { text: "{weather}" },
+    { text: "Heads up, {name}! {weather}" },
+  ],
+  invite: [
+    { text: "You've been putting in the work, {name}! Training's more fun with company. Know someone who'd join you?" },
+    { text: "Strong week! Want a training buddy on here? Send them your invite link!" },
+    { text: "Friends keep each other showing up. Got someone to bring along?" },
   ],
   weigh_in: [
     { text: "Morning, {name}! Hop on the scale before breakfast and log it. Same time each day keeps the trend honest." },

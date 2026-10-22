@@ -19,8 +19,11 @@ import { prefillFor, type Prefill } from "@/lib/domain/progression";
 import { prsForSet, replayPRs } from "@/lib/domain/prs";
 import { parseShorthand } from "@/lib/domain/shorthand";
 import { spokenToShorthand } from "@/lib/domain/spoken";
+import { rankLifts } from "@/lib/domain/synonyms";
 import { VoiceLogButton } from "@/components/VoiceLogButton";
 import { weighInDue, type BodyweightEntry } from "@/lib/domain/bodyweight";
+import { outdoorToday, weatherLine } from "@/lib/domain/weather";
+import { shouldNudgeInvite } from "@/lib/domain/invites";
 import { localDate, nextPosition, type Today } from "@/lib/domain/split";
 import type { Exercise, PREvent, PRType, Session, SetEntry, Split, SplitDay } from "@/lib/domain/types";
 import { formatWeight, fromKg, roundTo, toKg } from "@/lib/domain/units";
@@ -45,7 +48,7 @@ interface Draft {
 }
 
 export default function TodayPage() {
-  const { cfg, store, profile, version, refresh, now } = useApp();
+  const { cfg, store, profile, setProfile, version, refresh, now } = useApp();
   const unit = profile.unit;
   const toast = useToast(cfg.logging.undoToastMs);
   const mascot = useMascot();
@@ -67,6 +70,7 @@ export default function TodayPage() {
   const [shorthand, setShorthand] = useState("");
   const [shorthandErr, setShorthandErr] = useState<string | null>(null);
   const [voiceHint, setVoiceHint] = useState<string | null>(null);
+  const [didYouMean, setDidYouMean] = useState<Exercise[]>([]);
   const [timer, setTimer] = useState<TimerState | null>(null);
   const [busy, setBusy] = useState(false);
   /** The logging bar shows only while you're logging: a workout is open, or you picked an exercise / tapped Start. */
@@ -142,8 +146,23 @@ export default function TodayPage() {
     } else if (t.getHours() < 12 && weighInDue(bodyweight, localDate(t, profile.timezone), cfg.reminders.weighInActiveDays) && !seen(`ft:mascot-weighin:${localDate(t, profile.timezone)}`)) {
       // Mornings, once a day, only for people who've been logging their weight.
       mascot.say("weigh_in");
-    } else if (today.kind === "rest") mascot.say("rest_day");
-    else mascot.say(t.getHours() < 12 ? "morning" : t.getHours() < 18 ? "afternoon" : "evening", { day: dayName });
+    } else void (async () => {
+      // Lower-priority extras that need a network call; otherwise the usual greeting.
+      const day = localDate(t, profile.timezone);
+      if (profile.weather?.on && t.getHours() < 12 && !seen(`ft:mascot-weather:${day}`)) {
+        const v = await outdoorToday(profile.weather, t);
+        const line = v && v.kind !== "bad" ? weatherLine(v, profile.unit) : "";
+        if (line) return mascot.say("weather", { weather: line });
+      }
+      const inv = profile.invites;
+      if (inv && shouldNudgeInvite({ sessions: allSessions, friends: (await store.friendsToday(t).catch(() => [])).length, nudges: inv.nudges, nudgedAt: inv.nudgedAt, now: t }, cfg.invites)) {
+        // Remembered on the account, so it's once a month across devices.
+        void store.updateProfile({ invites: { ...inv, nudgedAt: t.toISOString() } }).then(setProfile).catch(() => {});
+        return mascot.say("invite", {}, { label: "Invite a friend", href: "/friends#invite" });
+      }
+      if (today.kind === "rest") mascot.say("rest_day");
+      else mascot.say(t.getHours() < 12 ? "morning" : t.getHours() < 18 ? "afternoon" : "evening", { day: dayName });
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [today, allSessions]);
 
@@ -307,13 +326,20 @@ export default function TodayPage() {
     await load();
   };
 
-  const submitShorthand = async () => {
+  /** `picked`: the lift chosen from "Did you mean…" after a name didn't match (teaches the synonym). */
+  const submitShorthand = async (picked?: Exercise) => {
     const parsed = parseShorthand(shorthand);
     if (!parsed) return setShorthandErr('Try "185x5x3", "185 5,5,4" or "185x5, 195x3"');
+    setDidYouMean([]);
     let exId = focusId;
     if (parsed.exercise) {
-      const match = matchExercise(parsed.exercise, [...exercises.values()], cfg.logging.aliases);
-      if (!match) return setShorthandErr(`No exercise matches "${parsed.exercise}"`);
+      const match = picked ?? matchExercise(parsed.exercise, [...exercises.values()], cfg.logging.aliases);
+      if (!match) {
+        void store.recordNameMiss(parsed.exercise);
+        setDidYouMean(rankLifts(parsed.exercise, [...exercises.values()], plan.map((p) => p.exerciseId), 3));
+        return setShorthandErr(`No lift called "${parsed.exercise}". Did you mean:`);
+      }
+      if (picked) void store.voteAlias(parsed.exercise, picked.id);
       exId = match.id;
       if (!plan.some((p) => p.exerciseId === exId)) setExtraExercises((x) => [...x, match.id]);
     }
@@ -543,6 +569,11 @@ export default function TodayPage() {
                 <input style={{ flex: 1 }} placeholder='Quick: 185x5x3 · 185 5,5,4 · bench 185x5' value={shorthand} onChange={(e) => setShorthand(e.target.value)} aria-label="Shorthand sets" />
                 <button className="btn" type="submit">Log</button>
                 {shorthandErr && <div className="small" style={{ color: "var(--bad)", width: "100%" }}>{shorthandErr}</div>}
+                {shorthandErr && didYouMean.length > 0 && (
+                  <div className="row" style={{ width: "100%" }}>
+                    {didYouMean.map((e) => <button key={e.id} type="button" className="btn sm" onClick={() => void submitShorthand(e)}>{e.name}</button>)}
+                  </div>
+                )}
                 {!shorthandErr && voiceHint && <div className="muted small" style={{ width: "100%" }}>{voiceHint}</div>}
               </form>
             )}

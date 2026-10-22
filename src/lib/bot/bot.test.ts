@@ -120,6 +120,13 @@ describe("/log confirm flow", () => {
     await handleComponent(ctx(), pick.buttons![0].id);
     expect(data.sets.map((x) => x.exerciseId)).toEqual(["ex-incline-db", "ex-incline-db", "ex-incline-db"]);
   });
+  it("learns from the pick: the same name matches next time, and the miss is recorded", async () => {
+    const r = await run("log", { sets: "benchy 185 3x5" });
+    expect(data.misses).toEqual(["benchy"]);
+    await handleComponent(ctx(), r.select!.id, ["ex-incline-db"]);
+    expect(data.aliasVotes).toEqual({ benchy: "ex-incline-db" });
+    expect((await run("log", { sets: "benchy 185 3x5" })).content).toContain("**Incline Dumbbell Press**");
+  });
   it("kg suffix is respected for lb users", async () => {
     const r = await run("log", { sets: "bench 100kg 3x5" });
     expect(r.content).toContain("@ 220.5 lb");
@@ -362,6 +369,22 @@ describe("reminders / check-in", () => {
     expect((await runReminders(deps()))[0].result).toBe("sent");
     expect(dms[1].content).toMatch(/^⚖️/);
     expect(dms[1].buttons).toEqual([]);
+  });
+  it("adds a weather line when nudges are on, and sends good weather alone on a skipped day", async () => {
+    const forecast = { utc_offset_seconds: 0, hourly: { time: Array.from({ length: 24 }, (_, i) => `2026-10-21T${String(i).padStart(2, "0")}:00`), temperature_2m: Array(24).fill(18), apparent_temperature: Array(24).fill(18), precipitation_probability: Array(24).fill(0), weather_code: Array(24).fill(0), wind_speed_10m: Array(24).fill(8), is_day: Array.from({ length: 24 }, (_, i) => (i >= 7 && i <= 19 ? 1 : 0)) } };
+    const fakeFetch = (async () => new Response(JSON.stringify(forecast))) as unknown as typeof fetch;
+    data.users[0].weather = { on: true, lat: 30.27, lon: -97.74, place: "Austin" };
+    due();
+    await runReminders({ ...deps(), fetch: fakeFetch });
+    expect(dms[0].content).toContain("**Push** is up today");
+    expect(dms[0].content).toContain("Great weather for a run or walk");
+    expect(dms[0].content).toContain("Open-Meteo.com");
+    data.reminders.length = 0;
+    await data.startSession("u1", null, new Date("2026-10-21T08:00:00Z"));
+    due();
+    await runReminders({ ...deps(), fetch: fakeFetch });
+    expect(dms[1].content).toMatch(/^🌤️/);
+    expect(dms[1].content).toContain("weather nudges are on");
   });
   it("skips when you already trained today", async () => {
     await data.startSession("u1", null, new Date("2026-10-21T08:00:00Z"));

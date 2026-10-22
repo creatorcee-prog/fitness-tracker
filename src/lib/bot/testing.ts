@@ -2,6 +2,7 @@
 import { advance, getToday } from "@/lib/domain/split";
 import type { Exercise, FriendStatus, PREvent, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
 import { leaderboardRow } from "@/lib/domain/leaderboard";
+import { isLearnableAlias, normalizeAlias, withLearnedAliases } from "@/lib/domain/synonyms";
 import { seedSplit, SEED_EXERCISES } from "@/lib/store/seed";
 import type { NewSet } from "@/lib/store/types";
 import type { BotData, BotUser, DueReminder, GoalRow } from "./data";
@@ -29,8 +30,16 @@ export class FakeData implements BotData {
   async getActiveSplit() {
     return this.split;
   }
+  aliasVotes: Record<string, string> = {};
+  misses: string[] = [];
   async listExercises() {
-    return this.exercises;
+    return withLearnedAliases(this.exercises, Object.entries(this.aliasVotes).map(([alias, exerciseId]) => ({ alias, exerciseId, source: "you" as const })));
+  }
+  async voteAlias(_uid: string, typed: string, exerciseId: string) {
+    if (isLearnableAlias(typed)) this.aliasVotes[normalizeAlias(typed)] = exerciseId;
+  }
+  async recordNameMiss(name: string) {
+    this.misses.push(normalizeAlias(name));
   }
   async getOpenSession() {
     return this.sessions.find((s) => !s.finishedAt) ?? null;

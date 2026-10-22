@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fill, LINES, MOOD, pickLine, PRIORITY, type MascotEvent } from "./lines";
 
-const KNOWN = new Set(["name", "day", "lift", "weight", "reps", "goal", "streak", "days", "next", "weeks", "advice"]);
+const KNOWN = new Set(["name", "day", "lift", "weight", "reps", "goal", "streak", "days", "next", "weeks", "advice", "weather"]);
 
 describe("mascot lines", () => {
   it("every event has lines, a mood and a priority", () => {

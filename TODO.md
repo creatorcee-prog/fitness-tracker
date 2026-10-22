@@ -80,8 +80,10 @@ Slash commands through `/api/discord` in the web app (no separate bot server).
 - [x] Plateau detection with progressive-overload advice (Progress, James on Today, AI context)
 - [x] Weigh-in reminder in the daily check-in (only for people who log weight)
 - [x] Voice log (mic in the logging bar → quick box, you confirm)
-- [ ] Weather nudges for runs/walks (Open-Meteo; needs web push, so Home Screen install on iPhone)
-- [ ] Learned synonyms: promote renames/merges to library synonyms once 3+ people agree; typo tolerance
+- [x] Weather nudges for runs/walks (Open-Meteo): Discord check-in + James on Today
+- [ ] Web push for weather/reminders (needs Home Screen install on iPhone, VAPID keys)
+- [x] Learned synonyms: corrections (3+ people), typo tolerance, owner review with AI suggestions
+- [x] Invite nudges (monthly at most, opt-out) + recruiter badges; no admin friend-graph view
 - [x] `/help`
 
 ## Done: look and feel

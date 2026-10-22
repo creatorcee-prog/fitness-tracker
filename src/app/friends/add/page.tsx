@@ -22,7 +22,13 @@ export default function AddFriendPage() {
     done.current = true;
     const code = new URLSearchParams(window.location.search).get("code") ?? "";
     if (!code) return setMsg("No friend code in this link.");
-    store.sendFriendRequest(code).then((r) => { setMsg(RESULT[r] ?? r); refresh(); }).catch((e) => setMsg(String(e)));
+    // A brand-new account opening someone's link credits them (for their recruiter badge).
+    void store.claimInvite(code).then((claimed) =>
+      store.sendFriendRequest(code).then((r) => {
+        setMsg(`${claimed ? "Welcome aboard! " : ""}${RESULT[r] ?? r}`);
+        refresh();
+      }),
+    ).catch((e) => setMsg(String(e)));
   }, [store, refresh]);
 
   return (

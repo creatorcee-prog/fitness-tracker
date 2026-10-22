@@ -1,5 +1,6 @@
 import type { AppConfig } from "@/config/app.config";
 import { weighInDue } from "@/lib/domain/bodyweight";
+import { outdoorToday, WEATHER_CREDIT, weatherLine } from "@/lib/domain/weather";
 import { localDate } from "@/lib/domain/split";
 import { fromKg } from "@/lib/domain/units";
 import type { BotData, BotUser, DueReminder } from "./data";
@@ -12,6 +13,8 @@ export interface ReminderDeps {
   now: Date;
   appUrl: string;
   sendDM: (discordId: string, reply: BotReply) => Promise<void>;
+  /** For the weather forecast (tests pass a fake). */
+  fetch?: typeof fetch;
 }
 
 export interface ReminderOutcome {
@@ -28,15 +31,25 @@ export async function buildCheckIn(deps: ReminderDeps, r: DueReminder, force = f
   const user = await deps.data.getUserById(r.userId);
   if (!user) return { skip: "user gone" };
   const msg = await workoutCheckIn(deps, r, user, force);
-  // Daily checklist: a weigh-in line for people who track their weight. It also
-  // goes out on its own when the workout part is skipped (rest day, trained already).
+  // Daily checklist lines. They also go out on their own when the workout part
+  // is skipped (rest day, trained already), with a note on why you got them.
+  const extra: { line: string; why: string }[] = [];
   const entries = await deps.data.listBodyweight(user.id);
-  if (!weighInDue(entries, r.localDate, deps.cfg.reminders.weighInActiveDays)) return msg;
-  const latest = entries[entries.length - 1];
-  const example = Math.round(fromKg(latest.weightKg, user.unit));
-  const line = `⚖️ Don't forget to weigh in today: \`/bodyweight ${example}\``;
-  if ("skip" in msg) return { reply: { content: `${line}\n-# You get this because you've been logging your weight.` } };
-  return { reply: { ...msg.reply, content: `${msg.reply.content}\n${line}` } };
+  if (weighInDue(entries, r.localDate, deps.cfg.reminders.weighInActiveDays)) {
+    const example = Math.round(fromKg(entries[entries.length - 1].weightKg, user.unit));
+    extra.push({ line: `⚖️ Don't forget to weigh in today: \`/bodyweight ${example}\``, why: "you've been logging your weight" });
+  }
+  if (user.weather?.on) {
+    const v = await outdoorToday(user.weather, deps.now, deps.fetch ?? fetch);
+    // On their own, only good news: "rainy, go to the gym" isn't worth a DM on a rest day.
+    const line = v ? weatherLine(v, user.unit) : "";
+    if (line && (!("skip" in msg) || v!.kind !== "bad")) extra.push({ line, why: `weather nudges are on (${WEATHER_CREDIT})` });
+  }
+  if (!extra.length) return msg;
+  const lines = extra.map((x) => x.line).join("\n");
+  if ("skip" in msg) return { reply: { content: `${lines}\n-# You get this because ${extra.map((x) => x.why).join(" and ")}.` } };
+  const credit = extra.some((x) => x.why.includes(WEATHER_CREDIT)) ? `\n-# ${WEATHER_CREDIT}` : "";
+  return { reply: { ...msg.reply, content: `${msg.reply.content}\n${lines}${credit}` } };
 }
 
 async function workoutCheckIn(deps: ReminderDeps, r: DueReminder, user: BotUser, force: boolean): Promise<{ reply: BotReply } | { skip: string }> {

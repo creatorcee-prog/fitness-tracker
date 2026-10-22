@@ -3,12 +3,22 @@
 import { resolveConfig } from "@/config/runtime";
 import type { SupabaseStore } from "@/lib/store/supabase";
 
+export const AFTER_LOGIN_KEY = "ft:after-login";
+
 const LABEL = { discord: "Sign in with Discord", google: "Continue with Google" } as const;
 
 export function LoginScreen({ store }: { store: SupabaseStore }) {
   const { brand, auth } = resolveConfig();
-  const signIn = (provider: "discord" | "google") =>
-    store.sb.auth.signInWithOAuth({ provider, options: { redirectTo: `${location.origin}/auth/callback` } });
+  const signIn = (provider: "discord" | "google") => {
+    // Come back to the page you opened (e.g. a friend's invite link) after signing in.
+    try {
+      const here = location.pathname + location.search;
+      if (here !== "/") sessionStorage.setItem(AFTER_LOGIN_KEY, here);
+    } catch {
+      /* ignore */
+    }
+    return store.sb.auth.signInWithOAuth({ provider, options: { redirectTo: `${location.origin}/auth/callback` } });
+  };
   return (
     <div className="page center">
       <h1>{brand.appName}</h1>

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabaseOf } from "@/lib/store";
 import { useApp } from "./AppProvider";
@@ -58,7 +59,7 @@ export function SignInMethodsCard() {
           <code className="small" style={{ wordBreak: "break-all", flex: 1 }}>{profile.id}</code>
           <button className="btn sm" onClick={async () => { try { await navigator.clipboard.writeText(profile.id); setCopied(true); } catch { /* ignore */ } }}>{copied ? "Copied" : "Copy"}</button>
         </div>
-        <p className="muted small" style={{ margin: "6px 0 0" }}>For the app owner: put this in <code>AI_DEV_USER_IDS</code> (Vercel) to give an account developer limits for {cfg.brand.botName}.</p>
+        <p className="muted small" style={{ margin: "6px 0 0" }}>For the app owner: put this in <code>AI_DEV_USER_IDS</code> (Vercel) to give an account developer limits for {cfg.brand.botName}. Owner tools: <Link href="/dev/synonyms">Synonym review</Link>.</p>
       </details>
     </div>
   );
