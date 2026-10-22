@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultConfig as cfg } from "@/config/app.config";
-import { bodyweightTrend, relativeStrength } from "./bodyweight";
+import { bodyweightTrend, relativeStrength, weighInDue } from "./bodyweight";
 import type { SetEntry } from "./types";
 
 const day = (i: number) => new Date(Date.UTC(2026, 9, 21 - i)).toISOString().slice(0, 10);
@@ -26,5 +26,15 @@ describe("relativeStrength", () => {
     const s = (exerciseId: string, weightKg: number, reps: number, daysAgo: number, isWarmup = false): SetEntry => ({ id: `${exerciseId}${weightKg}${daysAgo}`, sessionId: "x", exerciseId, setIndex: 0, weightKg, reps, rpe: null, isWarmup, note: null, createdAt: new Date(now.getTime() - daysAgo * 86_400_000).toISOString() });
     const r = relativeStrength([s("sq", 140, 1, 3), s("sq", 200, 1, 3, true), s("sq", 180, 1, 90), s("bp", 100, 1, 5)], [{ id: "sq", name: "Squat", category: "lower", equipment: null, incrementKg: null, ownerId: null }, { id: "bp", name: "Bench", category: "upper", equipment: null, incrementKg: null, ownerId: null }], 80, cfg, now);
     expect(r.map((x) => [x.exercise, Number(x.ratio.toFixed(2))])).toEqual([["Squat", 1.75], ["Bench", 1.25]]);
+  });
+});
+
+describe("weighInDue", () => {
+  it("nudges only people who logged recently and not today", () => {
+    expect(weighInDue([], day(0), 14)).toBe(false);
+    expect(weighInDue([{ date: day(3), weightKg: 80 }], day(0), 14)).toBe(true);
+    expect(weighInDue([{ date: day(3), weightKg: 80 }, { date: day(0), weightKg: 80 }], day(0), 14)).toBe(false);
+    expect(weighInDue([{ date: day(20), weightKg: 80 }], day(0), 14)).toBe(false);
+    expect(weighInDue([{ date: day(3), weightKg: 80 }], day(0), 0)).toBe(false);
   });
 });

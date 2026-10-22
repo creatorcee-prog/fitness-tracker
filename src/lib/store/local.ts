@@ -3,6 +3,7 @@ import type { BodyweightEntry } from "@/lib/domain/bodyweight";
 import type { Goal } from "@/lib/domain/goals";
 import { advance, getToday, type Today } from "@/lib/domain/split";
 import type { AccountPrefs, Exercise, FriendProfile, FriendRequest, FriendStatus, NutritionEntry, NutritionTargets, PREvent, Reminder, Profile, ProfileMedia, Session, SetEntry, Split, SplitState } from "@/lib/domain/types";
+import { leaderboardRow } from "@/lib/domain/leaderboard";
 import { replayPRs } from "@/lib/domain/prs";
 import { planImport, type ExportData } from "@/lib/importPlan";
 import { libraryExercises, seedSplit } from "./seed";
@@ -29,6 +30,7 @@ interface DB {
   media: ProfileMedia;
   bodyweight: BodyweightEntry[];
   importMemory: Record<string, string>;
+  leaderboard: boolean;
 }
 
 /** UUIDs everywhere so ids are valid in both backends. */
@@ -62,6 +64,7 @@ function freshDb(cfg: AppConfig): DB {
     media: { avatar: null, banner: null },
     bodyweight: [],
     importMemory: {},
+    leaderboard: false,
   };
 }
 
@@ -389,6 +392,17 @@ export class LocalStore implements Store {
 
   async getShareStatus() {
     return this.read("getShareStatus", (db) => db.shareStatus);
+  }
+
+  async getLeaderboard(now: Date) {
+    // Local mode has no real friends: just you, once you've opted in.
+    const name = (id: string) => this.db.exercises.find((e) => e.id === id)?.name ?? "?";
+    const rows = this.db.leaderboard ? [leaderboardRow({ id: this.db.profile.id, name: this.db.profile.displayName, isYou: true }, this.db.sets, name, now)] : [];
+    return { optedIn: this.db.leaderboard, rows };
+  }
+
+  async setLeaderboardOptIn(on: boolean) {
+    this.mutate("setLeaderboardOptIn", (db) => (db.leaderboard = on));
   }
 
   async importMemory(keys: string[]) {

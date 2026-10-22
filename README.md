@@ -99,11 +99,12 @@ Setup:
 4. Discord Developer Portal → General Information → **Interactions Endpoint URL** = `https://<app>/api/discord`, then save. Discord verifies it, and that verification also registers the commands. (Manual fallback: `https://<app>/api/discord?register=1`.)
 5. Installation: enable Guild Install (scopes `applications.commands`, `bot`) and User Install (`applications.commands`), then use the install link.
 
-Commands: `/today` `/log` `/undo` `/done` `/skip` `/swap` `/lift` `/streak` `/friends` `/plates` `/rest` `/announce` `/goal` `/bodyweight` `/help`, with [Same again] / [Undo] buttons on `/log` and [Skip] on `/today`. Replies in servers are visible only to you (`bot.ephemeralInGuilds`).
+Commands: `/today` `/log` `/undo` `/done` `/skip` `/swap` `/lift` `/streak` `/friends` `/plates` `/rest` `/announce` `/goal` `/bodyweight` `/leaderboard` `/help`, with [Same again] / [Undo] buttons on `/log` and [Skip] on `/today`. Replies in servers are visible only to you (`bot.ephemeralInGuilds`).
 
 ### Reminders, daily check-in and PR announcements
 
 - **Reminders** (Settings → Reminders): a DM at your time with today's split day and **Start workout / Rest day / Skip / Snooze** buttons. Not sent if you already trained that day, or on weekly rest days (`reminders.*` in config). If Discord refuses the DM, that reminder switches off and Settings explains why.
+- **Weigh-in line**: if you've logged bodyweight in the last 14 days but not today, the check-in adds "weigh in today", or sends just that line when the workout part is skipped (`reminders.weighInActiveDays`, 0 = off). James mentions it on Today in the morning too.
 - **PR announcements**: run `/announce on` in a server channel and tick "Post my PRs" in Settings. PRs from the web app *and* Discord are posted there, once per set. The server re-checks every PR, so it can't be faked.
 
 Setup:
@@ -183,6 +184,12 @@ The sign-in screen says it's **invite only for now** and that **more sign-in opt
 ## Bodyweight
 
 Progress → **Bodyweight**, or `/bodyweight 182` in Discord (`/bodyweight` alone shows the trend). One entry per day; logging again replaces it. The headline numbers are the **7-day average** and a fitted **rate per week** over the last 4 weeks, not today vs yesterday (single weigh-ins swing with water and food). **Strength ÷ bodyweight** shows each lift's best est. 1RM over the last 6 weeks divided by your latest weight. No migration needed (`bodyweight_entries` exists since 0001). After deploying, open `/api/discord?register=1` to add `/bodyweight` and `/help`.
+
+## Plateaus, leaderboard and voice log
+
+- **Plateaus** (`src/lib/domain/plateau.ts`): a lift you're still training (within 2 weeks) whose best estimated 1RM hasn't improved by more than 1% for 3+ weeks. Each gets one next step, escalating: beat last time (3 weeks) → change the rep range (4–5) → deload ~10% (6+). Shown on Progress, by James on Today when that lift is on the plan (once a week per lift), and in the AI coach's context. While logging, the bar shows "Last time W×R · beat it!" (`logging.overloadHint`).
+- **Leaderboard** (Friends page, `/leaderboard view|join|leave`): you and friends who **opted in**, ranked by average % gain in best e1RM per lift, last 4 weeks vs 2–3 months ago (Epley, 1–10 reps, no warm-ups). Percent rather than pounds so beginners and veterans compete on progress. Only the % and top lift name are shared. Needs `supabase/migrations/0015_leaderboard.sql`.
+- **Voice log**: the 🎤 in the logging bar uses the browser's speech recognition. Say "185 for 5", "3 sets of 8 at 135" or "bench one eighty five by five"; it's turned into shorthand in the quick box and **nothing is saved until you tap Log**. Hidden where unsupported (Firefox). Safari/Chrome may send the audio to Apple/Google to transcribe. `features.voiceLog` to turn off.
 
 ## Import
 

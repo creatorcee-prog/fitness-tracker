@@ -70,6 +70,9 @@ export interface BotData {
   listGoals(uid: string): Promise<GoalRow[]>;
   /** Bodyweight entries (kg), oldest first. */
   listBodyweight(uid: string): Promise<{ date: string; weightKg: number }[]>;
+  /** Leaderboard (% gain) for this user and opted-in friends; null if they haven't opted in. */
+  leaderboard(uid: string, now: Date): Promise<import("@/lib/domain/leaderboard").LeaderboardRow[] | null>;
+  setLeaderboard(uid: string, on: boolean): Promise<void>;
   /** Log (or replace) a day's bodyweight (kg). */
   logBodyweight(uid: string, date: string, weightKg: number): Promise<void>;
   aiUsageToday(uid: string, date: string): Promise<{ user: number; global: number }>;
@@ -148,6 +151,20 @@ export class SupabaseBotData implements BotData {
   async listBodyweight(uid: string) {
     const rows = check(await this.sb.from("bodyweight_entries").select("date, weight").eq("user_id", uid).order("date"), "listBodyweight");
     return rows.map((r: Row) => ({ date: r.date, weightKg: Number(r.weight) }));
+  }
+
+  async leaderboard(uid: string, now: Date) {
+    const me = check(await this.sb.from("users").select("leaderboard").eq("id", uid).maybeSingle(), "leaderboard/optin") as Row | null;
+    if (!me?.leaderboard) return null;
+    const rows = check(await this.sb.rpc("leaderboard_for", { p_user: uid, p_now: now.toISOString() }), "leaderboard") as Row[];
+    return rows.map((r) => ({
+      userId: r.user_id, name: r.nickname || r.display_name, isYou: r.is_you, lifts: r.lifts,
+      avgGain: r.avg_gain == null ? null : Number(r.avg_gain), topLift: r.top_lift, topGain: r.top_gain == null ? null : Number(r.top_gain),
+    }));
+  }
+
+  async setLeaderboard(uid: string, on: boolean) {
+    check(await this.sb.from("users").update({ leaderboard: on }).eq("id", uid), "setLeaderboard");
   }
 
   async logBodyweight(uid: string, date: string, weightKg: number) {

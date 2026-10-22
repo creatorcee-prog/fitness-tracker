@@ -393,6 +393,26 @@ export class SupabaseStore implements Store {
     return check(await this.sb.from("users").select("share_status").eq("id", id).single(), "getShareStatus").share_status as boolean;
   }
 
+  async getLeaderboard(now: Date) {
+    const id = await this.userId();
+    const me = await this.sb.from("users").select("leaderboard").eq("id", id).maybeSingle();
+    if (me.error) throw new Error("The leaderboard needs migration 0015 (supabase/migrations/0015_leaderboard.sql).");
+    const optedIn = !!(me.data as Row | null)?.leaderboard;
+    const rows = check(await this.sb.rpc("leaderboard", { p_now: now.toISOString() }), "getLeaderboard") as Row[];
+    return {
+      optedIn,
+      rows: rows.map((r) => ({
+        userId: r.user_id, name: r.nickname || r.display_name, isYou: r.is_you, lifts: r.lifts,
+        avgGain: r.avg_gain == null ? null : Number(r.avg_gain), topLift: r.top_lift, topGain: r.top_gain == null ? null : Number(r.top_gain),
+      })),
+    };
+  }
+
+  async setLeaderboardOptIn(on: boolean) {
+    const id = await this.userId();
+    check(await this.sb.from("users").update({ leaderboard: on }).eq("id", id), "setLeaderboardOptIn");
+  }
+
   async importMemory(keys: string[]) {
     if (!keys.length) return { mine: {}, popular: {} };
     // Optional feature (migration 0011): without it, just ask every time.

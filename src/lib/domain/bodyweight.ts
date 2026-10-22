@@ -22,6 +22,16 @@ const DAY = 86_400_000;
 const t = (d: string) => Date.parse(`${d}T12:00:00Z`);
 
 /**
+ * Weigh-in nudge: only for people who track their weight (an entry in the last
+ * `activeDays`) and haven't weighed in today. Never weighed in, or stopped a
+ * while ago, means no nudges, so it never nags someone who doesn't care.
+ */
+export function weighInDue(entries: BodyweightEntry[], today: string, activeDays: number): boolean {
+  if (activeDays <= 0 || entries.some((e) => e.date === today)) return false;
+  return entries.some((e) => e.date < today && t(today) - t(e.date) <= activeDays * DAY);
+}
+
+/**
  * Trend from daily weigh-ins. Single weigh-ins swing 1–2 kg with water and
  * food, so the numbers shown are averages and a fitted rate, not "today vs
  * yesterday".

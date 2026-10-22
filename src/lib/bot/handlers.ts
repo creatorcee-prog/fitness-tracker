@@ -462,6 +462,39 @@ async function bodyweight(ctx: BotContext, weight: number | undefined, unitOpt?:
   return { content: lines.join("\n") };
 }
 
+const pct = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(1)}%`;
+
+async function leaderboard(ctx: BotContext, mode: string): Promise<BotReply> {
+  const u = await requireUser(ctx);
+  if (mode === "join" || mode === "leave") await ctx.data.setLeaderboard(u.id, mode === "join");
+  if (mode === "leave") return { content: "👋 You're off the leaderboard. Friends won't see your % gain. `/leaderboard join` any time." };
+  const rows = await ctx.data.leaderboard(u.id, ctx.now);
+  if (!rows) {
+    return {
+      content: [
+        "🏆 **Leaderboard** ranks you and friends who opted in by **% strength gain**: your best estimated 1RM per lift over the last 4 weeks vs 2–3 months ago, averaged.",
+        "Percent, not pounds, so a beginner and a veteran can compete fairly. Only the % and your top lift are shared, never your weights.",
+        "Join with `/leaderboard join`.",
+      ].join("\n"),
+    };
+  }
+  const ranked = rows.filter((r) => r.avgGain != null);
+  const medal = ["🥇", "🥈", "🥉"];
+  const lines = ranked.map((r, i) => {
+    const who = r.isYou ? `**${r.name} (you)**` : r.name;
+    return `${medal[i] ?? `${i + 1}.`} ${who} ${pct(r.avgGain!)} avg over ${r.lifts} lift${r.lifts === 1 ? "" : "s"}${r.topLift ? ` · best: ${r.topLift} ${pct(r.topGain!)}` : ""}`;
+  });
+  const waiting = rows.filter((r) => r.avgGain == null).map((r) => (r.isYou ? "you" : r.name));
+  return {
+    content: [
+      `🏆 **Leaderboard** (% strength gain, last 4 weeks vs 2–3 months ago)${mode === "join" ? "\nYou're in!" : ""}`,
+      lines.length ? lines.join("\n") : "Nobody has enough history yet. A lift counts once it was logged both 2–3 months ago and in the last 4 weeks.",
+      waiting.length ? `-# Not enough history yet: ${waiting.join(", ")}` : "",
+      "-# Friends show up once they `/leaderboard join`. `/leaderboard leave` to opt out.",
+    ].filter(Boolean).join("\n"),
+  };
+}
+
 function help(ctx: BotContext): BotReply {
   const bot = ctx.cfg.brand.botName;
   return {
@@ -469,7 +502,7 @@ function help(ctx: BotContext): BotReply {
       `👋 **${bot} · ${ctx.cfg.brand.appName}**`,
       `**Log a set:** \`/log\` with plain text. ${FREETEXT_HELP} You'll get Confirm / Cancel first. Short names work too: \`ohp\`, \`rdl\`, initials like \`bp\`.`,
       "**Your day:** `/today` · `/done` to finish · `/skip` · `/swap` · `/undo` the last set",
-      "**Progress:** `/lift` · `/streak` · `/goal` · `/bodyweight 182` · `/friends`",
+      "**Progress:** `/lift` · `/streak` · `/goal` · `/bodyweight 182` · `/friends` · `/leaderboard`",
       "**Tools:** `/plates 225` · `/rest 2m` · `/announce on` (post PRs in this channel)",
       `**Ask me:** \`/ask\` reads your logged data and answers (AI, not medical advice). In the app, the Ask ${bot} chat can also propose changes for you to approve.`,
       `**Account:** sign in at ${ctx.appUrl} with Discord (or link Discord in Settings if you use Google) so I know it's you.`,
@@ -572,6 +605,7 @@ export function handleCommand(ctx: BotContext, name: string, opts: Options): Pro
       case "announce": return announce(ctx, String(opts.mode ?? "on"));
       case "goal": return goals(ctx);
       case "bodyweight": return bodyweight(ctx, opts.weight === undefined ? undefined : Number(opts.weight), opts.unit as string | undefined);
+      case "leaderboard": return leaderboard(ctx, String(opts.mode ?? "view"));
       case "help": return help(ctx);
       default: return { content: `Unknown command /${name}` };
     }

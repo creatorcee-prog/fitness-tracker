@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useApp } from "@/components/AppProvider";
 import { Avatar } from "@/components/Avatar";
 import { FriendQr } from "@/components/FriendQr";
+import { LeaderboardCard } from "@/components/LeaderboardCard";
 import { useToast } from "@/components/UndoToast";
 import type { FriendRequest, FriendStatus } from "@/lib/domain/types";
 
@@ -102,6 +103,8 @@ export default function FriendsPage() {
           );
         })}
       </div>
+
+      <LeaderboardCard />
 
       <div className="card stack">
         <h2>Add a friend</h2>

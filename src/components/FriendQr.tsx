@@ -18,7 +18,7 @@ export function FriendQr({ code }: { code: string }) {
   }, [code, link]);
 
   const share = async () => {
-    if (navigator.share) await navigator.share({ title: `Add me on ${cfg.brand.appName}`, url: link }).catch(() => {});
+    if (navigator.share) await navigator.share({ title: `Add me on ${cfg.brand.appName}`, text: `Lift with me on ${cfg.brand.appName}! Tap to add me as a friend:`, url: link }).catch(() => {});
     else await navigator.clipboard?.writeText(link);
   };
 
@@ -27,7 +27,7 @@ export function FriendQr({ code }: { code: string }) {
     <div className="stack" style={{ justifyItems: "center" }}>
       {/* White quiet zone so it scans on dark themes too. */}
       <div style={{ width: 200, height: 200, background: "#fff", borderRadius: 16, padding: 10 }} dangerouslySetInnerHTML={{ __html: svg }} aria-label="Friend QR code" role="img" />
-      <button className="btn sm" onClick={share}>Share link</button>
+      <button className="btn sm" onClick={share}>Invite a friend</button>
     </div>
   );
 }

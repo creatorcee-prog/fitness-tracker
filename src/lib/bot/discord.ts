@@ -124,6 +124,11 @@ export const COMMANDS = [
       { type: STRING, name: "unit", description: "lb or kg (default: yours)", required: false, choices: [{ name: "lb", value: "lb" }, { name: "kg", value: "kg" }] },
     ],
   },
+  {
+    name: "leaderboard",
+    description: "Friends ranked by % strength gain this month (opt-in)",
+    options: [{ type: STRING, name: "mode", description: "view (default), join or leave", required: false, choices: [{ name: "view", value: "view" }, { name: "join", value: "join" }, { name: "leave", value: "leave" }] }],
+  },
   { name: "help", description: "How to use the bot: logging shorthand, commands, linking" },
   {
     name: "plates",

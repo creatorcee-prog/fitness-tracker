@@ -77,6 +77,8 @@ export const defaultConfig = {
      * Off = it starts from what you did last time and stays where you put it.
      */
     guided: false,
+    /** Without guided sets: show "last time" for the set you're on, so there's a number to beat (progressive overload). */
+    overloadHint: true,
     /** Stepper step for weight, per display unit. Per-exercise `increment` wins when set. */
     weightStep: { lb: 5, kg: 2.5 } as Record<Unit, number>,
     repStep: 1,
@@ -239,6 +241,11 @@ export const defaultConfig = {
     skipIfTrainedToday: true,
     /** Send on weekly-split rest days too. */
     onRestDays: false,
+    /**
+     * Weigh-in nudge: the check-in DM (and James on Today, mornings) reminds you to
+     * log bodyweight if you've logged it within this many days but not today. 0 = off.
+     */
+    weighInActiveDays: 14,
   },
 
   nutrition: {
@@ -283,6 +290,8 @@ export const defaultConfig = {
     /** Toggle whole features on/off for debugging. */
     restTimer: true,
     shorthandBox: true,
+    /** Mic button in the logging bar (browser speech recognition). Fills the quick box; you confirm. */
+    voiceLog: true,
     plateCalculator: true,
     progressionHints: true,
     undoToast: true,

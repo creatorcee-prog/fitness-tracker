@@ -1,14 +1,19 @@
 /**
- * Writes supabase/migrations/0012_exercise_library.sql from src/lib/domain/library.ts.
+ * Writes the exercise-library migration from src/lib/domain/library.ts.
  * Run: npm run gen:library
+ * When the library changes after a migration has shipped, bump FILE to a new
+ * number so nobody has to wonder which version of an old file they ran. Each
+ * file holds the whole library and is safe to run more than once.
  */
 import { writeFileSync } from "node:fs";
 import { LIBRARY } from "../src/lib/domain/library";
 
+const FILE = "supabase/migrations/0014_exercise_library_more.sql";
+
 const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
 const arr = (xs: string[]) => `array[${xs.map(q).join(", ")}]::text[]`;
 
-const sql = `-- Exercise library: fixes duplicates and adds ~${LIBRARY.length} exercises with synonyms.
+const sql = `-- Exercise library (${LIBRARY.length} exercises with synonyms); also merges any duplicates.
 -- Generated from src/lib/domain/library.ts by \`npm run gen:library\`. Safe to run more than once.
 
 -- 1. Synonyms ("RDL", "stiff leg deadlift" → Romanian Deadlift), used when matching what people type.
@@ -42,5 +47,5 @@ insert into public.exercises (name, category, equipment, aliases) values
 ${LIBRARY.map((e) => `  (${q(e.name)}, ${q(e.category)}, ${q(e.equipment)}, ${arr(e.aliases)})`).join(",\n")}
 on conflict ((lower(name))) where owner_id is null do update set aliases = excluded.aliases;
 `;
-writeFileSync("supabase/migrations/0012_exercise_library.sql", sql);
+writeFileSync(FILE, sql);
 console.log(`wrote ${LIBRARY.length} exercises`);

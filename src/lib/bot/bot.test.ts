@@ -280,7 +280,7 @@ describe("discord plumbing", () => {
     expect(m.components[0].components[0]).toMatchObject({ type: 2, label: "Undo", custom_id: "undo:x" });
   });
   it("registers commands for server and user installs", () => {
-    expect(COMMANDS.map((c) => c.name)).toEqual(["today", "log", "undo", "done", "skip", "swap", "lift", "streak", "friends", "goal", "bodyweight", "help", "plates", "rest", "ask", "announce"]);
+    expect(COMMANDS.map((c) => c.name)).toEqual(["today", "log", "undo", "done", "skip", "swap", "lift", "streak", "friends", "goal", "bodyweight", "leaderboard", "help", "plates", "rest", "ask", "announce"]);
     expect(COMMANDS.find((c) => c.name === "announce")!.contexts).toEqual([0]);
     for (const c of COMMANDS) {
       expect(c.integration_types).toEqual([0, 1]);
@@ -349,6 +349,19 @@ describe("reminders / check-in", () => {
     expect(dms[0].buttons).toEqual(["ci:start", "ci:rest", "ci:skip", "ci:snooze:r1"]);
     expect(data.reminders[0].sentOn).toBe("2026-10-21");
     expect(await runReminders(deps())).toEqual([]); // once per day
+  });
+  it("adds a weigh-in line for people who track their weight, and sends it alone when the workout part is skipped", async () => {
+    data.bodyweight.push({ date: "2026-10-19", weightKg: toKg(182, "lb") });
+    due();
+    await runReminders(deps());
+    expect(dms[0].content).toContain("**Push** is up today");
+    expect(dms[0].content).toContain("weigh in today: `/bodyweight 182`");
+    data.reminders.length = 0;
+    await data.startSession("u1", null, new Date("2026-10-21T08:00:00Z"));
+    due();
+    expect((await runReminders(deps()))[0].result).toBe("sent");
+    expect(dms[1].content).toMatch(/^⚖️/);
+    expect(dms[1].buttons).toEqual([]);
   });
   it("skips when you already trained today", async () => {
     await data.startSession("u1", null, new Date("2026-10-21T08:00:00Z"));
@@ -430,6 +443,24 @@ describe("/bodyweight and /help", () => {
     expect(r.content).toContain("/bodyweight 182");
   });
   it("registers both commands", () => {
-    expect(COMMANDS.map((c) => c.name)).toEqual(expect.arrayContaining(["bodyweight", "help"]));
+    expect(COMMANDS.map((c) => c.name)).toEqual(expect.arrayContaining(["bodyweight", "leaderboard", "help"]));
+  });
+});
+
+describe("/leaderboard", () => {
+  it("explains and asks to opt in, then ranks you after joining", async () => {
+    expect((await run("leaderboard")).content).toContain("/leaderboard join");
+    const old = new Date(Date.UTC(2026, 7, 1)).toISOString();
+    const recent = new Date(Date.UTC(2026, 9, 18)).toISOString();
+    const bench = data.exercises.find((e) => /bench/i.test(e.name))!;
+    data.sets.push(
+      { id: "a", sessionId: "s", exerciseId: bench.id, setIndex: 0, weightKg: 100, reps: 5, rpe: null, isWarmup: false, note: null, createdAt: old },
+      { id: "b", sessionId: "s", exerciseId: bench.id, setIndex: 0, weightKg: 110, reps: 5, rpe: null, isWarmup: false, note: null, createdAt: recent },
+    );
+    const r = await run("leaderboard", { mode: "join" });
+    expect(r.content).toContain("You're in!");
+    expect(r.content).toContain("+10.0%");
+    expect((await run("leaderboard", { mode: "leave" })).content).toContain("off the leaderboard");
+    expect((await run("leaderboard")).content).toContain("/leaderboard join");
   });
 });

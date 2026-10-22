@@ -18,10 +18,14 @@ import { platesPerSide } from "@/lib/domain/plates";
 import { prefillFor, type Prefill } from "@/lib/domain/progression";
 import { prsForSet, replayPRs } from "@/lib/domain/prs";
 import { parseShorthand } from "@/lib/domain/shorthand";
-import { nextPosition, type Today } from "@/lib/domain/split";
+import { spokenToShorthand } from "@/lib/domain/spoken";
+import { VoiceLogButton } from "@/components/VoiceLogButton";
+import { weighInDue, type BodyweightEntry } from "@/lib/domain/bodyweight";
+import { localDate, nextPosition, type Today } from "@/lib/domain/split";
 import type { Exercise, PREvent, PRType, Session, SetEntry, Split, SplitDay } from "@/lib/domain/types";
 import { formatWeight, fromKg, roundTo, toKg } from "@/lib/domain/units";
 import { finishedBetween, weekStart, freezeRules, weeklyStreak } from "@/lib/domain/stats";
+import { detectPlateaus } from "@/lib/domain/plateau";
 import { lastSessionSets, logSet, rebuildPRs, stepKg } from "@/lib/service";
 
 /** Whole days since the last finished workout (null if none yet). */
@@ -62,6 +66,7 @@ export default function TodayPage() {
   const [showPlates, setShowPlates] = useState(false);
   const [shorthand, setShorthand] = useState("");
   const [shorthandErr, setShorthandErr] = useState<string | null>(null);
+  const [voiceHint, setVoiceHint] = useState<string | null>(null);
   const [timer, setTimer] = useState<TimerState | null>(null);
   const [busy, setBusy] = useState(false);
   /** The logging bar shows only while you're logging: a workout is open, or you picked an exercise / tapped Start. */
@@ -69,10 +74,11 @@ export default function TodayPage() {
   /** First sign-in setup, until it's finished or skipped. */
   const [setupDone, setSetupDone] = useState(false);
   const workoutRef = useRef<HTMLDivElement>(null);
+  const [bodyweight, setBodyweight] = useState<BodyweightEntry[]>([]);
 
   const load = useCallback(async () => {
-    const [t, splits, open, exList, sessions] = await Promise.all([
-      store.getToday(now()), store.listSplits(), store.getOpenSession(), store.listExercises(), store.listSessions(),
+    const [t, splits, open, exList, sessions, bw] = await Promise.all([
+      store.getToday(now()), store.listSplits(), store.getOpenSession(), store.listExercises(), store.listSessions(), store.listBodyweight().catch(() => []),
     ]);
     const exMap = new Map(exList.map((e) => [e.id, e]));
     const active = splits.find((s) => s.isActive) ?? null;
@@ -85,6 +91,7 @@ export default function TodayPage() {
     setExercises(exMap);
     setHistory(hist);
     setAllSessions(sessions);
+    setBodyweight(bw);
   }, [store, now]);
 
   useEffect(() => {
@@ -108,6 +115,18 @@ export default function TodayPage() {
       /* ignore */
     }
     const dayName = today.kind === "day" ? today.day.name : undefined;
+    const planIds = new Set(today.kind === "day" ? today.day.exercises.map((x) => x.exerciseId) : []);
+    const stalledToday = detectPlateaus([...history.values()].flat(), [...exercises.values()], t, cfg).find((p) => planIds.has(p.exerciseId));
+    /** True if already shown; marks it shown otherwise. */
+    const seen = (key: string) => {
+      try {
+        if (localStorage.getItem(key)) return true;
+        localStorage.setItem(key, "1");
+      } catch {
+        /* ignore */
+      }
+      return false;
+    };
     if (!allSessions.length) mascot.say("first_visit");
     else if (cfg.mascot.streakMilestones.includes(streak) && thisWeek >= target && !seenMilestone) {
       try {
@@ -117,7 +136,13 @@ export default function TodayPage() {
       }
       mascot.say("streak_milestone", { streak });
     } else if (gap != null && gap >= cfg.mascot.missedDays) mascot.say("missed_days", { days: gap, day: dayName });
-    else if (today.kind === "rest") mascot.say("rest_day");
+    else if (stalledToday && !seen(`ft:mascot-plateau:${stalledToday.exerciseId}:${weekStart(t, cfg.split.weekStartsOn).toISOString().slice(0, 10)}`)) {
+      // Once a week per lift: a stalled lift on today's plan gets James's next step.
+      mascot.say("plateau", { lift: stalledToday.name, weeks: stalledToday.weeks, advice: stalledToday.advice });
+    } else if (t.getHours() < 12 && weighInDue(bodyweight, localDate(t, profile.timezone), cfg.reminders.weighInActiveDays) && !seen(`ft:mascot-weighin:${localDate(t, profile.timezone)}`)) {
+      // Mornings, once a day, only for people who've been logging their weight.
+      mascot.say("weigh_in");
+    } else if (today.kind === "rest") mascot.say("rest_day");
     else mascot.say(t.getHours() < 12 ? "morning" : t.getHours() < 18 ? "afternoon" : "evening", { day: dayName });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [today, allSessions]);
@@ -308,6 +333,7 @@ export default function TodayPage() {
       if (prs.length) void store.announcePRs(set.id);
     }
     setShorthand("");
+    setVoiceHint(null);
     if (allPrs.size) {
       const best = created[created.length - 1];
       mascot.say("pr", { lift: exercises.get(exId)?.name ?? "Lift", weight: `${Number(fromKg(best.weightKg, unit).toFixed(1))} ${unit}`, reps: best.reps });
@@ -485,6 +511,11 @@ export default function TodayPage() {
             <div className="spread">
               <strong>{focusEx?.name} · {draft.isWarmup ? "warm-up" : `set ${focusWorkingCount + 1}`}</strong>
               {!session && <button className="btn sm ghost" onClick={() => setLogging(false)} aria-label="Hide the logging bar">Hide</button>}
+              {!cfg.logging.guided && cfg.logging.overloadHint && (() => {
+                const last = lastSessionSets(history.get(focusId) ?? [], session?.id ?? null).filter((x) => !x.isWarmup);
+                const ref = last[Math.min(focusWorkingCount, last.length - 1)];
+                return ref ? <span className="muted small">Last time {Number(fromKg(ref.weightKg, unit).toFixed(1))}×{ref.reps} · beat it!</span> : null;
+              })()}
               {cfg.logging.guided && cfg.features.progressionHints && prefill && (
                 <span className="muted small">
                   {prefill.reason === "progression" ? `↑ +${cfg.progression.jump[unit][focusEx?.category ?? "other"]} ${unit}, all reps hit` : prefill.reason === "hold-missed" ? "Hold weight: missed reps last time" : prefill.reason === "last-time" ? "Same as last time" : "No history yet"}
@@ -512,11 +543,25 @@ export default function TodayPage() {
                 <input style={{ flex: 1 }} placeholder='Quick: 185x5x3 · 185 5,5,4 · bench 185x5' value={shorthand} onChange={(e) => setShorthand(e.target.value)} aria-label="Shorthand sets" />
                 <button className="btn" type="submit">Log</button>
                 {shorthandErr && <div className="small" style={{ color: "var(--bad)", width: "100%" }}>{shorthandErr}</div>}
+                {!shorthandErr && voiceHint && <div className="muted small" style={{ width: "100%" }}>{voiceHint}</div>}
               </form>
             )}
             <div className="row" style={{ flexWrap: "nowrap" }}>
               <button className="btn" onClick={() => setShowMore(!showMore)} aria-expanded={showMore}>{showMore ? "Less" : "More"}</button>
               {cfg.features.plateCalculator && <button className={`btn ${showPlates ? "active" : ""}`} onClick={() => setShowPlates(!showPlates)}>Plates</button>}
+              {cfg.features.voiceLog && cfg.features.shorthandBox && (
+                <VoiceLogButton
+                  onError={(msg) => { setShowMore(true); setVoiceHint(null); setShorthandErr(msg); }}
+                  onHeard={(heard) => {
+                    // Never logs straight away: the guess goes in the quick box for you to check and tap Log.
+                    const guess = spokenToShorthand(heard);
+                    setShowMore(true);
+                    setShorthand(guess ?? heard);
+                    setShorthandErr(guess ? null : `Heard "${heard}" but couldn't read a set from it. Try "185 for 5".`);
+                    setVoiceHint(guess ? `Heard "${heard}". Check it, then tap Log.` : null);
+                  }}
+                />
+              )}
               <button className="btn primary big" style={{ flex: 1 }} disabled={busy} onClick={saveDraft}>Save set</button>
             </div>
           </div>
