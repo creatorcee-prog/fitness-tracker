@@ -71,7 +71,21 @@ Slash commands through `/api/discord` in the web app (no separate bot server).
 
 ## Next
 
-- [ ] Web push reminders (needs Home Screen install on iPhone)
+- [ ] Notifications from James (web push to the Home Screen app)
+      - Pick the alerts first: workout reminders and the daily check-in,
+        rest timer done, weather nudges, PRs and streak milestones. Each one
+        switchable in Settings, so pointless pings don't get push turned off.
+      - Needs VAPID keys in Vercel, a push handler in `public/sw.js`, a
+        subscriptions table in Supabase, and a Turn on / Send a test pair
+        in Settings.
+      - iPhone: only works from the Home Screen app (Safari's Share, Add
+        to Home Screen, Open as Web App on). Check for `Notification`
+        before using it and say so plainly, rather than erroring.
+      - Lessons from the bot hub: wire the buttons before any setup awaits,
+        time-limit each step and show every error on screen; drop a stale
+        subscription before subscribing with new keys; trust the server's
+        device count over the phone's own copy.
+      - Add a PNG app icon (180px apple-touch-icon); iPhone ignores the SVG.
 
 ## Later: bot ideas
 
@@ -81,7 +95,6 @@ Slash commands through `/api/discord` in the web app (no separate bot server).
 - [x] Weigh-in reminder in the daily check-in (only for people who log weight)
 - [x] Voice log (mic in the logging bar → quick box, you confirm)
 - [x] Weather nudges for runs/walks (Open-Meteo): Discord check-in + James on Today
-- [ ] Web push for weather/reminders (needs Home Screen install on iPhone, VAPID keys)
 - [x] Learned synonyms: corrections (3+ people), typo tolerance, owner review with AI suggestions
 - [x] Invite nudges (monthly at most, opt-out) + recruiter badges; no admin friend-graph view
 - [x] `/help`
