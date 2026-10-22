@@ -142,6 +142,7 @@ James also works inside the bot hub (`creatorcee-prog/dashboard-app`): its dashb
 
 - **`GET /api/hub`**: the training summary James reads before answering (the same server-built facts as `/ask`, about 600 tokens), for the hub's Fitness card.
 - **`POST /api/hub`** `{question, history}`: ask James. Same prompt, caps and usage tracking as the in-app chat. Proposed changes can't be applied from the hub, so it only gets a count and points you to the app.
+- **`POST /api/hub`** `{command, options}` / `{component, values}`: the Discord bot's training commands for the linked account (`log`, `undo`, `done`, `skip`, `today`, `lift`, `streak`, `goal`, `bodyweight`, `plates`, `rest`, `help`), run by the same handlers as Discord (`src/lib/hub.ts`). The reply's buttons (Confirm, which lift, Same again, Undo) come back as ids the hub shows as its own buttons; pressing one sends `{component}`. Nothing social or Discord-posting is allowed.
 - **Auth:** `Authorization: Bearer <HUB_SECRET>`. Off (503) until both settings below are set.
 - **Setup:**
   1. In Vercel, add `HUB_SECRET` (Secret, any long random string) and `HUB_USER_ID` (your Account ID from Settings → Sign-in methods), then redeploy.

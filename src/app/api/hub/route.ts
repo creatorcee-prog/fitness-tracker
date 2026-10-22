@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { resolveConfig } from "@/config/runtime";
 import { aiEnvFromProcess, handleAsk, type ChatTurn } from "@/lib/ai/ask";
 import { serviceClient, SupabaseBotData } from "@/lib/bot/data";
-import { hubAuthorized, hubEnvFromProcess, hubSummary } from "@/lib/hub";
+import { hubAuthorized, hubCommand, hubEnvFromProcess, hubSummary, type HubCommandInput } from "@/lib/hub";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,8 +11,10 @@ export const maxDuration = 60;
 /**
  * The bot hub's line to James (see src/lib/hub.ts). GET: the training
  * summary for the hub's Fitness card. POST {question, history}: ask James,
- * with the same prompt, caps and usage tracking as the in-app chat. Both
- * need `Authorization: Bearer <HUB_SECRET>`.
+ * with the same prompt, caps and usage tracking as the in-app chat.
+ * POST {command, options} or {component, values}: the Discord bot's
+ * training commands (log with Confirm, undo, done, today...) for the
+ * linked account. All need `Authorization: Bearer <HUB_SECRET>`.
  */
 function gate(req: NextRequest) {
   const env = hubEnvFromProcess();
@@ -38,7 +40,18 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const { env, fail } = gate(req);
   if (fail) return fail;
-  const body = (await req.json().catch(() => ({}))) as { question?: string; history?: ChatTurn[] };
+  const body = (await req.json().catch(() => ({}))) as { question?: string; history?: ChatTurn[] } & HubCommandInput;
+  if (typeof body.command === "string" || typeof body.component === "string") {
+    try {
+      const cfg = resolveConfig();
+      const reply = await hubCommand(new SupabaseBotData(serviceClient, cfg), cfg, env, new Date(),
+        process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin, body);
+      return NextResponse.json(reply);
+    } catch (e) {
+      console.error("[hub] command", e);
+      return NextResponse.json({ content: "⚠️ Something went wrong. Try again in a bit." }, { status: 200 });
+    }
+  }
   if (typeof body.question !== "string") return NextResponse.json({ error: "bad request" }, { status: 400 });
   try {
     const sb = serviceClient();

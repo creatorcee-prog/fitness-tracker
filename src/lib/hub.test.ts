@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { defaultConfig } from "@/config/app.config";
 import { FakeData } from "@/lib/bot/testing";
 import { toKg } from "@/lib/domain/units";
-import { hubAuthorized, hubEnvFromProcess, hubSummary, type HubEnv } from "./hub";
+import { hubAuthorized, hubCommand, hubEnvFromProcess, hubSummary, type HubEnv } from "./hub";
 
 const NOW = new Date("2026-10-21T17:00:00Z");
 const env: HubEnv = { secret: "s3cret-value", userId: "u1" };
@@ -44,4 +44,30 @@ describe("hub link", () => {
   it("returns null when HUB_USER_ID matches no account", async () => {
     expect(await hubSummary(data, defaultConfig, { ...env, userId: "nobody" }, NOW)).toBeNull();
   });
+
+  it("logs a set for the linked account through the bot's Confirm flow", async () => {
+    const r = await hubCommand(data, defaultConfig, env, NOW, "https://app.test", { command: "log", options: { sets: "4x8 bench 185" } });
+    expect(r.content).toContain("**Bench Press**: 4 × 8 reps @ 185 lb");
+    expect(data.sets).toHaveLength(0);
+    const confirm = r.buttons!.find((b) => b.id.startsWith("lc:"))!;
+    const saved = await hubCommand(data, defaultConfig, env, NOW, "https://app.test", { component: confirm.id });
+    expect(saved.content).toContain("✅ **Bench Press**");
+    expect(data.sets).toHaveLength(4);
+    const undo = saved.buttons!.find((b) => b.id.startsWith("undo:"))!;
+    await hubCommand(data, defaultConfig, env, NOW, "https://app.test", { component: undo.id });
+    expect(data.sets).toHaveLength(3);
+  });
+
+  it("acts as HUB_USER_ID whatever the Discord lookup would say", async () => {
+    data.users[0].discordId = "someone-else";
+    const r = await hubCommand(data, defaultConfig, env, NOW, "https://app.test", { command: "today" });
+    expect(r.content).not.toContain("I don't know you yet");
+  });
+
+  it("refuses commands and buttons that aren't for training", async () => {
+    expect((await hubCommand(data, defaultConfig, env, NOW, "x", { command: "announce" })).content).toContain("isn't available");
+    expect((await hubCommand(data, defaultConfig, env, NOW, "x", { command: "leaderboard" })).content).toContain("isn't available");
+    expect((await hubCommand(data, defaultConfig, env, NOW, "x", { component: "ci:snooze:r1" })).content).toContain("isn't available");
+  });
 });
+
