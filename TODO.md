@@ -98,6 +98,15 @@ Slash commands through `/api/discord` in the web app (no separate bot server).
 - [x] Learned synonyms: corrections (3+ people), typo tolerance, owner review with AI suggestions
 - [x] Invite nudges (monthly at most, opt-out) + recruiter badges; no admin friend-graph view
 - [x] `/help`
+- [ ] James works from body measurements you give him (asked 2026-10-23).
+      - Log measurements in chat or on Progress: height, waist, neck, hips,
+        chest, arms, thighs, alongside bodyweight.
+      - James calculates from them: body-fat estimate (the US Navy tape
+        method), waist-to-height ratio, lean mass, and how each changed
+        since last time. Say plainly they're estimates, not a scan.
+      - He uses them in advice ("waist down 1 inch while bench went up").
+      - Units: inches or cm, stored one way, shown the way you entered them.
+      - Private like bodyweight: never shown to friends or on the leaderboard.
 
 ## Done: look and feel
 
