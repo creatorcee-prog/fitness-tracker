@@ -147,6 +147,15 @@ James also works inside the bot hub (`creatorcee-prog/dashboard-app`): its dashb
 - **Setup:**
   1. In Vercel, add `HUB_SECRET` (Secret, any long random string) and `HUB_USER_ID` (your Account ID from Settings → Sign-in methods), then redeploy.
   2. In the hub's Vercel project, set `GARAGE_GYM_URL` to this app's URL and `GARAGE_GYM_SECRET` to the same `HUB_SECRET`.
+- **James asks the hub:** when a question needs knowledge James doesn't have (nutrition facts,
+  how an exercise works, research, gear), he replies `ASK_HUB: <question>` instead of guessing. The
+  app sends that question, plus the asker's own training summary, to the hub (`POST /api/gym/ask`,
+  `x-hub-secret: <HUB_SECRET>`). The hub's Mistral answers with general knowledge and a web
+  search, without the hub owner's personal data, tools or paid model, and with a daily cap
+  (`GYM_ASK_DAILY` on the hub, 40 by default). James then answers again with what came back and
+  the sources. To turn it on, also set `HUB_URL` here (the hub's address, like
+  `https://<hub>.vercel.app`). With no `HUB_URL`, James never asks upward. If the hub can't help,
+  James says so plainly.
 
 ## Goals and James (the mascot)
 

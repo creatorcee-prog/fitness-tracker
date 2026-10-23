@@ -187,6 +187,58 @@ describe("in-app chat", () => {
   });
 });
 
+describe("asking the hub (James asks upward)", () => {
+  const hubEnv = () => env({ hubUrl: "https://hub.test", hubSecret: "shared" });
+  /** Like fakeFetch, but answers the hub's endpoint separately. */
+  function withHub(script: ({ status: number; json?: unknown } | Error)[], hub: { status: number; json?: unknown } | Error): typeof fetch {
+    const provider = fakeFetch(script);
+    return (async (url: string, init: RequestInit) => {
+      if (url === "https://hub.test/api/gym/ask") {
+        calls.push({ url, body: { ...JSON.parse(String(init.body)), _secret: (init.headers as Record<string, string>)["x-hub-secret"] } });
+        if (hub instanceof Error) throw hub;
+        return new Response(JSON.stringify(hub.json ?? {}), { status: hub.status });
+      }
+      return provider(url, init);
+    }) as unknown as typeof fetch;
+  }
+
+  it("only offers ASK_HUB when the hub is set up", () => {
+    expect(systemPrompt(defaultConfig, "lb", false, true)).toContain("ASK_HUB:");
+    expect(systemPrompt(defaultConfig, "lb", false, false)).not.toContain("ASK_HUB");
+  });
+
+  it("forwards a question James can't answer, then answers with what the hub found", async () => {
+    await seedHistory();
+    const f = withHub([ok("ASK_HUB: How much protein per kg should a lifter eat?"), ok("I checked with my crew: aim for about 1.6–2.2 g per kg a day!")],
+      { status: 200, json: { ok: true, answer: "Most research suggests 1.6–2.2 g/kg/day.", sources: ["https://example.org/protein", "javascript:alert(1)"] } });
+    const r = await handleAsk(appDeps(f, hubEnv()), "How much protein should I eat?");
+    expect(r.outcome).toBe("answered");
+    expect(r.answer).toContain("I checked with my crew");
+    expect(r.answer).toContain("Sources:\n[1] https://example.org/protein");
+    expect(r.answer).not.toContain("javascript:");
+    expect(r.answer).not.toContain("ASK_HUB");
+    const hubCall = calls.find((c) => c.url === "https://hub.test/api/gym/ask")!;
+    expect(hubCall.body).toMatchObject({ question: "How much protein per kg should a lifter eat?", _secret: "shared" });
+    expect(String(hubCall.body.context)).toContain("Bench Press");
+    const second = calls.filter((c) => c.url.endsWith("/chat/completions"))[1].body.messages as { content: string }[];
+    expect(second[second.length - 1].content).toContain("1.6–2.2 g/kg/day");
+    expect((await data.aiUsageToday("u1", "2026-10-21")).user).toBe(2);
+  });
+
+  it("says so plainly when the hub can't help", async () => {
+    const r = await handleAsk(appDeps(withHub([ok("ASK_HUB: What's creatine?")], { status: 502 }), hubEnv()), "What's creatine?");
+    expect(r.outcome).toBe("answered");
+    expect(r.answer).toContain("couldn't check with my crew");
+    expect(r.answer).not.toContain("ASK_HUB");
+  });
+
+  it("never calls the hub when it isn't set up", async () => {
+    const r = await handleAsk(appDeps(fakeFetch([ok("Your bench is up!")])), "How's my bench?");
+    expect(r.answer).toBe("Your bench is up!");
+    expect(calls.some((c) => c.url.includes("/api/gym/ask"))).toBe(false);
+  });
+});
+
 describe("training context", () => {
   it("is compact and only contains logged facts", async () => {
     await seedHistory();
